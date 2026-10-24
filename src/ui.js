@@ -115,7 +115,7 @@ function fixAll(){
     const list = dryIssues().filter(i => i.fix && !done.has(i.key + "|" + i.fix.label));
     if (!list.length) break;
     const is = list[0]; done.add(is.key + "|" + is.fix.label);
-    if ([is.fix].concat(is.alts || []).filter(f => !(f.moves && S.keepClose !== false)).some(f => f.run())) fixed++;
+    if (is.fix.run()) fixed++; // each fix already works through every way of clearing its check, in the preferred order
   }
   renderTypeSizes(); renderEditor(); changed();
   const left = dryIssues().filter(i => i.cat !== "geo").length;

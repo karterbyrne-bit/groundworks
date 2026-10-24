@@ -123,8 +123,11 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(athletics > footy*0.9 && athletics < footy*1.05 && !(await last()).issues, "the lower tier slides back to fit an athletics track");
   await page.selectOption("#cvHow", "cover"); await page.waitForTimeout(400);
   check((await cap()) < athletics, "decking over the front rows costs seats");
+  const roofsNow = () => page.evaluate(() => window.__gw.last().screenCtx.anchors.map(g => (g.RR || []).filter(Boolean).map(r => r.inner.toFixed(2) + "@" + r.y(0).toFixed(2)).join(",")).join("|"));
+  const roofsAth = await roofsNow();
   await page.click('label[for="cvs-base"]'); await page.waitForTimeout(400);
   check((await cap()) === footy, "switching back to football restores the ground");
+  check((await roofsNow()) === roofsAth, "converting moves seats, not the roof");
   await page.uncheck("#cvOn"); await page.waitForTimeout(300);
   // a blank pitch, and football's hard stop at the pitch and its run-off
   await page.click('#panes [data-pane="start"]'); await page.click('[data-p="blank"]'); await page.waitForTimeout(300);
