@@ -295,7 +295,8 @@ renderer.domElement.addEventListener("pointermove", e => {
   if (drag && drag.type === "h"){
     setNdc(e); const p = new THREE.Vector3(); if (!ray.ray.intersectPlane(drag.plane, p)) return;
     const h = drag.h, vv = h.v[0]*h.v[0] + h.v[1]*h.v[1] || 1, d = ((p.x - h.o[0])*h.v[0] + (p.z - h.o[1])*h.v[1])/vv;
-    if (h.kind === "depth") h.ref.rows = clamp(Math.round((d - h.front)/h.T), 2, 90);
+    if (h.kind === "depth"){ const rows = clamp(Math.round((d - h.front)/h.T), h.side ? 1 : 2, 90);
+      if (h.side) h.ref.sideRows = Object.assign({}, h.ref.sideRows, {[h.side]:rows}); else h.ref.rows = rows; }
     if (h.kind === "over"){ h.ref.over = clamp(r05(h.lowerBack - d), -15, 40); h.ref.gap = clamp(r05(p.y - h.lowerBackH), 1.5, 40); }
     if (h.kind === "roof"){ h.cfg.roof.reach = clamp(r05(h.front - d), -40, 40); h.cfg.roof.lift = clamp(r05(p.y - h.top), 1.5, 40); }
     if (h.kind === "dist") h.cfg.dist = clamp(r05(d), 1, 80);
@@ -448,14 +449,18 @@ const pair = (label, p, val, min, max, step, unit, note) => `<div class="row pai
   <input type="range" id="pp-${p.replace(/\./g,"-")}" data-p="${p}" min="${min}" max="${max}" step="${step}" value="${val}">${note ? `<small class="note">${note}</small>` : ""}</div>`;
 const check = (label, p, val) => `<label class="toggle"><input type="checkbox" data-p="${p}"${val ? " checked" : ""}> ${label}</label>`;
 const pick = (label, p, val, opts) => `<div class="row"><label>${label}</label><select data-p="${p}" aria-label="${label}">${Object.entries(opts).map(([k,v]) => `<option value="${k}"${k===val?" selected":""}>${v}</option>`).join("")}</select></div>`;
-function tierBlocks(arr, above, base){
+const SIDE_SHORT = {N:"Main", S:"Opposite", E:"East", W:"West"};
+/* Rows for each side of a bowl, side by side, instead of one number for the whole way round. */
+const sideRowsBox = (tr, pre, isT) => `<div class="row"><label>${isT ? "Steps" : "Rows"} on each side</label></div><div class="siderows">${SIDES.map(s => { const gone = bowlGone(s);
+  return `<label><span>${SIDE_SHORT[s]}</span><input type="number" data-p="${pre}sideRows.${s}" value="${gone ? 0 : Math.round(sideRowsOf(tr, s))}" min="0" max="90" step="1"${gone ? " disabled" : ""} aria-label="${isT ? "Steps" : "Rows"} on the ${SIDE_NAMES[s].toLowerCase()}"></label>`; }).join("")}</div>`;
+function tierBlocks(arr, above, base, bySide){
   return arr.map((tr,k) => {
     const isT = tr.type === "terrace", nm = tierName(k, arr.length, above), stacked = k > 0 || above;
     const pre = (base ? base + "." : "") + "tiers." + k + ".";
     const depth = tr.rows * S.types[tr.type].row;
     return `<div class="tier" data-k="${k}"><div class="tier-h"><span>${nm ? nm + " tier" : "Tier"}</span><button class="mini" data-act="removeTier" data-k="${k}" aria-label="Remove this tier">Remove</button></div>
       <div class="row"><label>Type</label><select data-p="${pre}type" aria-label="Seating type">${Object.entries(TYPES).map(([v,o]) => `<option value="${v}"${v===tr.type?" selected":""}>${o.label}</option>`).join("")}</select></div>
-      ${pair(isT ? "Steps" : "Rows", pre + "rows", tr.rows, 1, 90, 1, "", `${depth.toFixed(1)} m deep`)}
+      ${bySide ? sideRowsBox(tr, pre, isT) : pair(isT ? "Steps" : "Rows", pre + "rows", tr.rows, 1, 90, 1, "", `${depth.toFixed(1)} m deep`)}
       <div class="row"><label class="toggle"><input type="checkbox" data-p="${pre}auto"${tr.auto ? " checked" : ""}> Auto steepness</label><output id="o-rk-${k}"></output>
         ${tr.auto ? "" : `<input type="range" data-p="${pre}rake" min="8" max="45" step="1" value="${tr.rake}" aria-label="Steepness in degrees">`}</div>
       ${stacked ? `${pair("Projects forward over the tier below", pre + "over", tr.over || 0, -15, 40, 0.5, "m", "Negative sets it back instead.")}
@@ -464,7 +469,10 @@ function tierBlocks(arr, above, base){
     </div>`;
   }).join("");
 }
+const groundRoofOn = () => !!(S.groundRoof && S.groundRoof.on);
 function roofBlock(cfg, bowl){
+  if (groundRoofOn()) return `<details class="sub" open><summary>Roof</summary><div class="inner"><p class="hint">One roof covers the whole ground, so this stand's own roof is set aside.
+    Change it under <b>One roof over the whole ground</b> below, or switch that off to give each stand its own roof again.</p></div></details>`;
   const rf = cfg.roof, shapes = Object.assign({}, ROOF_SHAPES); if (!bowl) delete shapes.closed;
   const on = rf.shape !== "none";
   return `<details class="sub" open><summary>Roof</summary><div class="inner">
@@ -476,6 +484,20 @@ function roofBlock(cfg, bowl){
     ${pair(rf.level !== false ? "Height above the tallest row" : "Height above the top row", "roof.lift", rf.lift, 1.5, 40, 0.5, "m")}
     ${rf.shape !== "gable" ? pair("Tilt up towards the play", "roof.tilt", rf.tilt, -15, 25, 1, "°") + pair("Curve", "roof.curve", Math.round((rf.curve||0)*100), 0, 100, 5, "%") : ""}
     ${rf.shape === "closed" ? pair("Opening in the middle", "roof.opening", Math.round((rf.opening||0)*100), 0, 90, 5, "%") : ""}` : ""}
+  </div></details>`;
+}
+/* A little plan of the bowl: tap a side or corner to leave it out. The main stand is at the top, as in Plan view. */
+const BOWL_SHAPES = {full:["Full bowl", []], horseshoe:["Horseshoe", ["W","NW","SW"]], sides:["Two sides", ["E","W","NE","SE","SW","NW"]], ell:["L-shape", ["S","W","SE","SW","NW"]]};
+function bowlShapeBlock(){
+  const cn = {}; for (const c of CORNERS) cn[c.key] = c.name;
+  const cell = k => { const on = !bowlGone(k), name = SIDE_NAMES[k] || cn[k];
+    return `<button class="bp${k.length === 2 ? " corner" : ""}" data-piece="${k}" aria-pressed="${on}" aria-label="${name}: ${on ? "built" : "left out"}" title="${name}: ${on ? "tap to leave it out" : "tap to build it"}">${SIDE_SHORT[k] || ""}</button>`; };
+  return `<details class="sub" open><summary>Shape of the bowl</summary><div class="inner">
+    <p class="hint">Tap a side or a corner to leave it out, for a horseshoe or a bowl that stops short. The main stand is at the top, as in Plan view.</p>
+    <div class="bowlplan">${cell("NW")}${cell("N")}${cell("NE")}${cell("W")}<span class="bp-floor">${field().custom ? "Floor" : "Pitch"}</span>${cell("E")}${cell("SW")}${cell("S")}${cell("SE")}</div>
+    <div class="scales"><span>Quick shape:</span>${Object.entries(BOWL_SHAPES).map(([k,[label]]) => `<button class="btn small" data-act="bowlShape" data-shape="${k}">${label}</button>`).join("")}</div>
+    ${check("Give each side its own number of rows", "bowlVary", !!S.bowl.varyRows)}
+    ${S.bowl.varyRows ? `<p class="hint">The corners blend from one side's depth to the next. Set a tier to 0 rows on a side to leave it off there.</p>` : ""}
   </div></details>`;
 }
 function renderEditor(){
@@ -499,11 +521,11 @@ function renderEditor(){
       <div class="acts-row">
         <button class="btn small" data-act="addTier">+ Tier</button>
         <button class="btn small" data-act="addBoxes">+ Executive boxes</button>
-        ${ring ? "" : `<button class="btn small" data-act="toggleRoof">${cfg.roof.shape === "none" ? "+ Roof" : "Remove roof"}</button>`}
+        ${ring || groundRoofOn() ? "" : `<button class="btn small" data-act="toggleRoof">${cfg.roof.shape === "none" ? "+ Roof" : "Remove roof"}</button>`}
         ${side ? `<button class="btn small" data-act="mirror">Copy to the ${SIDE_NAMES[OPPOSITE[tab]].toLowerCase()}</button>` : ""}
         <button class="btn small" data-act="copy">Copy settings</button>
         <button class="btn small" data-act="paste"${clipboard ? "" : " disabled"}>Paste settings</button>
-        ${ring ? "" : `<button class="btn small" data-act="altRoof">Try another roof</button>`}
+        ${ring || groundRoofOn() ? "" : `<button class="btn small" data-act="altRoof">Try another roof</button>`}
         <button class="btn small" data-act="surprise">Surprise me</button>
         <button class="btn small" data-act="reset">Reset</button>
       </div>
@@ -514,8 +536,9 @@ function renderEditor(){
         ${check("Same distance from the play as the other stands", "distSame", cfg.dist == null)}
         ${cfg.dist == null ? "" : pair("Distance from the play", "dist", cfg.dist, 1, 80, 0.5, "m")}
         ${pair("Extra length at each end", "extend", cfg.extend || 0, -40, 60, 1, "m", "Only where the corner next to it is open.")}</div></details>` : ""}
-      ${above ? `<p class="hint">These tiers sit on top of the lower bowl and follow its shape. Remove them all to leave just the bowl here, with or without a roof.</p>` : ""}
-      ${tierBlocks(cfg.tiers, above)}
+      ${above ? `<p class="hint">These tiers sit on top of the lower bowl and follow its shape. Remove them all to leave just the bowl here, with or without a roof.${bowlGone(tab) ? " The lower bowl is left out on this side, so they start at ground level." : ""}</p>` : ""}
+      ${bowl || ring ? bowlShapeBlock() : ""}
+      ${tierBlocks(cfg.tiers, above, "", (bowl || ring) && S.bowl.varyRows)}
       ${cfg.tiers.length < 4 ? `<button class="btn small" data-act="addTier">Add a tier</button>` : ""}
       ${ring ? "" : roofBlock(cfg, bowl)}
       ${ring ? "" : `<details class="sub" open><summary>Outside walls</summary><div class="inner">
@@ -523,7 +546,7 @@ function renderEditor(){
         ${check("Stair towers", "facade.towers", fac.towers)}${check("Entrance gates", "facade.gates", fac.gates)}
         <button class="btn link" data-act="seeOutside">See it from the street</button></div></details>`}`;
   }
-  refreshOutputs(); renderSummary();
+  refreshOutputs(); renderSummary(); renderGroundRoof();
 }
 function renderSummary(){
   const el = $("standSummary"); if (!el || !LAST) return;
@@ -553,7 +576,7 @@ function applyStyle(cfg, key, ring){
 function targetObj(){ return (!isBowl() && tab === "C") ? {tiers:S.cornerCustom} : cfgForTab(); }
 function setPath(obj, path, val){
   const parts = path.split("."); if (parts[0] === "cc"){ obj = {tiers:S.cornerCustom}; parts.shift(); }
-  let o = obj; for (let i=0;i<parts.length-1;i++) o = o[parts[i]];
+  let o = obj; for (let i=0;i<parts.length-1;i++) o = o[parts[i]] = o[parts[i]] || {};
   const last = parts[parts.length-1];
   if (last === "curve" || last === "opening") val = val/100;
   o[last] = val;
@@ -564,13 +587,17 @@ $("editor").addEventListener("input", e => {
   if (el.type === "checkbox"){
     if (p === "roofAlign"){ S.roofAlign = el.checked; changed(); return; }
     if (p === "roof.level"){ setPath(targetObj(), p, el.checked); renderEditor(); changed(); return; }
+    if (p === "bowlVary"){ S.bowl.varyRows = el.checked;
+      if (el.checked) S.bowl.tiers.forEach(tr => { tr.sideRows = {N:tr.rows, S:tr.rows, E:tr.rows, W:tr.rows}; });
+      else S.bowl.tiers.forEach(tr => { if (tr.sideRows) tr.rows = Math.max(1, ...SIDES.filter(s2 => !bowlGone(s2)).map(s2 => tr.sideRows[s2] != null ? tr.sideRows[s2] : tr.rows)); }); // keep the deepest side
+      renderEditor(); changed(); return; }
     if (p === "distSame"){ cfgForTab().dist = el.checked ? null : (LAST ? LAST.set : S.setback); renderEditor(); changed(); return; }
     setPath(targetObj(), p, el.checked);
     if (p.endsWith(".auto")) renderEditor();
     changed(); return;
   }
   const v = +el.value; if (!isFinite(v)) return;
-  setPath(targetObj(), p, el.type === "number" && p.endsWith("rows") ? Math.max(1, Math.round(v)) : v);
+  setPath(targetObj(), p, p.includes(".sideRows.") ? clamp(Math.round(v), 0, 90) : el.type === "number" && p.endsWith("rows") ? Math.max(1, Math.round(v)) : v);
   $("editor").querySelectorAll(`[data-p="${p}"]`).forEach(o => { if (o !== el) o.value = el.value; });
   if (p.endsWith(".rows")){ const tr = p.split(".").slice(-2)[0], tier = targetObj().tiers[+tr]; const note = el.closest(".pair").querySelector(".note"); if (note) note.textContent = (tier.rows*S.types[tier.type].row).toFixed(1) + " m deep"; }
   refreshOutputs(); changed(false, el.type === "range");
@@ -582,6 +609,15 @@ $("editor").addEventListener("change", e => {
   if (el.tagName === "SELECT" && el.dataset.p){ setPath(targetObj(), el.dataset.p, el.value); renderEditor(); changed(); }
 });
 $("editor").addEventListener("click", e => {
+  const pc = e.target.closest("[data-piece]");
+  if (pc){ const k = pc.dataset.piece, gone = Object.assign({}, S.bowl.removed), was = !!gone[k];
+    gone[k] = !was;
+    if (SIDE_ENDS[k]) for (const ck of SIDE_ENDS[k]){ // a side takes the corners at its ends with it, and brings them back where the other side is built
+      const c = CORNERS.find(x => x.key === ck), other = c.a === k ? c.b : c.a;
+      if (!was) gone[ck] = true; else if (!gone[other]) gone[ck] = false; }
+    if (BOWL_PIECES.every(x => gone[x])) return flash("<b>A bowl needs at least one part.</b> Build another side first.");
+    for (const x in gone) if (!gone[x]) delete gone[x];
+    S.bowl.removed = gone; renderEditor(); changed(); return; }
   const b = e.target.closest("[data-act]"); if (!b) { if (e.target.id === "allCorners"){ const v = clone(S.corners.NE); for (const c of CORNERS) S.corners[c.key] = clone(v); renderEditor(); changed(); } return; }
   const act = b.dataset.act, cfg = cfgForTab(), arr = tiersEditable();
   const say = m => flash(m);
@@ -591,6 +627,8 @@ $("editor").addEventListener("click", e => {
   if (act === "addBoxes"){ if (arr.length >= 4) return say("<b>Four tiers is the most a stand can have.</b> Remove one first.");
     const at = Math.min(1, arr.length); arr.splice(at, 0, t("exec", 4, 22, true, at || isHybrid() ? {over:2, gap:3.6} : {})); }
   if (act === "toggleRoof"){ cfg.roof = cfg.roof.shape === "none" ? STYLES[cfg.style].roof() : Object.assign({}, cfg.roof, {shape:"none"}); if (cfg.roof.shape === "none" && STYLES[cfg.style].roof().shape === "none" && b.textContent.includes("+")) cfg.roof = R("slope"); }
+  if (act === "bowlShape"){ const [label, gone] = BOWL_SHAPES[b.dataset.shape]; S.bowl.removed = {}; for (const k of gone) S.bowl.removed[k] = true;
+    flash(`<b>${label}.</b> Tap the plan to fine-tune it.`, UNDO); }
   if (act === "mirror"){ S.stands[OPPOSITE[tab]] = clone(cfg); flash(`<b>Copied</b> to the ${SIDE_NAMES[OPPOSITE[tab]].toLowerCase()}.`, UNDO); }
   if (act === "seeOutside"){ goCam("exterior"); return; }
   if (act === "copy"){ clipboard = clone(cfg); say("<b>Copied.</b> Pick another stand and paste."); renderEditor(); return; }
@@ -605,6 +643,30 @@ $("editor").addEventListener("click", e => {
     flash(`<b>Restyled as ${st.label}.</b> Tiers kept as they were.`, UNDO); }
   renderEditor(); changed();
 });
+
+/* ================= one roof over the whole ground ================= */
+const groundRoofOf = () => (S.groundRoof = Object.assign({}, GROUND_ROOF, S.groundRoof || {}));
+function renderGroundRoof(){
+  const box = $("groundRoof"), on = groundRoofOn(); box.hidden = !on; if (!on){ box.innerHTML = ""; return; }
+  const gr = groundRoofOf(), p = k => "gr." + k;
+  box.innerHTML = `${pick("Outline", p("shape"), gr.shape, GROUND_ROOF_SHAPES)}${pick("Cover", p("cover"), gr.cover, GROUND_ROOF_COVER)}
+    ${gr.cover === "closed" ? pair("Opening in the middle", p("opening"), Math.round((gr.opening||0)*100), 0, 90, 5, "%") : ""}
+    ${pick("Material", p("mat"), gr.mat, ROOF_MATS)}${pick("Structure", p("support"), gr.support, GROUND_ROOF_SUPPORTS)}
+    ${pair("Reaches past the front row", p("reach"), gr.reach, -20, 40, 0.5, "m", gr.shape === "follow" ? "Negative leaves the front rows open." : "Measured halfway along the long sides. Negative leaves the front rows open.")}
+    ${pair("Overhang behind the back row", p("back"), gr.back, 0, 30, 0.5, "m")}
+    ${pair("Height above the tallest stand", p("lift"), gr.lift, 1.5, 40, 0.5, "m")}
+    ${pair("Tilt up towards the play", p("tilt"), gr.tilt, -15, 25, 1, "°")}${pair("Curve", p("curve"), Math.round((gr.curve||0)*100), 0, 100, 5, "%")}
+    ${check("Close in the outside, down to the ground", p("wall"), gr.wall)}`;
+}
+$("grOn").addEventListener("change", e => { groundRoofOf().on = e.target.checked; renderGroundRoof(); renderEditor(); changed(); });
+$("groundRoof").addEventListener("input", e => { const el = e.target, p = el.dataset.p; if (!p || el.tagName === "SELECT") return;
+  const key = p.slice(3), gr = groundRoofOf();
+  if (el.type === "checkbox"){ gr[key] = el.checked; changed(); return; }
+  const v = +el.value; if (!isFinite(v)) return;
+  gr[key] = key === "curve" || key === "opening" ? v/100 : v;
+  $("groundRoof").querySelectorAll(`[data-p="${p}"]`).forEach(o => { if (o !== el) o.value = el.value; });
+  changed(false, el.type === "range"); });
+$("groundRoof").addEventListener("change", e => { const el = e.target; if (el.tagName !== "SELECT" || !el.dataset.p) return; groundRoofOf()[el.dataset.p.slice(3)] = el.value; renderGroundRoof(); changed(); });
 
 /* ================= seating sizes and rules ================= */
 function renderTypeSizes(){
@@ -868,7 +930,7 @@ function syncUI(){
   document.querySelector(`input[name=layout][value=${lay}]`).checked = true;
   document.querySelector(`input[name=cshape][value=${S.cornerShape || "curved"}]`).checked = true;
   $("layoutNote").textContent = lay === "hybrid" ? "A continuous lower bowl, with each side free to have its own tiers and roof above it."
-    : lay === "bowl" ? "One continuous bowl, the same all the way round." : "Four separate stands, joined by corners if you want them.";
+    : lay === "bowl" ? "One continuous bowl. Under Stands you can leave out a side, for a horseshoe, or give each side its own depth." : "Four separate stands, joined by corners if you want them.";
   $("sportNote").textContent = F.note;
   $("customFloor").hidden = !F.custom;
   $("kinds").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.kind === S.custom.kind)));
@@ -892,6 +954,7 @@ function syncUI(){
   $("outerFitNote").textContent = OU.fit === "fill" ? "The upper tiers grow back until their back row, outer wall and roof trace the outline, so the corners get deeper." : "The front of the upper tiers sits on the outline, floating back from the lower tier along the sides.";
   $("outerNone").textContent = upper ? "" : (lay === "bowl" ? "Add a second tier to the bowl (under Stands) to use this." : "Give a stand some tiers above the lower bowl (under Stands) to use this.");
   $("outerNone").hidden = upper;
+  $("grOn").checked = groundRoofOn();
   $("plotOn").checked = S.plot.on; $("plotBox").hidden = !S.plot.on; $("plotClip").checked = S.plot.clip;
   $("boards").checked = !!S.boards;
   const AR = Object.assign({skin:"none", skinShape:"round"}, S.arch || {});
