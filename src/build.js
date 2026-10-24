@@ -734,28 +734,39 @@ function build(){
        tallest point needs, and its rows are raked from there. Corners are left to blend between their stands. */
     /* A bowl's sides can legitimately differ in depth, so each side is levelled on its own and the corners blend between
        them; a separate stand is levelled along its whole length. */
+    const gapped = new Set(); // stair gaps in a bowl's corners: the seating parts there, the building doesn't
     if (st.key !== "C" && st.levelPiece){
-      /* Per-side bowl: each side sits level at its own height, and a corner sweeps smoothly from one side's height to the
-         next. If a corner's tier below pushes it higher than that sweep, both sides it joins are raised to suit. */
+      /* Per-side bowl: each side sits level at its own height. Where two sides meet at different heights, each side's tier
+         carries on level into the corner and they part at a stair gap halfway round, as two stands would; where they're
+         (nearly) the same height the corner just eases from one to the other. */
       const pcs = profs.map((_, i) => st.levelPiece(i)), K0 = Math.max(0, ...profs.map(p => p.length));
       const live = p => p && p.stacked && !p.ghost && nRows(p) >= 1, ease = f => (1 - Math.cos(Math.PI*f))/2;
-      const lifts = profs.map(() => []);
+      const lifts = profs.map(() => []), mid = {};
+      pcs.forEach((pc, i) => { if (pc && pc.corner && (mid[pc.key] == null || Math.abs(pc.f - 0.5) < Math.abs(pcs[mid[pc.key]].f - 0.5))) mid[pc.key] = i; });
+      const gapFrom = (i, k) => { gapped.add(i); tierList[i] = tierList[i].map((tr, j) => j >= k ? Object.assign({}, tr, {ghost:true}) : tr); profs[i] = profile(tierList[i], setAt(i), lifts[i]); };
+      /* a seated side meeting a terrace end: the lower tier parts there too, rather than stepping down mid-row */
+      for (const key in mid){ const i = mid[key], A = profs[(i - 1 + m) % m][0], B = profs[(i + 1) % m][0];
+        if (A && B && nRows(A) >= 1 && nRows(B) >= 1 && A.type !== B.type) gapFrom(i, 0); }
+      const STEP = 0.3;
       for (let k=1;k<K0;k++){
         const L = {}, R = {};
         profs.forEach((pr, i) => { const pc = pcs[i], p = pr[k]; if (!pc || pc.corner || !live(p)) return; L[pc.key] = Math.max(L[pc.key] == null ? -Infinity : L[pc.key], p.hF); R[pc.key] = Math.max(R[pc.key] || 0, p.rows); });
-        const target = pc => { const a = L[pc.before], b = L[pc.after]; return a == null ? b : b == null ? a : lerp(a, b, ease(pc.f)); };
+        const split = pc => L[pc.before] != null && L[pc.after] != null && Math.abs(L[pc.before] - L[pc.after]) > STEP;
+        const owner = pc => split(pc) ? [pc.f < 0.5 ? pc.before : pc.after] : [pc.before, pc.after];
+        const target = pc => { const a = L[pc.before], b = L[pc.after]; return a == null ? b : b == null ? a : split(pc) ? (pc.f < 0.5 ? a : b) : lerp(a, b, ease(pc.f)); };
         for (let pass=0;pass<4;pass++){
           const up = {};
           profs.forEach((pr, i) => { const pc = pcs[i], p = pr[k]; if (!pc || !pc.corner || !live(p)) return;
             const t = target(pc);
             if (t == null) return; // a tier only in the corner: nothing to line up with
             const e = p.hF - t; if (e <= 0.01) return;
-            /* where the tier is tailing away to nothing round the corner, it simply ends rather than pushing both sides up */
+            /* where the tier is tailing away to nothing round the corner, it simply ends rather than pushing the sides up */
             if (p.rows < 0.5*Math.max(R[pc.before] || 0, R[pc.after] || 0)){ tierList[i] = tierList[i].map((tr, j) => j === k ? Object.assign({}, tr, {rows:0}) : tr); profs[i] = profile(tierList[i], setAt(i), lifts[i]); return; }
-            for (const s of [pc.before, pc.after]) if (L[s] != null) up[s] = Math.max(up[s] || 0, e); });
+            for (const s of owner(pc)) if (L[s] != null) up[s] = Math.max(up[s] || 0, e); });
           if (!Object.keys(up).some(s => up[s] > 0.01)) break;
           for (const s in up) if (L[s] != null) L[s] += up[s];
         }
+        for (const key in mid){ const i = mid[key]; if (split(pcs[i]) && live(profs[i][k])) gapFrom(i, k); }
         let any = false;
         profs.forEach((pr, i) => { const pc = pcs[i]; if (!pc || !live(pr[k])) return; const t = pc.corner ? target(pc) : L[pc.key];
           if (t != null && t > pr[k].hF + 0.01){ lifts[i][k] = t; any = true; } });
@@ -777,6 +788,8 @@ function build(){
        this, so converting for a second sport moves seats but never the building. */
     const info = profs.map(pr => { const live = pr.filter(p => !p.ghost && nRows(p) >= 1); if (!live.length) return null;
       return {back: Math.max(...live.map(p => p.front + nRows(p)*p.T)), top: Math.max(...live.map(p => p.hs[nRows(p)-1])) + 1.2, front: Math.min(...live.map(p => p.front)), prof: pr}; });
+    for (const i of gapped){ const a = info[(i - 1 + m) % m], b = info[(i + 1) % m]; if (!a || !b) continue;
+      const own = info[i]; info[i] = {back: Math.max(a.back, b.back), top: Math.max(a.top, b.top), front: own ? own.front : Math.min(a.front, b.front), prof: own ? own.prof : a.prof}; }
     const decks = [];
     if (CV && st.drawFrom === 0) for (let i=0;i<m;i++){
       const p = profs[i][0]; if (!p || p.stacked || p.ghost || nRows(p) < 1) continue;
