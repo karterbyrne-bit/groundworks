@@ -830,7 +830,13 @@ function build(){
     const cap = (s, p, from, to) => {
       const T = p.T, d1 = p.front + from*T, d2 = p.front + to*T;
       const y1 = p.stacked ? (from === 0 ? p.hF - 1.5 : p.hs[from] - 1.5) : 0, y2 = p.stacked ? p.hs[to-1] - 1.5 : 0;
-      quad(buf(wallKey), V(s,d1,y1), V(s,d2,y2), V(s,d2,p.hs[to-1]+1.2), V(s,d1,from === 0 ? p.hF : p.hs[from]));
+      /* the end of a tier: a concrete side wall stepping up with the rows, just proud of them, with a handrail along the top */
+      const yb = d => lerp(y1, y2, (d - d1)/Math.max(1e-6, d2 - d1)), cb = buf("concrete");
+      for (let j=from;j<to;j++){ const a = p.front + j*T, b = a + T, h = p.hs[j] + .15; quad(cb, V(s,a,yb(a)), V(s,b,yb(b)), V(s,b,h), V(s,a,h)); }
+      const hb = buf("steel"), r0 = [d1 + .2, p.hs[from] + 1.1], r1 = [d2 - .2, p.hs[to-1] + 1.1];
+      bar(hb, V(s,r0[0],r0[1]), V(s,r1[0],r1[1]), .06);
+      const posts = Math.max(1, Math.round((to - from)*T/2.5));
+      for (let q=0;q<=posts;q++){ const d = lerp(r0[0], r1[0], q/posts), j = Math.min(to-1, from + Math.floor((d - p.front)/T)); bar(hb, V(s,d,p.hs[j]+.15), V(s,d,lerp(r0[1], r1[1], q/posts)), .05); }
     };
     let kDrawn = 0;
     /* Each tier position is drawn once per kind of seating found there: a corner can have boxes coming in from one stand
@@ -993,7 +999,10 @@ function build(){
           cap(s, p, 0, n);
           if (p.stacked){ const bk = p.front + n*T, top = p.hs[n-1], lb = Math.min(p.lowerBack, bk);
             const soff = d => lerp(p.hF - 1.5, top - 1.5, (d - p.front)/Math.max(.1, bk - p.front));
-            if (bk > lb + .1) quad(buf(wallKey), V(s,lb,0), V(s,bk,0), V(s,bk,top-1.5), V(s,lb,soff(lb)));
+            if (bk > lb + .1){ quad(buf(wallKey), V(s,lb,0), V(s,bk,0), V(s,bk,top-1.5), V(s,lb,soff(lb)));
+              // the end of the stand under the tier is part of the building, so it wears the same façade as the back
+              const tg0 = tangent(s), out = s === 0 ? [-tg0[0], -tg0[1]] : tg0;
+              if (look !== "plain" && !DRY) dressWall(buf, look, wallKey, pt(s,lb), pt(s,bk), soff(lb), top - 1.5, out, {windows:fac.windows, winSize:fac.winSize, accent:fac.accent}); }
             if (!p.lowerGhost && lb > p.front + .1){ const low = heightAt(profs[s].slice(0,k), p.front);
               quad(buf(wallKey), V(s,p.front,low + 1), V(s,lb,p.lowerBackH + 1.2), V(s,lb,soff(lb)), V(s,p.front,p.hF - 1.5)); }
           }
@@ -1166,7 +1175,7 @@ function build(){
     const backAt = i => info[i] ? info[i].back + (roofOn ? 1.5 : 0) : null;
     if (fac.towers){ const ts = closed ? [...marks(60)] : [0, m-1];
       for (const i of ts){ const b = backAt(i); if (b == null) continue; const tg = tangent(i), side = closed ? 0 : (i ? 4 : -4), q = pt(i, b + 3.5);
-        post(buf("tower"), q[0] + tg[0]*side, q[1] + tg[1]*side, 0, info[i].top + 3, 6); grow(q[0], q[1]); } }
+        post(buf("tower"), q[0] + tg[0]*side, q[1] + tg[1]*side, 0, info[i].top, 6); grow(q[0], q[1]); } } // level with the back of the stand, so it doesn't poke up behind the fans
     /* Entrances: turnstile blocks standing out from the back wall, each with a row of turnstile doors, an exit gate,
        a canopy and a band in the accent colour; plain gates in between. */
     if (fac.gates){ const blocks = marks(36), band = fac.accent ? tint("trim", fac.accent) : "trim";
