@@ -357,7 +357,7 @@ function selectTab(key, fromView){
   if (key === "F") return;
   tab = key; renderEditor(); changed(false, true);
   if (fromView){
-    const name = key === "B" ? (isHybrid() ? "the lower bowl" : "the bowl") : key === "C" ? "the corners" : "the " + SIDE_NAMES[key].toLowerCase();
+    const name = key === "B" ? (isHybrid() ? "the lower bowl" : "the bowl") : key === "C" ? "the corners" : /^R/.test(key) ? tabName(key) : "the " + SIDE_NAMES[key].toLowerCase();
     tipOverride = `<b>Editing ${name}.</b> Drag the blue handles, or use the panel.`; setTip();
     showPane("stands");
     clearTimeout(selectTab.t); selectTab.t = setTimeout(() => { tipOverride = null; setTip(); }, 4500);
@@ -427,22 +427,33 @@ function save(coalesce){ try { localStorage.setItem(KEY, JSON.stringify(S)); } c
 
 /* ================= stand editor ================= */
 const $ = id => document.getElementById(id);
-const cfgForTab = () => isBowl() || (isHybrid() && tab === "B") ? S.bowl : (tab === "C" ? null : S.stands[tab]);
+const ringIdx = () => /^R\d+$/.test(tab) ? +tab.slice(1) : -1;
+const cfgForTab = () => isRing() ? ringOf().stands[Math.max(0, ringIdx())] : isBowl() || (isHybrid() && tab === "B") ? S.bowl : (tab === "C" ? null : S.stands[tab]);
+const tabName = key => /^R\d+$/.test(key) ? ((ringOf().stands[+key.slice(1)] || {}).name || "Stand " + (+key.slice(1) + 1)) : key === "B" ? (isHybrid() ? "Lower bowl" : "Bowl") : SIDE_NAMES[key] || "Corners";
 const tiersEditable = () => (!isBowl() && tab === "C") ? S.cornerCustom : cfgForTab().tiers;
 const cornerModes = () => isHybrid()
   ? [["open","Open (lower bowl only)"],["split","Stands meet halfway"],["blend","Filled, blending the stands"],["custom","Filled, its own tiers"]]
   : [["open","Open"],["blend","Filled, blending the stands"],["custom","Filled, its own tiers"]];
 let clipboard = null;
 function fixTab(){
+  if (isRing()){ if (!ringOf().stands.length) S.ring.stands.push(ringStand(0)); if (ringIdx() < 0 || ringIdx() >= S.ring.stands.length) tab = "R0"; return; }
+  if (/^R\d+$/.test(tab)) tab = "N";
   if (isBowl()) tab = "B";
   else if (tab === "B" && !isHybrid()) tab = "N";
   if (!isHybrid()) for (const c of CORNERS) if (S.corners[c.key].mode === "split") S.corners[c.key].mode = "blend";
 }
 function renderTabs(){
   const el = $("tabs");
+  $("ringBox").hidden = !isRing();
   if (isBowl()){ el.hidden = true; return; }
   el.hidden = false;
   const items = [];
+  if (isRing()){ const RG = ringOf();
+    if (!$("ringBox").contains(document.activeElement)) $("ringBox").innerHTML = `<div class="row"><label>Stands round the ground</label><span class="num"><button class="mini" data-ring="-" aria-label="One fewer stand">−</button> <b>${RG.stands.length}</b> <button class="mini" data-ring="+" aria-label="One more stand">+</button></span></div>
+      <div class="row"><label for="ringGap">Gap between stands</label><output>${RG.gap} m</output><input type="range" id="ringGap" data-rg="gap" min="0" max="40" step="1" value="${RG.gap}"></div>
+      <div class="row"><label for="ringTurn">Turn the ring</label><output>${RG.turn}°</output><input type="range" id="ringTurn" data-rg="turn" min="0" max="359" step="1" value="${RG.turn}"></div>`;
+    el.innerHTML = RG.stands.map((r, i) => `<button role="tab" aria-selected="${tab === "R" + i}" data-tab="R${i}">${esc(r.name || "Stand " + (i+1))}<span class="n">${r.tiers.length ? r.tiers.length + "T" : "gap"}</span></button>`).join("");
+    return; }
   if (isHybrid()) items.push(["B","Lower bowl", S.bowl.tiers.length + "T"]);
   SIDES.forEach(s => items.push([s, SIDE_NAMES[s], S.stands[s].tiers.length ? S.stands[s].tiers.length + "T" : "none"]));
   items.push(["C","Corners", CORNERS.filter(c => S.corners[c.key].mode !== "open").length + "/4"]);
@@ -557,7 +568,7 @@ function renderEditor(){
         <button class="btn small" data-act="addTier">+ Tier</button>
         <button class="btn small" data-act="addBoxes">+ Executive boxes</button>
         ${ring || groundRoofOn() ? "" : `<button class="btn small" data-act="toggleRoof">${cfg.roof.shape === "none" ? "+ Roof" : "Remove roof"}</button>`}
-        ${side ? `<button class="btn small" data-act="mirror">Copy to the ${SIDE_NAMES[OPPOSITE[tab]].toLowerCase()}</button>` : ""}
+        ${side && OPPOSITE[tab] ? `<button class="btn small" data-act="mirror">Copy to the ${SIDE_NAMES[OPPOSITE[tab]].toLowerCase()}</button>` : ""}
         <button class="btn small" data-act="copy">Copy settings</button>
         <button class="btn small" data-act="paste"${clipboard ? "" : " disabled"}>Paste settings</button>
         ${ring || groundRoofOn() ? "" : `<button class="btn small" data-act="altRoof">Try another roof</button>`}
@@ -571,6 +582,9 @@ function renderEditor(){
         ${check("Same distance from the play as the other stands", "distSame", cfg.dist == null)}
         ${cfg.dist == null ? "" : pair("Distance from the play", "dist", cfg.dist, 1, 80, 0.5, "m")}
         ${pair("Extra length at each end", "extend", cfg.extend || 0, -40, 60, 1, "m", "Only where the corner next to it is open.")}</div></details>` : ""}
+      ${isRing() ? `<details class="sub" open><summary>Place in the ring</summary><div class="inner">
+        <div class="row"><label for="ringName">Name</label><input type="text" id="ringName" data-p="name" maxlength="30" value="${esc(cfg.name || "")}" aria-label="Stand name"></div>
+        ${pair("Share of the way round", "share", cfg.share || 1, 0.2, 4, 0.1, "×", "Bigger stands take more of the ring; take all its tiers away to leave a gap.")}</div></details>` : ""}
       ${above ? `<p class="hint">These tiers sit on top of the lower bowl and follow its shape. Remove them all to leave just the bowl here, with or without a roof.${bowlGone(tab) ? " The lower bowl is left out on this side, so they start at ground level." : ""}</p>` : ""}
       ${bowl || ring ? bowlShapeBlock() : ""}
       ${tierBlocks(cfg.tiers, above, "", (bowl || ring) && S.bowl.varyRows, !bowl && !ring)}
@@ -593,7 +607,7 @@ function renderEditor(){
 }
 function renderSummary(){
   const el = $("standSummary"); if (!el || !LAST) return;
-  const si = LAST.standInfo[tab]; const name = tab === "B" ? (isHybrid() ? "Lower bowl" : "Bowl") : SIDE_NAMES[tab] || "Corners";
+  const si = LAST.standInfo[tab]; const name = tabName(tab);
   const mine = mergeParts(LAST.parts.filter(p => p.key === tab)), tiers = [].concat(...mine.map(p => p.tiers || []));
   el.innerHTML = si ? `<b>${name}</b>${tab === "C" ? "" : `<span>${fmt(si.width)} m long</span>`}<span>${fmt(si.depth)} m deep</span><span>${fmt(si.height)} m high</span><span>${fmt(si.seats)} places</span>` +
     (tiers.length ? `<div class="tierlist">${tiers.map(t => `<span><em>${esc(t.name)}</em> ${fmt(t.seats)} · ${t.rows} rows ${TYPES[t.type].short}</span>`).join("")}</div>` : "")
@@ -628,6 +642,12 @@ function setPath(obj, path, val){
   o[last] = val;
 }
 $("editor").addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.more){ if (d.open) openMore.add(d.dataset.more); else openMore.delete(d.dataset.more); } }, true);
+$("ringBox").addEventListener("click", e => { const b = e.target.closest("[data-ring]"); if (!b) return; const RG = ringOf();
+  if (b.dataset.ring === "+"){ if (RG.stands.length >= 16) return flash("<b>Sixteen stands is the most a ring can have.</b>"); RG.stands.push(ringStand(RG.stands.length)); tab = "R" + (RG.stands.length - 1); }
+  else { if (RG.stands.length <= 1) return; RG.stands.pop(); if (ringIdx() >= RG.stands.length) tab = "R" + (RG.stands.length - 1); }
+  $("ringBox").innerHTML = ""; renderEditor(); changed(); });
+$("ringBox").addEventListener("input", e => { const el = e.target; if (!el.dataset.rg) return; ringOf()[el.dataset.rg] = +el.value;
+  el.parentElement.querySelector("output").textContent = el.value + (el.dataset.rg === "turn" ? "°" : " m"); changed(false, true); });
 $("tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (!b) return; selectTab(b.dataset.tab, false); });
 $("editor").addEventListener("input", e => {
   const el = e.target, p = el.dataset.p;
@@ -872,10 +892,12 @@ for (const s of SWATCHES){
 }
 function bindRadio(name, fn){ document.querySelectorAll(`input[name=${name}]`).forEach(r => r.addEventListener("change", () => fn(r.value))); }
 bindRadio("sport", v => { S.sport = v; S.setback = v === "custom" ? (KINDS[S.custom.kind] || KINDS.plain).set : SPORTS[v].set; S.plot.pts = null; S.plot.on = false; renderEditor(); changed(true); });
-bindRadio("layout", v => { S.layout = v; if (v === "hybrid") tab = "B"; renderEditor(); changed(true); });
+bindRadio("layout", v => { S.layout = v; if (v === "hybrid") tab = "B"; if (v === "ring") tab = "R0"; renderEditor(); changed(true); });
 bindRadio("cshape", v => { S.cornerShape = v; changed(); });
 const bindRange = (id, fn, cam) => $(id).addEventListener("input", e => { fn(+e.target.value); changed(cam, true); });
 bindRange("setback", v => S.setback = v);
+for (const [id, key] of [["ckL","L"],["ckW","W"]]) bindRange(id, v => { S.cricket = Object.assign({}, CRICKET, S.cricket, {[key]: v}); }, true);
+for (const [id, key] of [["bpLF","lf"],["bpCF","cf"],["bpRF","rf"],["bpWall","wall"],["bpLFW","lfWall"]]) bindRange(id, v => { S.ballpark = Object.assign({}, BALLPARK, S.ballpark, {[key]: v}); }, true);
 bindRange("corner", v => S.corner = v);
 bindRange("floorRows", v => S.custom.floor = v, true);
 for (const [id, key, max] of [["nW","W",400],["nH","H",300],["nR","r",150]]) $(id).addEventListener("change", e => {
@@ -1057,12 +1079,16 @@ document.addEventListener("keydown", e => {
 function syncUI(){
   const F = field(), lay = layoutOf();
   document.querySelector(`input[name=sport][value=${S.sport}]`).checked = true;
-  $("ly-stands").disabled = !!F.noStands; $("ly-bowl").disabled = !!F.standsOnly; $("ly-hybrid").disabled = !!F.standsOnly;
+  $("ly-stands").disabled = !!F.noStands; $("ly-bowl").disabled = !!F.standsOnly; $("ly-hybrid").disabled = !!F.standsOnly; $("ly-ring").disabled = false;
   document.querySelector(`input[name=layout][value=${lay}]`).checked = true;
   document.querySelector(`input[name=cshape][value=${S.cornerShape || "curved"}]`).checked = true;
   $("layoutNote").textContent = lay === "hybrid" ? "A continuous lower bowl, with each side free to have its own tiers and roof above it."
+    : lay === "ring" ? "Any number of separate stands round the ground, each its own design, like a cricket ground or a ballpark. Set how many under Stands."
     : lay === "bowl" ? "One continuous bowl. Under Stands you can leave out a side, for a horseshoe, or give each side its own depth." : "Four separate stands, joined by corners if you want them.";
   $("sportNote").textContent = F.note;
+  $("cricketBox").hidden = S.sport !== "cricket"; $("ballBox").hidden = S.sport !== "baseball";
+  const CK = Object.assign({}, CRICKET, S.cricket || {}), BP = Object.assign({}, BALLPARK, S.ballpark || {});
+  for (const [id, v] of [["ckL", CK.L], ["ckW", CK.W], ["bpLF", BP.lf], ["bpCF", BP.cf], ["bpRF", BP.rf], ["bpWall", BP.wall], ["bpLFW", BP.lfWall]]){ if (document.activeElement !== $(id)) $(id).value = v; $("o-" + id).textContent = v + " m"; }
   $("customFloor").hidden = !F.custom;
   $("kinds").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.kind === S.custom.kind)));
   $("cornerRow").hidden = lay === "stands" || S.cornerShape === "square" || (F.r > 0 && (F.custom || F.noStands));
@@ -1077,7 +1103,7 @@ function syncUI(){
   $("focusIn").max = Math.max(0.5, Math.floor(maxFocusIn(F)*2)/2);
   so("focusIn", fIn, fIn < 0.05 ? "edge of play" : `${+fIn.toFixed(1)} m into the floor` + (S.focusIn == null ? " (auto)" : ""));
   const OU = Object.assign({shape:"follow", fit:"ring", size:0}, S.outer || {}), upper = lay === "bowl" ? S.bowl.tiers.length > 1 : SIDES.some(s => S.stands[s].tiers.length);
-  $("outerBox").hidden = lay === "stands";
+  $("outerBox").hidden = lay === "stands" || lay === "ring";
   document.querySelector(`input[name=outerShape][value=${OU.shape}]`).checked = true;
   document.querySelector(`input[name=outerFit][value=${OU.fit}]`).checked = true;
   $("outerMore").hidden = OU.shape === "follow" || !upper;

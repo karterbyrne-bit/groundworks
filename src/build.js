@@ -328,7 +328,7 @@ function planScreens(F, anchors, closedAt, outerTop, set, issue){
     const c = cands.reduce((a,b) => Math.abs(b.lat - target) < Math.abs(a.lat - target) ? b : a), g = c.g, i = c.i, x = g.info[i], R = g.RR ? g.RR[i] : null;
     const vl = Math.hypot(g.v[i][0], g.v[i][1]) || 1, n = [-g.v[i][0]/vl, -g.v[i][1]/vl];
     const P = d => [g.o[i][0] + d*g.v[i][0], g.o[i][1] + d*g.v[i][1]];
-    const cfgRef = sc.at in S.stands && (layoutOf() !== "bowl") ? S.stands[sc.at] : (g.key === "B" ? S.bowl : null);
+    const lay2 = layoutOf(), cfgRef = g.key[0] === "R" ? ringOf().stands[+g.key.slice(1)] : sc.at in S.stands && (lay2 === "stands" || lay2 === "hybrid") ? S.stands[sc.at] : (g.key === "B" ? S.bowl : null);
     const gRoof = S.groundRoof && S.groundRoof.on, roofRef = gRoof ? S.groundRoof : cfgRef && cfgRef.roof;
     let h = w*0.42, mount = sc.mount || "gap";
     if (mount === "ribbon"){ // aim the camera at the front of the tiers, halfway along
@@ -361,10 +361,16 @@ function planScreens(F, anchors, closedAt, outerTop, set, issue){
 }
 const boardTex = {};
 function scoreboardTexture(){
-  const k = S.seat; if (boardTex[k]) return boardTex[k];
+  const k = S.seat + S.sport; if (boardTex[k]) return boardTex[k];
   const c = document.createElement("canvas"); c.width = 512; c.height = 216; const g = c.getContext("2d");
   g.fillStyle = "#06090d"; g.fillRect(0,0,512,216); g.fillStyle = S.seat; g.fillRect(0,0,512,26); g.fillRect(0,190,512,26);
   g.fillStyle = "#ffffff"; g.font = "bold 18px sans-serif"; g.textAlign = "center"; g.fillText("GROUNDWORKS", 256, 20);
+  if (S.sport === "cricket" || S.sport === "baseball"){ // a scoreboard in the sport's own language
+    g.textAlign = "left"; g.font = "bold 26px monospace"; g.fillStyle = "#ffd65a";
+    const lines = S.sport === "cricket" ? [["TOTAL", "245-3"], ["OVERS", "48.2"], ["BATTER 1", "112*"], ["BATTER 2", " 37*"], ["LAST WKT", "88"]]
+      : [["AWAY", "0 1 0 2 0 0 1 · 4"], ["HOME", "1 0 0 0 3 1 0 · 5"], ["INNING", "8   OUTS 2"], ["BALLS", "2   STRIKES 1"], ["", ""]];
+    lines.forEach(([a, b2], i) => { g.fillStyle = "#cfd8e3"; g.fillText(a, 22, 58 + i*30); g.fillStyle = "#ffd65a"; g.fillText(b2, S.sport === "cricket" ? 300 : 150, 58 + i*30); });
+    const t = new THREE.CanvasTexture(c); t.keep = true; return (boardTex[k] = t); }
   g.font = "bold 74px sans-serif"; g.fillText("2 – 1", 256, 128);
   g.font = "bold 30px sans-serif"; g.fillText("HOME", 96, 120); g.fillText("AWAY", 416, 120);
   g.fillStyle = "#ffd65a"; g.font = "bold 26px monospace"; g.fillText("63:12", 256, 172);
@@ -643,7 +649,8 @@ function build(){
   const used = new Set();
   const addUsed = arr => arr.forEach(x => used.add(x.type));
   if (lay !== "stands"){ addUsed(S.bowl.tiers); if (S.bowl.varyRows) for (const s2 of SIDES) if (!bowlGone(s2)) addUsed(bowlSideTiers(s2)); }
-  if (lay !== "bowl"){ SIDES.forEach(s => addUsed(S.stands[s].tiers)); if (CORNERS.some(c => S.corners[c.key].mode === "custom")) addUsed(S.cornerCustom); }
+  if (lay === "ring") ringOf().stands.forEach(r => addUsed(r.tiers));
+  else if (lay !== "bowl"){ SIDES.forEach(s => addUsed(S.stands[s].tiers)); if (CORNERS.some(c => S.corners[c.key].mode === "custom")) addUsed(S.cornerCustom); }
   if (floorRows) used.add("seated");
   const typeBad = {};
   for (const ty of used){
@@ -1173,6 +1180,24 @@ function build(){
     }
     if (runs && S.bowl.roof.shape === "closed" && !groundRoof) issue("A roof closed over the floor needs the whole bowl, so with parts left out it's built open. One roof over the whole ground can still close over it.", "bowl:closed", "geo",
       {tab:"B", fix:{label:"Use one roof over the whole ground", run:() => { S.groundRoof = Object.assign({}, GROUND_ROOF, S.groundRoof, {on:true, cover:"closed", opening:0}); return true; }}});
+  } else if (lay === "ring"){
+    /* A ring of separate stands: each takes its share of the way round, with a gap either side of it. */
+    const ring = ringGeo(), n = ring.o.length, RG = ringOf(), list = RG.stands, gap = Math.max(0, RG.gap || 0);
+    const at = i => [ring.o[i][0] + set*ring.v[i][0], ring.o[i][1] + set*ring.v[i][1]], cum = [0];
+    for (let i=1;i<=n;i++){ const a = at(i-1), b = at(i % n); cum.push(cum[i-1] + Math.hypot(b[0]-a[0], b[1]-a[1])); }
+    const Lt = cum[n], tagAt = sArc => { const x = ((sArc % Lt) + Lt) % Lt; let i = 0; while (i < n - 1 && cum[i+1] <= x) i++;
+      const f = (x - cum[i])/Math.max(1e-9, cum[i+1] - cum[i]), t0 = ring.tag[i], t1 = i + 1 < n ? ring.tag[i+1] : total4; return t0 + (t1 - t0)*f; };
+    // the turn is measured from the middle of the main stand side, so 0 puts the first stand there
+    const mainMid = (() => { const minZ = Math.min(...ring.o.map((_, i) => at(i)[1])); let bi = 0, bx = Infinity;
+      for (let i=0;i<n;i++){ const p = at(i); if (p[1] <= minZ + 0.5 && Math.abs(p[0]) < bx){ bx = Math.abs(p[0]); bi = i; } } return cum[bi]; })();
+    const shares = list.map(r => Math.max(0.05, r.share || 1)), total = shares.reduce((a, b) => a + b, 0) || 1;
+    let s0 = mainMid + ((RG.turn || 0)/360)*Lt - shares[0]/total*Lt/2;
+    list.forEach((cfg, i) => {
+      const len = shares[i]/total*Lt, a = s0 + gap/2, b = s0 + len - gap/2; s0 += len;
+      if (!cfg.tiers.length || b - a < 2) return;
+      const geo = subGeo(ring, tagAt(a), tagAt(b), total4);
+      buildSliced({name:cfg.name || `Stand ${i+1}`, key:"R" + i, cfg, set: standSet(cfg), tiersFor:() => cfg.tiers, tierRef:k => cfg.tiers[k], drawFrom:0, sel: tab === "R" + i, geo});
+    });
   } else if (lay === "stands"){
     for (const s of SIDES){
       const cfg = S.stands[s]; if (!cfg.tiers.length) continue;

@@ -7,6 +7,10 @@ const SPORTS = {
   baseball:{W:105,H:105,r:0,set:10,home:[-52.5,-52.5],standsOnly:true,note:"Home plate sits in the Main / West corner. Foul lines run along the Main and West stands; the outfield bleachers are the Opposite and East stands."},
   custom:{set:3,note:""}
 };
+/* Ballpark outfield: distances from home plate to the left-field, centre-field and right-field walls, the wall height, and
+   a taller left-field wall if wanted (like Fenway's Green Monster). Cricket: the boundary, end to end and side to side. */
+const BALLPARK = {lf:101, cf:122, rf:99, wall:3, lfWall:3};
+const CRICKET = {L:150, W:136};
 const KINDS = {
   wrestleball:{label:"Wrestleball", W:16.5,H:4.5,r:0,surface:"grass",set:2.5,floor:0,zones:[4,8.5,4],outdoor:true,note:"An outdoor sport on grass: 16.5 × 4.5 m, with two 4 m end zones either side of an 8.5 m central playing area."},
   boxing:{label:"Boxing", W:7.3,H:7.3,r:0,surface:"arena",set:3,focusY:1.2,floor:6,note:"A 6.1 m (20 ft) ring inside the ropes on a 1.2 m-high platform, with ringside floor seats."},
@@ -182,6 +186,11 @@ const clone = o => JSON.parse(JSON.stringify(o));
 const mk = (style, tiers, roof) => ({style, tiers: tiers || STYLES[style].tiers(), roof: Object.assign(STYLES[style].roof(), roof || {}), dist:null, extend:0, facade:Object.assign({}, STYLES[style].facade)});
 const corner = (mode, tiers, roof) => ({mode, tiers: tiers || "all", roof: roof !== false});
 const allCorners = (mode, tiers) => ({NE:corner(mode,tiers), SE:corner(mode,tiers), SW:corner(mode,tiers), NW:corner(mode,tiers)});
+/* A ring of separate stands round the ground (cricket grounds, ballparks): each has its own design, a name, and a share
+   of the way round; gap is the space left between neighbours and turn swings the whole ring round (degrees). */
+const mkR = (name, style, tiers, roof, share) => Object.assign(mk(style, tiers, roof), {name, share: share || 1});
+const RING_NAMES = ["Pavilion","Grand Stand","East Stand","Nursery End","Members' Stand","West Stand","Family Stand","Media Centre","Mound Stand","Tavern Stand","North Stand","South Stand"];
+const ringStand = i => mkR(RING_NAMES[i % RING_NAMES.length], i === 0 ? "pavilion" : "regular", i === 0 ? null : [t("seated", 14, 22)]);
 const BASE = {
   version:6, sport:"football", custom:{kind:"plain",W:100,H:64,r:0,surface:"grass",floor:0}, layout:"stands", cornerShape:"curved", setback:8, corner:14,
   bowl:mk("modern",[t("seated",26,20),t("exec",4,22,true,{over:2,gap:3.6}),t("seated",14,28,true,{over:3})]),
@@ -194,7 +203,8 @@ const BASE = {
   seat:"#c3322b", lights:true, boards:true, scoreboard:false, trim:true, views:[],
   crowd:true, night:false, seeThrough:false, keepClose:true, roofAlign:false,
   arch:{skin:"none", skinShape:"round", arch:false, ramps:false, towers:false, plaza:false, pylons:false}, seatPattern:"solid", seat2:"#f2f2f2", focusIn:null,
-  outer:{shape:"follow", fit:"ring", size:0}, groundRoof:Object.assign({}, GROUND_ROOF)
+  outer:{shape:"follow", fit:"ring", size:0}, groundRoof:Object.assign({}, GROUND_ROOF),
+  ring:{turn:0, gap:6, stands:[0,1,2,3,4,5].map(ringStand)}
 };
 const Pz = o => Object.assign(clone(BASE), o);
 const fac = (cfg, f) => Object.assign(cfg, {facade:Object.assign({}, cfg.facade, f)}); // a stand with its own walls
@@ -278,10 +288,36 @@ const PRESETS = {
     stands:{N:mk("modern",[t("seated",24,22),t("seated",12,28,true,{over:3,gap:4})]),S:mk("regular",[t("seated",22,22)]),E:mk("compact",[t("seated",20,24)]),W:mk("wall",[t("rail",26,24)])},
     corners:allCorners("open"),groundRoof:Object.assign({}, GROUND_ROOF, {on:true,shape:"oval",reach:5,back:3,lift:6,tilt:6,curve:0.3,mat:"translucent",support:"masts"}),
     seat:"#2f6b3d",lights:false}),
-  ballpark:Pz({sport:"baseball",layout:"stands",cornerShape:"curved",setback:10,
-    stands:{N:mk("american",[t("seated",20,22),t("seated",10,28,true,{over:4,gap:4})]),W:mk("american",[t("seated",20,22),t("seated",10,28,true,{over:4,gap:4})]),
-      S:mk("regular",[t("bench",14,24)],{shape:"none"}),E:mk("regular",[t("bench",10,24)],{shape:"none"})},
-    corners:{NE:corner("open"),SE:corner("open"),SW:corner("open"),NW:corner("blend")},plot:{on:true,pts:[[-110,-95],[90,-95],[118,62],[-110,110]],clip:true},seat:"#1f3f8f",lights:true,boards:false})
+  /* A Lord's-style cricket ground: a ring of nine different stands round the oval, with the brick Pavilion at one end. */
+  lords:Pz({sport:"cricket",layout:"ring",cornerShape:"curved",setback:6,cricket:{L:150,W:136},
+    ring:{turn:270, gap:5, stands:[
+      fac(mkR("Pavilion","pavilion",[t("bench",9,18),t("seated",7,22,true,{over:-4.5,gap:4,pillars:true,front:"lattice",frontColour:"#e8dcc4"})],{shape:"gable",mat:"green",lift:2.5,reach:0.5,support:"columns"},1.1), {look:"brick", colour:"#9a4a3a", accent:"#e8dcc4", towers:true, gates:true, windows:1.25}),
+      fac(mkR("Warner Stand","modern",[t("seated",14,22),t("seated",8,26,true,{over:-3,gap:4})],{shape:"slope",mat:"translucent",support:"ribs",reach:1,lift:4},0.9), {look:"glass"}),
+      fac(mkR("Grand Stand","modern",[t("seated",18,22),t("exec",3,22,true,{over:-1,gap:4}),t("seated",12,28,true,{over:-6,gap:3})],{shape:"slope",mat:"translucent",support:"none",reach:2,lift:5},1.5), {look:"fins"}),
+      fac(mkR("Compton Stand","modern",[t("seated",16,22),t("seated",10,26,true,{over:-3,gap:4})],{shape:"slope",mat:"translucent",support:"none",reach:1,lift:4},1), {look:"sheet", colour:"#e9ece8"}),
+      mkR("Media Centre","modern",[],{shape:"none"},0.5),
+      fac(mkR("Edrich Stand","modern",[t("seated",16,22),t("seated",10,26,true,{over:-3,gap:4})],{shape:"slope",mat:"translucent",support:"none",reach:1,lift:4},1), {look:"sheet", colour:"#e9ece8"}),
+      fac(mkR("Mound Stand","modern",[t("seated",14,20),t("seated",10,24,true,{over:-3,gap:4})],{shape:"gable",mat:"translucent",support:"masts",reach:1,lift:4},1.4), {look:"brick", colour:"#9a4a3a", accent:"#e8dcc4"}),
+      fac(mkR("Tavern Stand","modern",[t("seated",14,22),t("seated",8,26,true,{over:-3,gap:4})],{shape:"slope",mat:"translucent",support:"ribs",reach:1,lift:4},1), {look:"glass"}),
+      fac(mkR("Allen Stand","edwardian",[t("seated",14,20)],{shape:"gable",mat:"metal",lift:3,reach:0,support:"columns"},0.8), {look:"brick", colour:"#9a4a3a", accent:"#e8dcc4"})]},
+    screens:[{at:"NE", mount:"back", size:14, pos:0}],seat:"#2f6b3d",lights:false,boards:false}),
+  /* A classic ballpark: a two-deck brick grandstand wrapping round home plate, open bleachers in the outfield and a tall
+     left-field wall. */
+  classicpark:Pz({sport:"baseball",layout:"ring",cornerShape:"curved",setback:10,corner:24,ballpark:{lf:95,cf:119,rf:92,wall:3.5,lfWall:11},
+    ring:{turn:315, gap:4, stands:[
+      fac(mkR("Grandstand","brickmain",[t("seated",22,20),t("seated",12,26,true,{over:4,gap:3.8,pillars:true})],{shape:"slope",mat:"metal",lift:3,reach:-2,tilt:2,support:"columns"},3.4), {look:"brick", colour:"#8b4636", accent:"#2f6b3d", gates:true, sign:"BALLPARK", signColour:"#f2f2f2"}),
+      mkR("Right-field bleachers","regular",[t("bench",16,24)],{shape:"none"},1.4),
+      mkR("Centre field","regular",[],{shape:"none"},0.9),
+      mkR("Left-field seats","regular",[t("bench",8,26)],{shape:"none"},1.1)]},
+    screens:[{at:"S", mount:"back", size:20, pos:0}],seat:"#2f6b3d",lights:true,floodlights:"pylons",boards:false}),
+  /* A modern ballpark: three tiers with a ring of suites wrapping home plate, and two-tier stands in the outfield. */
+  ballpark:Pz({sport:"baseball",layout:"ring",cornerShape:"curved",setback:10,corner:30,ballpark:{lf:101,cf:122,rf:99,wall:3,lfWall:3},
+    ring:{turn:315, gap:6, stands:[
+      fac(mkR("Home plate stand","american",[t("seated",24,22),t("exec",3,22,true,{over:2,gap:4}),t("seated",12,30,true,{over:0,gap:3})],{shape:"slope",mat:"metal",lift:3,reach:-8,tilt:8},3.6), {look:"brick", colour:"#7b4a3a", concourse:true}),
+      fac(mkR("Right-field stand","modern",[t("seated",14,22),t("seated",10,28,true,{over:1,gap:3.6})],{shape:"none"},1.3), {look:"fins"}),
+      mkR("Batter's eye","regular",[],{shape:"none"},0.7),
+      fac(mkR("Left-field stand","modern",[t("seated",14,22),t("seated",10,28,true,{over:1,gap:3.6})],{shape:"none"},1.3), {look:"fins"})]},
+    screens:[{at:"S", mount:"back", size:30, pos:0}],seat:"#1f3f8f",lights:true,boards:false})
 };
 /* Signature architecture for some starting points. */
 const withArch = (k, a) => { PRESETS[k].arch = Object.assign({}, BASE.arch, a); };

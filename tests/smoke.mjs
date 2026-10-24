@@ -106,6 +106,14 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.click('#panes [data-pane="ground"]'); await page.check("#plotOn"); await page.waitForTimeout(300);
   await page.locator("#plotExact summary").click(); await page.fill("#plotW", "260"); await page.press("#plotW", "Enter"); await page.waitForTimeout(300);
   check((await page.evaluate(() => { const xs = window.__gw.state().plot.pts.map(p => p[0]); return Math.max(...xs) - Math.min(...xs); })) === 260, "the plot can be set to an exact width");
+  // cricket and baseball: rings of stands
+  await page.click('#panes [data-pane="start"]');
+  for (const p of ["lords", "classicpark", "ballpark"]){ await page.click(`[data-p="${p}"]`);
+    await page.waitForFunction(() => window.__gw.state().layout === "ring" && window.__gw.last().parts.length > 2); await page.waitForTimeout(200);
+    const r = await last(); check(r.total > 10000 && !r.issues, `preset "${p}" builds with no warnings`); }
+  await page.click('#panes [data-pane="stands"]'); const nStands = await page.locator("#tabs button").count();
+  await page.click('[data-ring="+"]'); await page.waitForTimeout(300);
+  check((await page.locator("#tabs button").count()) === nStands + 1, "a ring can have another stand added");
   // surroundings: a road beside the ground, and a building that the east end is cut back to clear
   await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300);
   const unboxed = await cap();

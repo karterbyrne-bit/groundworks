@@ -3,16 +3,23 @@ function field(){
     const c = S.custom, k = KINDS[c.kind] || KINDS.plain, r = Math.min(c.r, c.W/2, c.H/2);
     return {W:c.W, H:c.H, r, custom:true, kind:c.kind, surface:c.surface, focusY:k.focusY || 0, zones:k.zones, note:k.note};
   }
+  if (S.sport === "cricket"){ const C = Object.assign({}, CRICKET, S.cricket || {}); return Object.assign({}, SPORTS.cricket, {W:C.L, H:C.W, r:Math.min(C.L, C.W)*0.46}); }
+  if (S.sport === "baseball"){ // the field is the square that takes in the outfield wall, with home plate in its corner
+    let mx = 0, mz = 0; for (let i=0;i<=40;i++){ const ph = i/40*Math.PI/2, r = fenceR(ph) + 3; mx = Math.max(mx, r*Math.cos(ph)); mz = Math.max(mz, r*Math.sin(ph)); }
+    const W = Math.ceil(mx), H = Math.ceil(mz); return Object.assign({}, SPORTS.baseball, {W, H, home:[-W/2, -H/2]});
+  }
   return SPORTS[S.sport];
 }
 function layoutOf(){
   const F = field();
-  if (F.standsOnly) return "stands";
+  if (F.standsOnly) return S.layout === "ring" ? "ring" : "stands";
   if (F.noStands && S.layout === "stands") return "bowl";
   return S.layout;
 }
 const isBowl = () => layoutOf() === "bowl";
 const isHybrid = () => layoutOf() === "hybrid";
+const isRing = () => layoutOf() === "ring";
+const ringOf = () => (S.ring = Object.assign({turn:0, gap:6, stands:[]}, S.ring || {}));
 
 /* ================= geometry helpers =================
    Every stand is a strip of slices. Slice i sits at o[i] + d·v[i], where d is the distance out from the edge of play,
@@ -259,7 +266,7 @@ const M = {
   lamp: new THREE.MeshStandardMaterial({color:0xfffbe8, emissive:0xfff3c4, emissiveIntensity:.9}),
   screen: new THREE.MeshStandardMaterial({color:0x0b1a2b, emissive:0x2a5fa8, emissiveIntensity:.7}),
   road: std({color:0x3a3d40, roughness:.95}), pavement: std({color:0xbdbcb4, roughness:.95}), water: std({color:0x3f6f8c, roughness:.12, metalness:.15}),
-  ballast: std({color:0x857d72, roughness:1}), slate: std({color:0x3c4248, roughness:.75})
+  ballast: std({color:0x857d72, roughness:1}), slate: std({color:0x3c4248, roughness:.75}), outfield: std({color:0x23452c, roughness:.85})
 };
 for (const st in STYLES) M["clad_"+st] = std({color:STYLES[st].clad, roughness: [0x8b4636,0x9a4a3a,0x7d3b2c].includes(STYLES[st].clad) ? .95 : .6, metalness: st === "showpiece" ? .3 : .15});
 function setSeatColours(){
@@ -307,7 +314,14 @@ function drawFootball(ctx){
     ctx.beginPath(); ctx.arc(gx-11*s,0,9.15, s>0?Math.PI-a:-a, s>0?Math.PI+a:a); ctx.stroke();
   }
 }
-const fenceR = phi => 100 + 22*Math.sin(2*phi);
+/* Distance from home plate to the outfield wall at angle phi: 0 runs down the left-field line, pi/2 down the right-field
+   line, and the wall curves smoothly through centre field between them. */
+function fenceR(phi){
+  const B = Object.assign({}, BALLPARK, S.ballpark || {}), t = Math.max(0, Math.min(1, phi/(Math.PI/2)));
+  const k = t < .5 ? t/.5 : (t - .5)/.5, e = (1 - Math.cos(Math.PI*k))/2;
+  return t < .5 ? B.lf + (B.cf - B.lf)*e : B.cf + (B.rf - B.cf)*e;
+}
+const wallH = phi => { const B = Object.assign({}, BALLPARK, S.ballpark || {}); return phi < 0.5 ? Math.max(B.wall, B.lfWall) : B.wall; };
 function drawBaseball(ctx, F, Wt, Ht){
   const H = F.home, dirt = "#b9875a";
   ctx.fillStyle = "#2f6430"; ctx.fillRect(-Wt/2,-Ht/2,Wt,Ht);
@@ -405,7 +419,7 @@ function floorTexture(F, set){
     for (let r=80;r>0;r-=6){ ctx.fillStyle = (r/6)%2<1 ? "#43873d" : "#3e7e38"; ctx.beginPath(); ctx.ellipse(0,0,r*F.W/F.H,r,0,0,Math.PI*2); ctx.fill(); }
     rr(ctx,F.W,F.H,F.r); ctx.lineWidth=.35; ctx.strokeStyle="#f4f4f0"; ctx.stroke();
     ctx.beginPath(); ctx.ellipse(0,0,30,27.4,0,0,Math.PI*2); ctx.setLineDash([1.2,1.2]); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = "#cdb98a"; ctx.fillRect(-10.06,-1.6,20.12,3.2);
+    for (let k=-4;k<=4;k++){ ctx.fillStyle = k === 0 ? "#cdb98a" : k % 2 ? "#5d8f4a" : "#6b9a52"; ctx.fillRect(-12, -1.525 + k*3.05, 24, 3.05); } // the square: a row of pitches, today's in the middle
     ctx.fillStyle = "#ffffff"; for (const s of [-1,1]) ctx.fillRect(s*8.84-0.05,-1.32,0.1,2.64);
   } else {
     ctx.fillStyle = "#3d7a38"; ctx.fillRect(-Wt/2,-Ht/2,Wt,Ht);
@@ -447,8 +461,26 @@ function addProps(g, F, buf){
     const bar = add(cyl(.08,5.6), M.white, 50*s,3,0); bar.rotation.x = Math.PI/2;
   }
   if (S.sport === "baseball"){
-    const H = SPORTS.baseball.home;
-    for (const ph of [0, Math.PI/2]){ const r = fenceR(ph); add(cyl(.25,20), M.barrier, H[0]+r*Math.cos(ph), 10, H[1]+r*Math.sin(ph)); }
+    const H = F.home, P = (ph, r) => [H[0] + r*Math.cos(ph), H[1] + r*Math.sin(ph)];
+    for (const ph of [0, Math.PI/2]){ const r = fenceR(ph), q = P(ph, r); add(cyl(.25, 20), M.barrier, q[0], 10, q[1]); } // foul poles
+    // the padded outfield wall, taller down the left-field line if set, with a yellow line along the top
+    for (let i=0;i<60;i++){ const a0 = i/60*Math.PI/2, a1 = (i+1)/60*Math.PI/2, p0 = P(a0, fenceR(a0)), p1 = P(a1, fenceR(a1)), h0 = wallH(a0), h1 = wallH(a1);
+      quad(buf("outfield"), [p0[0],0,p0[1]], [p1[0],0,p1[1]], [p1[0],h1,p1[1]], [p0[0],h0,p0[1]]);
+      quad(buf("barrier"), [p0[0],h0,p0[1]], [p1[0],h1,p1[1]], [p1[0],h1+.15,p1[1]], [p0[0],h0+.15,p0[1]]); }
+    // the batter's eye: a dark screen beyond centre field
+    const cf = Math.PI/4, c0 = P(cf - .09, fenceR(cf) + 4), c1 = P(cf + .09, fenceR(cf) + 4);
+    quad(buf("outfield"), [c0[0],0,c0[1]], [c1[0],0,c1[1]], [c1[0],12,c1[1]], [c0[0],12,c0[1]]);
+    // dugouts along both foul lines, sunk into the strip in front of the stands, with a roof over each
+    for (const [dx, dz] of [[1, 0], [0, 1]]){ const cx = H[0] + dx*28 - dz*4.5, cz = H[1] + dz*28 - dx*4.5, w = dx ? 20 : 3.2, d = dx ? 3.2 : 20;
+      add(new THREE.BoxGeometry(w, 1.1, d), M.dark, cx, .55, cz);
+      add(new THREE.BoxGeometry(w + .4, .2, d + .4), M.roofSolid, cx, 1.2, cz); }
+  }
+  if (S.sport === "cricket"){
+    // the boundary rope just inside the edge of the outfield, and a sightscreen behind each end of the pitch
+    const rope = closedPathS(F, F.r, -2.5, "curved"); ribbon(buf("white"), rope, rope, 0, .16, true);
+    for (const s of [-1, 1]){ const x = s*(F.W/2 + 2.5);
+      add(new THREE.BoxGeometry(.6, 7, 22), M.white, x, 4.4, 0);
+      add(new THREE.BoxGeometry(1.4, .9, 22), M.dark, x, .45, 0); }
   }
   if (!F.custom) return;
   const W = F.W, H = F.H;
