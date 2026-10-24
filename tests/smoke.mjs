@@ -71,10 +71,13 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check((await cap()) === fullBowl, "giving each side its own rows starts from the same bowl");
   await page.fill('input[data-p="tiers.0.sideRows.E"]', "10"); await page.waitForTimeout(300);
   check((await cap()) < fullBowl, "one side of a bowl can be made shallower");
-  const coverBefore = (await last()).covered;
+  await page.click('[data-act="toggleRoof"]'); await page.waitForTimeout(300);
+  const bare = (await last()).covered;
   await page.check("#grOn"); await page.waitForTimeout(300);
   for (const shape of ["oval", "circle", "follow"]) { await page.selectOption('select[data-p="gr.shape"]', shape); await page.waitForTimeout(300); }
-  check((await last()).covered !== coverBefore && (await cap()) > 0, "one roof over the whole ground replaces the stand roofs");
+  const roofed = await last();
+  check(bare === 0 && roofed.covered > roofed.total * 0.9, "one roof over the whole ground covers the seats");
+  await page.click('#panes [data-pane="start"]');
   await page.click('[data-p="ringroof"]'); await page.waitForTimeout(300);
   const rr = await last();
   check(rr.total > 20000 && rr.covered / rr.total > 0.9 && !rr.issues, 'preset "ringroof" builds under one roof with no warnings');
