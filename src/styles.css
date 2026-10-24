@@ -237,3 +237,98 @@ body.present .exitp{display:block;position:absolute;top:12px;right:max(12px, env
 .more[hidden],.bookmarks[hidden],.hud[hidden]{display:none !important}
 .screens{display:flex;flex-direction:column;gap:10px}
 .screen{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;background:var(--paper)}
+
+/* ================= polish: motion, touch, new surfaces ================= */
+:root{--ease:cubic-bezier(.2,.8,.2,1);--shadow:0 10px 30px rgba(15,25,20,.18),0 2px 6px rgba(15,25,20,.08)}
+.btn,.cams button,.more button,.tabs button,.panes button,.seg label,.seg button,.swatches button,.savelist button,.chip button,.hud,.mini{transition:background-color .18s var(--ease),border-color .18s var(--ease),color .18s var(--ease),box-shadow .18s var(--ease),transform .12s var(--ease)}
+.btn:active:not(:disabled),.cams button:active,.tabs button:active,.hud:active,.savelist button:active,.mini:active{transform:scale(.97)}
+.swatches button:hover{transform:scale(1.08)}
+.cams button:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600;text-align:center}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.icon{display:inline-grid;place-items:center;width:32px;height:32px;padding:0;text-align:center}
+.btn.icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.panebody > .on{animation:paneIn .28s var(--ease)}
+@keyframes paneIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.presets .btn:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.08)}
+
+/* quick actions on the Start pane */
+.quick{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn.hero{display:flex;align-items:center;gap:10px;padding:10px 12px;font-weight:600;background:var(--sunk)}
+.btn.hero small{font-weight:400}
+.btn.hero .dice{font-size:22px;line-height:1;transition:transform .4s var(--ease)}
+.btn.hero:hover .dice{transform:rotate(-14deg) scale(1.12)}
+
+/* capacity: a little bump when it changes, and a real-world comparison */
+.bump{animation:bump .45s var(--ease)}
+@keyframes bump{30%{transform:scale(1.06)}}
+.cap .big,.hud b{display:inline-block;transform-origin:left center}
+.cap .like{font-size:12.5px;margin-top:8px;line-height:1.45;max-width:240px}
+.cap .like:empty{display:none}
+.hud .up{color:var(--good)} .hud .down{color:var(--bad)}
+
+/* loading screen */
+.splash{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:var(--paper);transition:opacity .45s var(--ease),visibility .45s}
+.ready .splash{opacity:0;visibility:hidden}
+.failed .splash{display:none}
+.splash-in{display:grid;justify-items:center;gap:10px}
+.splash-pitch{width:120px;height:80px;fill:none;stroke:var(--accent);stroke-width:2;stroke-linecap:round;stroke-dasharray:400;stroke-dashoffset:400;animation:draw 1.6s var(--ease) infinite alternate}
+@keyframes draw{to{stroke-dashoffset:0}}
+.splash-name{font-family:var(--f-display);font-weight:800;font-size:34px;letter-spacing:.02em;text-transform:uppercase}
+.splash-msg{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+
+/* start-up failure card */
+.fatal{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:var(--paper)}
+.fatal[hidden]{display:none}
+.fatal-card,.sheet{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:22px;max-width:460px;width:100%;box-sizing:border-box}
+.fatal-card h2,.sheet h2{font-family:var(--f-display);font-weight:800;font-size:28px;text-transform:uppercase;letter-spacing:.02em;margin:0 0 8px;line-height:1}
+.fatal-card p{margin:0 0 16px;line-height:1.5;color:var(--muted)}
+.fatal-acts,.sheet-acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin:16px 0 0}
+
+/* pop-up messages */
+.toasts{position:fixed;z-index:40;left:50%;bottom:max(18px, env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;width:min(520px, calc(100% - 32px))}
+.toast{pointer-events:auto;display:flex;align-items:center;gap:12px;background:var(--ink);color:var(--panel);border-radius:10px;padding:10px 12px 10px 14px;font-size:13px;line-height:1.4;box-shadow:var(--shadow);animation:toastIn .3s var(--ease)}
+.toast b{font-weight:600}
+.toast button{font:inherit;font-size:12.5px;font-weight:600;border:0;border-radius:6px;padding:5px 10px;background:rgba(128,128,128,.28);color:var(--panel);cursor:pointer;flex:none}
+.toast button:hover{background:rgba(128,128,128,.42)}
+.toast.out{animation:toastOut .25s var(--ease) forwards}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px) scale(.98)}}
+@keyframes toastOut{to{opacity:0;transform:translateY(6px)}}
+@media (min-width:861px){.toasts{left:calc(390px + (100% - 390px)/2);width:min(520px, calc(100% - 390px - 32px))}}
+@media (max-width:860px){.toasts{top:calc(46svh - 64px);bottom:auto}}
+
+/* welcome and help sheets */
+.sheet{padding:24px;max-height:calc(100svh - 32px);overflow:auto}
+.sheet::backdrop{background:rgba(10,16,13,.45);backdrop-filter:blur(2px)}
+.sheet[open]{animation:sheetIn .3s var(--ease)}
+@keyframes sheetIn{from{opacity:0;transform:translateY(12px) scale(.98)}}
+.sheet .lede{margin:0 0 14px;line-height:1.5}
+.steps{margin:0 0 14px;padding:0;list-style:none;counter-reset:s;display:grid;gap:10px}
+.steps li{counter-increment:s;display:grid;grid-template-columns:28px 1fr;column-gap:10px;line-height:1.4}
+.steps li::before{content:counter(s);grid-row:span 2;width:26px;height:26px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:600;font-size:13px}
+.steps span{color:var(--muted);font-size:13px}
+.sheet#help{max-width:620px}
+.helpgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 24px;margin-bottom:10px}
+.helpgrid h3{font-family:var(--f-mono);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:8px 0 6px}
+.helpgrid ul{margin:0;padding:0;list-style:none;display:grid;gap:6px;font-size:13px}
+.sheet .hint + .hint{margin-top:8px}
+kbd{font-family:var(--f-mono);font-size:11px;padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;background:var(--paper)}
+
+/* the tip strip is now just a hint line; messages use toasts */
+.tip.msg{color:var(--ink)}
+
+/* comfortable tap targets on touch screens */
+@media (pointer:coarse){
+  .btn.small,.savelist button,.mini,.cams button,.more button,.chip button{min-height:36px}
+  .btn.icon{width:38px;height:38px}
+  .seg label,.seg button{padding-block:10px}
+  .tabs button{padding:8px 12px}
+  .toggle input{width:20px;height:20px}
+  .row input[type=range]{height:28px}
+  .swatches button{width:36px;height:36px}
+}
+@media (max-width:420px){.quick{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+  .splash-pitch{stroke-dashoffset:0}
+}

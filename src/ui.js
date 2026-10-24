@@ -19,9 +19,31 @@ function tierTable(tiers, total){
     tiers.map(t => `<tr${t.bad ? ' class="bad"' : ""}><td>${esc(t.name)}</td><td>${TYPES[t.type].short}</td><td>${t.rows}</td><td>${fmt(t.seats)}</td><td>${total ? Math.round(100*t.seats/total) : 0}%</td><td>${t.steep ? Math.round(t.steep) + "°" : "flat"}</td><td>${t.c == null ? "–" : `<span class="${t.c < L.minC ? "lo" : ""}">${t.c} mm</span>`}</td><td>${t.evac ? `<span class="${t.evac > L.maxEvac ? "lo" : ""}">${t.evac.toFixed(1)} min</span>` : "–"}</td></tr>`).join("")}</tbody></table>`;
 }
 document.getElementById("breakdown").addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.bd){ if (d.open) openBd.add(d.dataset.bd); else openBd.delete(d.dataset.bd); } }, true);
+/* Real grounds to compare against, so a number like 41,000 means something. Capacities are rounded. */
+const LIKE = [[100000,"the Melbourne Cricket Ground"],[90000,"Wembley"],[82000,"Twickenham"],[74000,"Old Trafford"],[62000,"Tottenham Hotspur Stadium"],
+  [52000,"St James' Park"],[42000,"Villa Park"],[29000,"Craven Cottage"],[11000,"the Vitality Stadium"],[3000,"a non-league ground"]];
+function likeText(n){
+  if (n < 500) return "";
+  const best = LIKE.reduce((a, b) => Math.abs(Math.log(b[0]/n)) < Math.abs(Math.log(a[0]/n)) ? b : a);
+  const r = n/best[0];
+  const how = r > 1.12 ? `${Math.round((r-1)*100)}% bigger than` : r < 0.88 ? `${Math.round((1-r)*100)}% smaller than` : "about the size of";
+  return `${how[0].toUpperCase() + how.slice(1)} ${best[1]} (≈${fmt(best[0])}).`;
+}
+/* Count the capacity up or down to its new value rather than jumping. */
+function countTo(el, to){
+  const from = el._v == null ? to : el._v; el._v = to;
+  cancelAnimationFrame(el._raf);
+  if (reduce || from === to){ el.textContent = fmt(to); return; }
+  el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump");
+  const t0 = performance.now(), dur = Math.min(700, 250 + Math.abs(to - from)/60);
+  const step = now => { const k = Math.min(1, (now - t0)/dur), e = 1 - Math.pow(1-k, 3); el.textContent = fmt(Math.round(from + (to - from)*e)); if (k < 1) el._raf = requestAnimationFrame(step); };
+  el._raf = requestAnimationFrame(step);
+}
+let wasHard = null, quiet = true;
 function renderStats(){
   const D = LAST, L = S.limits; if (!D) return;
-  document.getElementById("cap").textContent = fmt(D.total);
+  countTo(document.getElementById("cap"), D.total);
+  $("like").textContent = likeText(D.total);
   const mix = Object.entries(D.byType).filter(([,v]) => v > 0).map(([k,v]) => `${fmt(v)} ${TYPES[k].short}`);
   document.getElementById("mix").textContent = mix.length > 1 ? mix.join(" · ") : "";
   const cMM = isFinite(D.minC) ? Math.round(D.minC*1000) : null;
@@ -67,12 +89,24 @@ document.getElementById("safety").addEventListener("click", e => {
   else if (fa) fixAll();
 });
 document.getElementById("safety").addEventListener("change", e => { if (e.target.id === "trimToggle"){ S.trim = e.target.checked; changed(); } if (e.target.id === "keepClose"){ S.keepClose = e.target.checked; changed(); } });
-function flash(msg){ tipOverride = msg; setTip(); clearTimeout(flash.t); flash.t = setTimeout(() => { tipOverride = null; setTip(); }, 5000); }
+/* Pop-up messages. An optional action (usually Undo) gives a one-tap way back. */
+function toast(msg, action, ms){
+  const box = $("toasts"), el = document.createElement("div");
+  el.className = "toast"; el.innerHTML = `<span>${msg}</span>`;
+  if (action){ const b = document.createElement("button"); b.textContent = action.label; b.addEventListener("click", () => { action.run(); close(); }); el.appendChild(b); }
+  function close(){ if (!el.isConnected || el.classList.contains("out")) return; el.classList.add("out"); setTimeout(() => el.remove(), reduce ? 0 : 260); }
+  while (box.children.length >= 2) box.firstChild.remove();
+  box.appendChild(el); setTimeout(close, ms || (action ? 7000 : 4500));
+  return el;
+}
+window.gwToast = msg => toast(msg);
+const UNDO = {label:"Undo", run:() => restore(hIdx - 1)};
+function flash(msg, action){ toast(msg, action === undefined && /Undo/.test(msg) ? UNDO : action); }
 function runFix(is){
   if (!is || !is.fix) return;
   const label = is.fix.label, ok = is.fix.run();
   renderTypeSizes(); renderEditor(); changed();
-  flash(ok ? `<b>Fixed:</b> ${esc(label.charAt(0).toLowerCase() + label.slice(1))}. Undo puts it back.` : `<b>That one needs a bigger change</b> than I can make safely. Use Show me to go to its settings.`);
+  flash(ok ? `<b>Fixed:</b> ${esc(label.charAt(0).toLowerCase() + label.slice(1))}.` : `<b>That one needs a bigger change</b> than I can make safely. Use Show me to go to its settings.`, ok ? UNDO : null);
 }
 function fixAll(){
   const rk0 = {seatRake:S.limits.seatRake, terraceRake:S.limits.terraceRake};
@@ -86,7 +120,7 @@ function fixAll(){
   renderTypeSizes(); renderEditor(); changed();
   const left = dryIssues().filter(i => i.cat !== "geo").length;
   const ruled = S.standard === "custom" && (S.limits.seatRake > rk0.seatRake || S.limits.terraceRake > rk0.terraceRake);
-  flash(`<b>Fixed ${fixed} ${fixed === 1 ? "thing" : "things"}.</b>` + (ruled ? ` Your rules now allow ${[S.limits.seatRake > rk0.seatRake ? S.limits.seatRake + "° seating" : "", S.limits.terraceRake > rk0.terraceRake ? S.limits.terraceRake + "° terraces" : ""].filter(Boolean).join(" and ")}.` : "") + (left ? ` ${left} still ${left === 1 ? "needs" : "need"} a decision from you.` : " Undo puts it all back."));
+  flash(`<b>Fixed ${fixed} ${fixed === 1 ? "thing" : "things"}.</b>` + (ruled ? ` Your rules now allow ${[S.limits.seatRake > rk0.seatRake ? S.limits.seatRake + "° seating" : "", S.limits.terraceRake > rk0.terraceRake ? S.limits.terraceRake + "° terraces" : ""].filter(Boolean).join(" and ")}.` : "") + (left ? ` ${left} still ${left === 1 ? "needs" : "need"} a decision from you.` : ""), fixed ? UNDO : null);
 }
 /* ================= panes: one section of controls at a time, so the 3D view stays in sight ================= */
 let pane = "start";
@@ -94,17 +128,24 @@ try { pane = localStorage.getItem("groundworks-pane") || "start"; } catch(e) {}
 function showPane(name, keepScroll){
   if (!document.querySelector(`#panes [data-pane="${name}"]`)) name = "start";
   pane = name;
-  document.querySelectorAll("#panes [data-pane]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.pane === name)));
+  document.querySelectorAll("#panes [data-pane]").forEach(b => { b.setAttribute("aria-selected", String(b.dataset.pane === name)); b.tabIndex = b.dataset.pane === name ? 0 : -1; });
   document.querySelectorAll("#panebody > [data-pane]").forEach(el => el.classList.toggle("on", el.dataset.pane === name));
   if (!keepScroll) $("panebody").scrollTop = 0;
   try { localStorage.setItem("groundworks-pane", name); } catch(e) {}
 }
 document.getElementById("panes").addEventListener("click", e => { const b = e.target.closest("[data-pane]"); if (b) showPane(b.dataset.pane); });
+document.getElementById("panes").addEventListener("keydown", e => {
+  const tabs = [...document.querySelectorAll("#panes [data-pane]")], i = tabs.indexOf(document.activeElement); if (i < 0) return;
+  const j = e.key === "ArrowRight" ? (i + 1) % tabs.length : e.key === "ArrowLeft" ? (i - 1 + tabs.length) % tabs.length : e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : -1;
+  if (j < 0) return; e.preventDefault(); tabs[j].focus(); showPane(tabs[j].dataset.pane);
+});
 document.getElementById("hud").addEventListener("click", () => showPane("results"));
 function updateHud(){
   if (!LAST) return;
-  $("hudCap").textContent = fmt(LAST.total);
+  countTo($("hudCap"), LAST.total);
   const hard = LAST.issues.filter(i => i.cat !== "geo").length, geo = LAST.issues.length - hard;
+  if (wasHard && !hard && !quiet) toast("✅ <b>Every check passes.</b> Fans can see the play and get out in time.");
+  wasHard = hard; quiet = false;
   $("hudChecks").innerHTML = hard ? `places · <span class="pill bad">${hard} to fix</span>` : `places · <span class="pill good">checks ok</span>`;
   const bd = $("paneBadge"); bd.hidden = !(hard || geo); bd.textContent = hard || geo; bd.classList.toggle("geo", !hard);
 }
@@ -120,7 +161,7 @@ function showIssue(is){
 }
 
 /* ================= camera ================= */
-let camMode = "aerial", anim = null, look = false, picking = false, wire = false;
+let camMode = "aerial", anim = null, look = false, picking = false, wire = false, screenFocus = 0;
 const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const tipEl = document.getElementById("tip");
 let tipOverride = null;
@@ -149,6 +190,13 @@ function camTarget(mode){
     const p = new THREE.Vector3(-D.F.W*0.12, 1.7 + focusY, D.F.H/2 + Math.min(D.set*0.5, 4));
     const aim = new THREE.Vector3(D.F.W*0.08, 2 + focusY + R0*0.05, -D.F.H/2);
     return {p, t:p.clone().add(aim.sub(p).normalize().multiplyScalar(0.5))};
+  }
+  if (mode === "screen"){
+    const sp = D.screenSpots && D.screenSpots[screenFocus]; if (!sp) return camTarget("aerial");
+    const t = new THREE.Vector3(...sp), flat = Math.hypot(sp[0], sp[2]);
+    const p = flat < 5 ? new THREE.Vector3(D.F.W*0.3, Math.max(4, sp[1]*0.45), D.F.H*0.3) // hanging over the centre: look up at it from the play
+      : new THREE.Vector3(-sp[0]*0.3, Math.max(5, sp[1]*0.55), -sp[2]*0.3);
+    return {p, t:p.clone().add(t.sub(p).normalize().multiplyScalar(0.5)), look:true};
   }
   if (mode === "exterior" || mode === "under"){
     const r = regionFor(tab === "B" || tab === "C" || tab === "F" ? "N" : tab); if (!r) return camTarget("aerial");
@@ -191,11 +239,11 @@ function setOrtho(on){
   to.position.copy(from.position); to.up.copy(from.up);
   if (on){ const dist = from.position.distanceTo(controls.target), h = dist*Math.tan(persp.fov*Math.PI/360), a = view.clientWidth/Math.max(1, view.clientHeight);
     ortho.left = -h*a; ortho.right = h*a; ortho.top = h; ortho.bottom = -h; ortho.zoom = 1; ortho.updateProjectionMatrix(); }
-  camera = to; controls.object = to; controls.update();
+  camera = to; controls.object = to; controls.update(); invalidate();
   document.getElementById("orthoBtn").setAttribute("aria-pressed", String(on));
 }
 document.getElementById("orthoBtn").addEventListener("click", () => setOrtho(camera !== ortho));
-function applyWire(){ const seen = new Set(); group.traverse(o => { if (o.material && !seen.has(o.material)){ seen.add(o.material); o.material.wireframe = wire; } }); }
+function applyWire(){ const seen = new Set(); group.traverse(o => { if (o.material && !seen.has(o.material)){ seen.add(o.material); o.material.wireframe = wire; } }); invalidate(); }
 document.getElementById("wireBtn").addEventListener("click", () => { wire = !wire; applyWire(); document.getElementById("wireBtn").setAttribute("aria-pressed", String(wire)); });
 document.getElementById("presentBtn").addEventListener("click", () => { document.body.classList.add("present"); closeMore(); setTimeout(resize, 30); });
 document.getElementById("exitPresent").addEventListener("click", () => { document.body.classList.remove("present"); setTimeout(resize, 30); });
@@ -325,16 +373,16 @@ function constrain(){
   }
   if (c.y < minY) c.y = minY;
 }
-function resize(){ const w = view.clientWidth, h = view.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); persp.aspect = w/h; persp.updateProjectionMatrix();
+function resize(){ const w = view.clientWidth, h = view.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); persp.aspect = w/h; persp.updateProjectionMatrix(); invalidate();
   if (camera === ortho){ const hh = (ortho.top - ortho.bottom)/2; ortho.left = -hh*w/h; ortho.right = hh*w/h; ortho.updateProjectionMatrix(); } }
 new ResizeObserver(resize).observe(view);
 function loop(now){
   if (anim){ const k = Math.min(1, (now - anim.start)/850), e = 1 - Math.pow(1-k, 3);
     camera.position.lerpVectors(anim.p0, anim.p, e); controls.target.lerpVectors(anim.t0, anim.t, e);
     if (k===1){ anim = null; applyLimits(); } }
-  controls.update(); constrain(); renderer.render(scene, camera); requestAnimationFrame(loop);
-/* read-only hook for automated checks */
-window.__gw = {state:() => JSON.parse(JSON.stringify(S)), last:() => LAST, regions:() => LAST_REGIONS};
+  const moved = controls.update(); constrain();
+  if (moved || anim || dirty > 0){ renderer.render(scene, camera); if (dirty > 0) dirty--; }
+  requestAnimationFrame(loop);
 }
 function applyTheme(fromMood){
   if (S && S.night && fromMood !== true){ applyMood(); return; }
@@ -342,6 +390,7 @@ function applyTheme(fromMood){
   scene.background = new THREE.Color(cs.getPropertyValue("--scene").trim() || "#dde5de");
   groundMat.color.set(cs.getPropertyValue("--ground").trim() || "#c3cbc0");
   plazaMat.color.set(cs.getPropertyValue("--plaza").trim() || "#d4d8d1");
+  invalidate();
 }
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 new MutationObserver(applyTheme).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
@@ -358,7 +407,7 @@ function record(coalesce){
 }
 function restore(i){
   if (i < 0 || i >= hist.length) return;
-  hIdx = i; restoring = true; S = JSON.parse(hist[i]); setSeatColours(); renderTypeSizes(); renderEditor(); renderViews(); changed(false, true); restoring = false; syncHistBtns();
+  hIdx = i; restoring = true; quiet = true; S = JSON.parse(hist[i]); setSeatColours(); renderTypeSizes(); renderEditor(); renderViews(); changed(false, true); restoring = false; syncHistBtns();
 }
 function syncHistBtns(){ document.getElementById("undoBtn").disabled = hIdx <= 0; document.getElementById("redoBtn").disabled = hIdx >= hist.length - 1; }
 document.getElementById("undoBtn").addEventListener("click", () => restore(hIdx - 1));
@@ -469,9 +518,10 @@ function renderEditor(){
       ${tierBlocks(cfg.tiers, above)}
       ${cfg.tiers.length < 4 ? `<button class="btn small" data-act="addTier">Add a tier</button>` : ""}
       ${ring ? "" : roofBlock(cfg, bowl)}
-      ${ring ? "" : `<details class="sub"><summary>Façade details</summary><div class="inner">
+      ${ring ? "" : `<details class="sub" open><summary>Outside walls</summary><div class="inner">
+        ${pick("Look", "facade.look", FACADE_LOOKS[fac.look] ? fac.look : sty.look || "plain", FACADE_LOOKS)}
         ${check("Stair towers", "facade.towers", fac.towers)}${check("Entrance gates", "facade.gates", fac.gates)}
-        ${check("Tall window mullions", "facade.mullions", fac.mullions)}${check("Metal fins", "facade.fins", fac.fins)}${check("Glazed band", "facade.glass", fac.glass)}</div></details>`}`;
+        <button class="btn link" data-act="seeOutside">See it from the street</button></div></details>`}`;
   }
   refreshOutputs(); renderSummary();
 }
@@ -493,6 +543,12 @@ function refreshOutputs(){
     rk.textContent = (tr.auto ? (v ? "up to " + Math.round(v) + "°" : "auto") : tr.rake + "°") + (over ? " · over " + lim + "°" : "");
     rk.classList.toggle("over", over);
   });
+}
+function applyStyle(cfg, key, ring){
+  const st = STYLES[key], tiers = st.tiers();
+  cfg.style = key; cfg.facade = Object.assign({}, st.facade);
+  cfg.tiers = ring ? tiers.slice(0, 1) : isHybrid() ? (tiers.length > 1 ? tiers.slice(1) : tiers) : tiers;
+  const roof = st.roof(); if (isBowl() && roof.shape === "gable") roof.shape = "slope"; cfg.roof = roof;
 }
 function targetObj(){ return (!isBowl() && tab === "C") ? {tiers:S.cornerCustom} : cfgForTab(); }
 function setPath(obj, path, val){
@@ -522,13 +578,7 @@ $("editor").addEventListener("input", e => {
 $("editor").addEventListener("change", e => {
   const el = e.target;
   if (el.dataset.corner){ const cc = S.corners[el.dataset.corner], f = el.dataset.cf; cc[f] = el.type === "checkbox" ? el.checked : el.value; renderEditor(); changed(); return; }
-  if (el.dataset.actChange === "style"){
-    const cfg = cfgForTab(), st = STYLES[el.value], ring = isHybrid() && tab === "B", tiers = st.tiers();
-    cfg.style = el.value; cfg.facade = Object.assign({}, st.facade);
-    cfg.tiers = ring ? tiers.slice(0, 1) : isHybrid() ? (tiers.length > 1 ? tiers.slice(1) : tiers) : tiers;
-    const roof = st.roof(); if (isBowl() && roof.shape === "gable") roof.shape = "slope"; cfg.roof = roof;
-    renderEditor(); changed(); return;
-  }
+  if (el.dataset.actChange === "style"){ applyStyle(cfgForTab(), el.value, isHybrid() && tab === "B"); renderEditor(); changed(); return; }
   if (el.tagName === "SELECT" && el.dataset.p){ setPath(targetObj(), el.dataset.p, el.value); renderEditor(); changed(); }
 });
 $("editor").addEventListener("click", e => {
@@ -541,7 +591,8 @@ $("editor").addEventListener("click", e => {
   if (act === "addBoxes"){ if (arr.length >= 4) return say("<b>Four tiers is the most a stand can have.</b> Remove one first.");
     const at = Math.min(1, arr.length); arr.splice(at, 0, t("exec", 4, 22, true, at || isHybrid() ? {over:2, gap:3.6} : {})); }
   if (act === "toggleRoof"){ cfg.roof = cfg.roof.shape === "none" ? STYLES[cfg.style].roof() : Object.assign({}, cfg.roof, {shape:"none"}); if (cfg.roof.shape === "none" && STYLES[cfg.style].roof().shape === "none" && b.textContent.includes("+")) cfg.roof = R("slope"); }
-  if (act === "mirror"){ S.stands[OPPOSITE[tab]] = clone(cfg); say(`<b>Copied</b> to the ${SIDE_NAMES[OPPOSITE[tab]].toLowerCase()}.`); }
+  if (act === "mirror"){ S.stands[OPPOSITE[tab]] = clone(cfg); flash(`<b>Copied</b> to the ${SIDE_NAMES[OPPOSITE[tab]].toLowerCase()}.`, UNDO); }
+  if (act === "seeOutside"){ goCam("exterior"); return; }
   if (act === "copy"){ clipboard = clone(cfg); say("<b>Copied.</b> Pick another stand and paste."); renderEditor(); return; }
   if (act === "paste" && clipboard){ const c2 = clone(clipboard); if (isHybrid() && tab === "B") c2.tiers = c2.tiers.slice(0,1); Object.assign(cfg, c2); }
   if (act === "reset"){ const fresh = mk(cfg.style); if (isHybrid()) fresh.tiers = tab === "B" ? fresh.tiers.slice(0,1) : fresh.tiers.slice(1); Object.assign(cfg, fresh); }
@@ -551,7 +602,7 @@ $("editor").addEventListener("click", e => {
     if (isBowl() && cfg.roof.shape === "gable") cfg.roof.shape = "slope"; }
   if (act === "surprise"){ const keys = Object.keys(STYLES).filter(k => k !== cfg.style), k = keys[Math.floor(Math.random()*keys.length)], st = STYLES[k];
     cfg.style = k; cfg.facade = Object.assign({}, st.facade); const ro = st.roof(); if (ro.shape !== "none" || cfg.roof.shape === "none") cfg.roof = Object.assign(ro, {shape: isBowl() && ro.shape === "gable" ? "slope" : ro.shape});
-    say(`<b>Restyled as ${st.label}.</b> Tiers kept as they were.`); }
+    flash(`<b>Restyled as ${st.label}.</b> Tiers kept as they were.`, UNDO); }
   renderEditor(); changed();
 });
 
@@ -646,19 +697,29 @@ const screensOf = () => { if (!Array.isArray(S.screens)) S.screens = screenList(
 function renderScreens(){
   const list = Array.isArray(S.screens) ? S.screens : screenList(LAST && LAST.closedAt);
   $("screens").innerHTML = list.length ? list.map((sc, i) => `<div class="screen" data-i="${i}">
-    <div class="tier-h"><span>Screen ${i+1}</span><button class="mini" data-sact="remove" data-i="${i}">Remove</button></div>
+    <div class="tier-h"><span>Screen ${i+1}</span><span class="acts-row"><button class="mini" data-sact="view" data-i="${i}">Look at it</button><button class="mini" data-sact="remove" data-i="${i}">Remove</button></span></div>
     <div class="row"><label>Where</label><select data-sf="at" data-i="${i}" aria-label="Screen ${i+1} position">${Object.entries(SCREEN_AT).map(([k,v]) => `<option value="${k}"${k===sc.at?" selected":""}>${v}</option>`).join("")}</select></div>
     ${sc.at === "centre" ? "" : `<div class="row"><label>Mounted</label><select data-sf="mount" data-i="${i}" aria-label="Screen ${i+1} mounting">${Object.entries(SCREEN_MOUNTS).map(([k,v]) => `<option value="${k}"${k===(sc.mount||"gap")?" selected":""}>${v}</option>`).join("")}</select></div>`}
     ${sc.mount === "ribbon" && sc.at !== "centre" ? "" : `<div class="row"><label>Width</label><output>${sc.size || 16} m</output><input type="range" data-sf="size" data-i="${i}" min="4" max="40" step="1" value="${sc.size || 16}" aria-label="Screen ${i+1} width"></div>
     ${sc.at === "centre" ? "" : `<div class="row"><label>Along the stand</label><output>${(sc.pos||0) === 0 ? "centre" : Math.abs(sc.pos) + "% " + (sc.pos < 0 ? "left" : "right")}</output><input type="range" data-sf="pos" data-i="${i}" min="-100" max="100" step="5" value="${sc.pos || 0}" aria-label="Screen ${i+1} position along the stand"></div>`}`}
   </div>`).join("") : `<p class="hint">No screens yet.</p>`;
 }
+/* Fly round to face a screen: from above, most of them are hidden under a roof or too small to spot. */
+function viewScreen(i){ screenFocus = i; requestAnimationFrame(() => requestAnimationFrame(() => { if (LAST.screenSpots && LAST.screenSpots[i]) goCam("screen"); })); }
 $("addScreen").addEventListener("click", () => { const L2 = screensOf(); const used = new Set(L2.map(x => x.at)); const at = ["E","W","N","S"].find(k => !used.has(k)) || "E";
-  L2.push({at, mount:"gap", size:12, pos:0}); renderScreens(); changed(); });
-$("screens").addEventListener("click", e => { const b = e.target.closest("[data-sact]"); if (!b) return; screensOf().splice(+b.dataset.i, 1); renderScreens(); changed(); });
+  const sc = {at, mount:"gap", size:12, pos:0}, i = L2.length; L2.push(sc);
+  // start with the first way of mounting it that fits this ground without a warning
+  const key = "screen:" + i, fits = ["gap","roof","top","back"].find(m => { sc.mount = m; return !dryIssues().some(x => x.key === key); });
+  sc.mount = fits || "back";
+  renderScreens(); changed(); viewScreen(i);
+  toast(`<b>Screen added</b> ${SCREEN_MOUNTS[sc.mount].charAt(0).toLowerCase() + SCREEN_MOUNTS[sc.mount].slice(1)}, at the ${SCREEN_AT[at].toLowerCase()}. Aerial takes you back up.`, UNDO);
+});
+$("screens").addEventListener("click", e => { const b = e.target.closest("[data-sact]"); if (!b) return;
+  if (b.dataset.sact === "view") return viewScreen(+b.dataset.i);
+  screensOf().splice(+b.dataset.i, 1); if (camMode === "screen") goCam("aerial"); renderScreens(); changed(); });
 $("screens").addEventListener("input", e => { const el = e.target; if (!el.dataset.sf || el.tagName === "SELECT") return; const sc = screensOf()[+el.dataset.i]; sc[el.dataset.sf] = +el.value;
   const out = el.parentElement.querySelector("output"); if (out) out.textContent = el.dataset.sf === "size" ? el.value + " m" : (+el.value === 0 ? "centre" : Math.abs(+el.value) + "% " + (+el.value < 0 ? "left" : "right")); changed(false, true); });
-$("screens").addEventListener("change", e => { const el = e.target; if (!el.dataset.sf || el.tagName !== "SELECT") return; screensOf()[+el.dataset.i][el.dataset.sf] = el.value; renderScreens(); changed(); });
+$("screens").addEventListener("change", e => { const el = e.target; if (!el.dataset.sf || el.tagName !== "SELECT") return; screensOf()[+el.dataset.i][el.dataset.sf] = el.value; renderScreens(); changed(); viewScreen(+el.dataset.i); });
 for (const id of ["crowd","night","seeThrough"]) $(id).addEventListener("change", e => { S[id] = e.target.checked; changed(); });
 $("seeBtn").addEventListener("click", () => { S.seeThrough = !S.seeThrough; changed(); });
 $("nightBtn").addEventListener("click", () => { S.night = !S.night; changed(); });
@@ -666,12 +727,21 @@ $("seatPattern").addEventListener("change", e => { S.seatPattern = e.target.valu
 $("seat2").addEventListener("input", e => { S.seat2 = e.target.value; setSeatColours(); save(true); });
 bindRange("focusIn", v => S.focusIn = v);
 const archOf = () => (S.arch = Object.assign({skin:"none", skinShape:"round"}, S.arch || {}));
+const outerOf = () => (S.outer = Object.assign({shape:"follow", fit:"ring", size:0}, S.outer || {}));
+bindRadio("outerShape", v => { outerOf().shape = v; changed(); });
+bindRadio("outerFit", v => { outerOf().fit = v; changed(); });
+bindRange("outerSize", v => outerOf().size = v);
 $("skin").innerHTML = Object.entries(SKINS).map(([k,v]) => `<option value="${k}">${v}</option>`).join("");
 $("skin").addEventListener("change", e => { archOf().skin = e.target.value; changed(); });
 bindRadio("skinShape", v => { archOf().skinShape = v; changed(); });
 for (const k of ["arch","ramps","towers","plaza"]) $("a-"+k).addEventListener("change", e => { archOf()[k] = e.target.checked; changed(); });
+function openState(st, sideTab, tweak){
+  S = st; quiet = true; if (tweak) tweak(); tab = isHybrid() ? "B" : (sideTab || "N");
+  setSeatColours(); renderTypeSizes(); renderEditor(); renderViews(); changed(true);
+}
 document.querySelectorAll("#presets button").forEach(b => b.addEventListener("click", () => {
-  S = clone(PRESETS[b.dataset.p]); tab = isHybrid() ? "B" : (b.dataset.p === "monument" ? "E" : "N"); setSeatColours(); renderTypeSizes(); renderEditor(); renderViews(); changed(true);
+  const P = clone(PRESETS[b.dataset.p]); openState(P, b.dataset.p === "monument" ? "E" : "N");
+  toast(`<b>${esc(b.firstChild.textContent.trim())}</b> loaded. Tap any stand to make it yours.`, UNDO);
 }));
 
 /* ================= saved designs ================= */
@@ -692,9 +762,10 @@ $("saveBtn").addEventListener("click", () => {
 });
 $("saveList").addEventListener("click", e => {
   const list = readSaves(), l = e.target.closest("[data-load]"), d = e.target.closest("[data-dup]"), x = e.target.closest("[data-del]");
-  if (l){ S = clone(list[+l.dataset.load].state); tab = isHybrid() ? "B" : "N"; setSeatColours(); renderTypeSizes(); renderEditor(); renderViews(); changed(true); flash(`<b>Opened “${esc(list[+l.dataset.load].name)}”.</b>`); }
+  if (l){ openState(clone(list[+l.dataset.load].state)); flash(`<b>Opened “${esc(list[+l.dataset.load].name)}”.</b>`, UNDO); }
   if (d){ const c = clone(list[+d.dataset.dup]); c.name += " (copy)"; c.at = Date.now(); list.unshift(c); writeSaves(list); renderSaves(); }
-  if (x){ list.splice(+x.dataset.del, 1); writeSaves(list); renderSaves(); }
+  if (x){ const i = +x.dataset.del, [gone] = list.splice(i, 1); writeSaves(list); renderSaves();
+    toast(`<b>Deleted “${esc(gone.name)}”.</b>`, {label:"Undo", run:() => { const l2 = readSaves(); l2.splice(Math.min(i, l2.length), 0, gone); writeSaves(l2); renderSaves(); }}); }
 });
 function statsOf(state){ const keep = S; S = clone(state); let r; try { r = dryRun(); } finally { S = keep; } return r; }
 $("cmpBtn").addEventListener("click", () => {
@@ -711,9 +782,83 @@ $("exportBtn").addEventListener("click", () => {
   try { navigator.clipboard.writeText(code).then(() => flash("<b>Design code copied.</b> Paste it anywhere to keep it."), () => flash("<b>Design code is in the box.</b> Copy it from there.")); } catch(e) { flash("<b>Design code is in the box.</b> Copy it from there."); }
 });
 $("importBtn").addEventListener("click", () => {
-  try { const st = JSON.parse(decodeURIComponent(escape(atob(($("codeBox").value || "").trim())))); if (st.version !== 6) throw 0;
-    S = st; tab = isHybrid() ? "B" : "N"; setSeatColours(); renderTypeSizes(); renderEditor(); renderViews(); changed(true); flash("<b>Design loaded.</b>"); }
+  try { const st = JSON.parse(decodeURIComponent(escape(atob(($("codeBox").value || "").trim())))); if (!safeState(st)) throw 0;
+    openState(st); flash("<b>Design loaded.</b>", UNDO); }
   catch(e) { flash("<b>That code didn't work.</b> Paste the whole design code, exactly as copied."); }
+});
+
+/* ================= share links, random stadiums ================= */
+/* A shared design must look like one of ours. Text containing markup characters is refused outright, since parts of
+   a design end up in the page. */
+function safeState(st){
+  if (!st || typeof st !== "object" || st.version !== 6 || !SPORTS[st.sport] || !st.stands || !st.bowl || !st.limits || !st.types) return false;
+  let ok = true;
+  (function walk(v, depth){ if (!ok) return; if (depth > 12) { ok = false; return; }
+    if (typeof v === "string"){ if (/[<>"'`\\]/.test(v) || v.length > 200) ok = false; }
+    else if (v && typeof v === "object") for (const k in v){ if (/[<>"'`]/.test(k)) { ok = false; return; } walk(v[k], depth + 1); } })(st, 0);
+  return ok;
+}
+const b64u = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const unb64u = str => Uint8Array.from(atob(str.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+async function pipe(bytes, stream){ return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer()); }
+async function shareCode(){
+  const raw = new TextEncoder().encode(JSON.stringify(S));
+  if (window.CompressionStream){ try { return "z" + b64u(await pipe(raw, new CompressionStream("deflate-raw"))); } catch(e) {} }
+  return "j" + b64u(raw);
+}
+async function readShareCode(code){
+  let bytes = unb64u(code.slice(1));
+  if (code[0] === "z") bytes = await pipe(bytes, new DecompressionStream("deflate-raw"));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+$("shareBtn").addEventListener("click", async () => {
+  const url = location.href.split("#")[0] + "#d=" + await shareCode();
+  if (navigator.share && matchMedia("(pointer:coarse)").matches){ try { await navigator.share({title:"My Groundworks stadium", text:`My stadium holds ${fmt(LAST.total)}. Have a look:`, url}); return; } catch(e) { if (e && e.name === "AbortError") return; } }
+  try { await navigator.clipboard.writeText(url); toast(`<b>Link copied.</b> Anyone who opens it gets this exact stadium.`); }
+  catch(e) { $("codeBox").value = url; showPane("start"); $("codeBox").closest("details").open = true; toast("<b>Copy the link from the box</b> under Share as a design code."); }
+});
+async function openFromLink(){
+  const m = location.hash.match(/^#d=([zj][A-Za-z0-9_-]+)$/); if (!m) return false;
+  history.replaceState(null, "", location.pathname + location.search);
+  try { const st = await readShareCode(m[1]); if (!safeState(st)) throw 0; openState(st); toast("<b>Opened a shared stadium.</b> Your own design is one Undo away.", UNDO); return true; }
+  catch(e) { toast("<b>That link didn't contain a design we could open.</b> It may have been cut short when it was copied."); return false; }
+}
+function randomStadium(){
+  const pick = a => a[Math.floor(Math.random()*a.length)];
+  const keys = Object.keys(PRESETS), styleKeys = Object.keys(STYLES);
+  openState(clone(PRESETS[pick(keys)]), null, () => {
+    if (isBowl()) applyStyle(S.bowl, pick(styleKeys), false);
+    else { const one = Math.random() < .5 ? pick(styleKeys) : null;
+      for (const k of SIDES) if (S.stands[k].tiers.length || !isHybrid()) applyStyle(S.stands[k], one || pick(styleKeys), false); }
+    S.seat = pick(SWATCHES)[1];
+    if (Math.random() < .35){ S.seatPattern = pick(["bands","mosaic","tiers"]); S.seat2 = pick(SWATCHES.filter(s => s[1] !== S.seat))[1]; }
+    S.night = Math.random() < .3;
+    const A = archOf(); A.arch = Math.random() < .15; A.towers = Math.random() < .2; A.ramps = Math.random() < .1;
+  });
+  requestAnimationFrame(() => requestAnimationFrame(() => toast(`🎲 <b>${fmt(LAST.total)} places.</b> ${likeText(LAST.total)} Tap a stand to tweak it.`, UNDO)));
+}
+$("randomBtn").addEventListener("click", randomStadium);
+
+/* ================= welcome, help and keyboard shortcuts ================= */
+const welcome = $("welcome"), help = $("help");
+const openSheet = d => { if (d.open) return; if (typeof d.showModal === "function") d.showModal(); else d.setAttribute("open", ""); };
+$("helpBtn").addEventListener("click", () => openSheet(help));
+help.addEventListener("close", () => { if (help.returnValue === "tour") openSheet(welcome); });
+welcome.addEventListener("close", () => { try { localStorage.setItem("groundworks-welcomed", "1"); } catch(e) {} });
+for (const d of [welcome, help]) d.addEventListener("click", e => { // tap outside the card to close
+  const r = d.getBoundingClientRect(); if (e.target === d && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) d.close(); });
+document.addEventListener("keydown", e => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest("input, select, textarea, [contenteditable]") || welcome.open || help.open) return;
+  const k = e.key, panes = [...document.querySelectorAll("#panes [data-pane]")];
+  if (k === "?"){ openSheet(help); }
+  else if (/^[1-6]$/.test(k)) showPane(panes[+k - 1].dataset.pane);
+  else if (k === "a") goCam("aerial");
+  else if (k === "p") goCam("plan");
+  else if (k === "f") goCam("seat");
+  else if (k === "n"){ S.night = !S.night; changed(); }
+  else if (k === "r") randomStadium();
+  else return;
+  e.preventDefault();
 });
 
 function syncUI(){
@@ -738,6 +883,15 @@ function syncUI(){
   const fIn = LAST && LAST.focusIn != null ? LAST.focusIn : (S.focusIn || 0);
   $("focusIn").max = Math.max(0.5, Math.floor(maxFocusIn(F)*2)/2);
   so("focusIn", fIn, fIn < 0.05 ? "edge of play" : `${+fIn.toFixed(1)} m into the floor` + (S.focusIn == null ? " (auto)" : ""));
+  const OU = Object.assign({shape:"follow", fit:"ring", size:0}, S.outer || {}), upper = lay === "bowl" ? S.bowl.tiers.length > 1 : SIDES.some(s => S.stands[s].tiers.length);
+  $("outerBox").hidden = lay === "stands";
+  document.querySelector(`input[name=outerShape][value=${OU.shape}]`).checked = true;
+  document.querySelector(`input[name=outerFit][value=${OU.fit}]`).checked = true;
+  $("outerMore").hidden = OU.shape === "follow" || !upper;
+  so("outerSize", OU.size, (OU.size > 0 ? "+" : "") + OU.size + " m");
+  $("outerFitNote").textContent = OU.fit === "fill" ? "The upper tiers grow back until their back row, outer wall and roof trace the outline, so the corners get deeper." : "The front of the upper tiers sits on the outline, floating back from the lower tier along the sides.";
+  $("outerNone").textContent = upper ? "" : (lay === "bowl" ? "Add a second tier to the bowl (under Stands) to use this." : "Give a stand some tiers above the lower bowl (under Stands) to use this.");
+  $("outerNone").hidden = upper;
   $("plotOn").checked = S.plot.on; $("plotBox").hidden = !S.plot.on; $("plotClip").checked = S.plot.clip;
   $("boards").checked = !!S.boards;
   const AR = Object.assign({skin:"none", skinShape:"round"}, S.arch || {});
@@ -761,5 +915,13 @@ function changed(moveCam, coalesce){
 
 showPane(pane, true); applyTheme(); renderTypeSizes(); fixTab(); if (isHybrid()) tab = "B"; renderEditor(); renderViews(); renderSaves(); syncUI(); build(); record(); resize(); setLook(false); goCam("aerial", true); setTip();
 requestAnimationFrame(loop);
+/* Hand over from the loading screen once the first frame is drawn, then greet first-time visitors. */
+requestAnimationFrame(() => requestAnimationFrame(async () => {
+  if (window.gwStarted) window.gwStarted();
+  const shared = await openFromLink();
+  let seen = false; try { seen = !!localStorage.getItem("groundworks-welcomed"); } catch(e) { seen = true; }
+  if (!seen && !shared) setTimeout(() => openSheet(welcome), reduce ? 0 : 450);
+}));
+window.addEventListener("hashchange", openFromLink);
 /* read-only hook for automated checks */
 window.__gw = {state:() => JSON.parse(JSON.stringify(S)), last:() => LAST, regions:() => LAST_REGIONS};

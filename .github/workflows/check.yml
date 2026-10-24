@@ -1,0 +1,27 @@
+# Runs on every push and pull request: rebuilds the app, makes sure the committed index.html is up to date,
+# then opens it in a real browser and clicks through the main features.
+name: Check
+on:
+  push:
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: index.html matches src/
+        run: git diff --exit-code index.html || (echo "::error::index.html is out of date. Run npm run build and commit it." && exit 1)
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: tests/screenshot-*.png

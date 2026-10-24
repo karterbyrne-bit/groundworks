@@ -182,11 +182,15 @@ const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 view.insertBefore(renderer.domElement, view.firstChild);
+/* Draw only when something has changed, so an idle stadium doesn't drain a phone or laptop battery. */
+let dirty = 2;
+function invalidate(){ dirty = 2; }
 const scene = new THREE.Scene();
 const persp = new THREE.PerspectiveCamera(42, 1, 0.2, 8000), ortho = new THREE.OrthographicCamera(-50, 50, 50, -50, -4000, 8000);
 let camera = persp;
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.48; controls.autoRotateSpeed = 0.6;
+controls.addEventListener("change", invalidate);
 const hemi = new THREE.HemisphereLight(0xffffff, 0x4a554c, 0.75); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 0.9);
 const fill = new THREE.DirectionalLight(0xdfe8ff, 0.25); fill.position.set(-120, 80, -140); scene.add(fill);
@@ -228,6 +232,7 @@ const M = {
   board: std({color:0x10233f, roughness:.4, emissive:0x163a6e, emissiveIntensity:.8}),
   site: std({color:0xc0392b, roughness:.6}), handle: std({color:0xffffff, roughness:.5, emissive:0x5a1a14}),
   white: std({color:0xffffff, roughness:.4}),
+  window: std({color:0x1d262c, roughness:.25, metalness:.3}), trim: std({color:0xd9d2c2, roughness:.85}),
   canvas: new THREE.MeshStandardMaterial({color:0x2e5fa8, roughness:.8}),
   rope: new THREE.MeshStandardMaterial({color:0xf2f2f2, roughness:.5}),
   cageNet: new THREE.MeshStandardMaterial({color:0x111111, roughness:.6, transparent:true, opacity:.35, side:DS}),
@@ -241,6 +246,7 @@ function setSeatColours(){
   M.seated.color.set(S.seat); M.seatBack.color.set(S.seat).multiplyScalar(0.8); M.rail.color.set(S.seat);
   M.exec.color.set(S.seat).multiplyScalar(0.5); M.lattice.color.set(S.seat);
   const alt = S.seat2 || "#f2f2f2"; M.seatAlt.color.set(alt); M.seatAltBack.color.set(alt).multiplyScalar(0.85);
+  invalidate();
 }
 setSeatColours();
 let group = new THREE.Group(); scene.add(group);
