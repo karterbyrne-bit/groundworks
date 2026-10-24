@@ -525,7 +525,7 @@ function build(){
     const roofOn = !groundRoof && rf.shape !== "none" && st.roofOn !== false;
     const margin = roofOn ? 1.6 : 0.3;
     let overflow = 0;
-    const profs = [];
+    const profs = [], tierList = [];
     for (let i=0;i<m;i++){
       let tiers = st.tiersFor(i); const s0 = setAt(i);
       if (poly){
@@ -533,7 +533,19 @@ function build(){
         if (S.plot.clip) tiers = trimTiers(tiers, dm - margin, s0);
         else { const pr = profile(tiers, s0).filter(p => nRows(p) >= 1); if (pr.length) overflow = Math.max(overflow, Math.max(...pr.map(p => p.front + nRows(p)*p.T)) + margin - dm); }
       }
-      profs.push(profile(tiers, s0));
+      tierList.push(tiers); profs.push(profile(tiers, s0));
+    }
+    /* Keep each tier above the first at one height along the stand. Where the tier below is cut short (by the plot, or a bowl
+       side with fewer rows) the tier above would otherwise dip and arch with it; instead it is held level at the height its
+       tallest point needs, and its rows are raked from there. Corners are left to blend between their stands. */
+    if (st.key !== "C"){
+      const lift = [], K0 = Math.max(0, ...profs.map(p => p.length));
+      for (let k=1;k<K0;k++){
+        let top = -Infinity, uneven = false;
+        for (const pr of profs){ const p = pr[k]; if (p && p.stacked && !p.ghost && nRows(p) >= 1){ if (isFinite(top) && Math.abs(p.hF - top) > 0.01) uneven = true; top = Math.max(top, p.hF); } }
+        if (!uneven) continue;
+        lift[k] = top; for (let i=0;i<m;i++) profs[i] = profile(tierList[i], setAt(i), lift);
+      }
     }
     if (overflow > 0.05) issue(`The ${st.name.toLowerCase()} runs ${Math.round(overflow)} m past the plot boundary.`, "site:" + st.name, "geo",
       {tab:st.key, fix:{label:"Cut it back to fit the plot", run:() => { S.plot.clip = true; return true; }}});

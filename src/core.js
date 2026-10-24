@@ -106,14 +106,15 @@ function post(buf, x, z, y0, y1, w){
    and sits its gap above the lower tier's back row. Auto tiers rise row by row just enough to keep the sightline at the rule, capped at the steepness limit.
    Ghost tiers are laid out but not built: they hold an upper tier up in the air over an open space (a corner, say). */
 let focusY = 0, focusIn = 0;
-function profile(tiers, set){
+function profile(tiers, set, lift){
   const out = []; let started = false, prevBack = 0, prevBackH = 0, prevFront = 0, prevGhost = false, firstFront = set;
   const targetC = (S.limits.minC + 5)/1000;
   tiers.forEach((tr,k) => {
     const T = S.types[tr.type].row, eye = TYPES[tr.type].eye, fixedN = T*Math.tan(tr.rake*Math.PI/180);
     let front, hF, stacked;
     if (!started){ front = set; hF = (tr.type === "terrace" ? 0.4 : 1.1) + focusY*0.6; stacked = false; }
-    else { front = Math.max(firstFront + 1, prevBack - (tr.over == null ? 0 : tr.over)); hF = prevBackH + Math.max(1.2, tr.gap == null ? 3 : tr.gap); stacked = true; }
+    else { front = Math.max(firstFront + 1, prevBack - (tr.over == null ? 0 : tr.over)); hF = prevBackH + Math.max(1.2, tr.gap == null ? 3 : tr.gap); stacked = true;
+      if (lift && lift[k] > hF) hF = lift[k]; } // held up to a level height along the stand
     const rows = Math.max(0, tr.rows), back = front + rows*T, n = Math.ceil(rows - 1e-6);
     const hs = []; let maxN = 0;
     for (let j=0;j<n;j++){
