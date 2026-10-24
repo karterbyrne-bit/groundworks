@@ -182,7 +182,9 @@ const SITE_KINDS = {
   building:{label:"Building", length:40, width:24, height:21, note:"Offices or flats"}
 };
 const clone = o => JSON.parse(JSON.stringify(o));
-const mk = (style, tiers, roof) => ({style, tiers: tiers || STYLES[style].tiers(), roof: Object.assign(STYLES[style].roof(), roof || {}), dist:null, extend:0, facade:Object.assign({}, STYLES[style].facade)});
+/* run0/run1: how far a separate stand carries on straight past the pitch at its start and end (negative stops it short);
+   wrap0/wrap1: how far round into the corner at each end it wraps, from 0 to all the way. */
+const mk = (style, tiers, roof) => ({style, tiers: tiers || STYLES[style].tiers(), roof: Object.assign(STYLES[style].roof(), roof || {}), dist:null, run0:0, run1:0, wrap0:0, wrap1:0, facade:Object.assign({}, STYLES[style].facade)});
 const corner = (mode, tiers, roof) => ({mode, tiers: tiers || "all", roof: roof !== false});
 const allCorners = (mode, tiers) => ({NE:corner(mode,tiers), SE:corner(mode,tiers), SW:corner(mode,tiers), NW:corner(mode,tiers)});
 /* A ring of separate stands round the ground (cricket grounds, ballparks): each has its own design, a name, and a share
@@ -341,9 +343,26 @@ function migrate(old){
   Object.assign(s, {version:6, scoreboard:false, trim:true, views:[]});
   return s;
 }
+/* Designs from before stands had their own length and corner wrap: a filled ("blend") corner becomes the two stands each
+   wrapping halfway in to meet; stands that met in a corner of a bowl meet where they did; a corner with its own tiers
+   keeps them as a corner stand; extra length beside an open corner becomes the stand running on past the pitch. */
+function upgradeCorners(s){
+  if (!s || !s.stands || !s.corners || s.cornersV === 2) return s;
+  for (const k of SIDES){ const st = s.stands[k]; if (!st) continue;
+    for (const e of [0, 1]){ const c = SIDE_ENDS[k][e], m = (s.corners[c] || {}).mode;
+      if (st["run" + e] == null) st["run" + e] = m === "open" || m == null ? st.extend || 0 : 0;
+      if (st["wrap" + e] == null) st["wrap" + e] = 0; }
+    delete st.extend; }
+  for (const c of CORNERS){ const cc = s.corners[c.key] || {}, A = s.stands[c.a], B = s.stands[c.b], ta = !!(A && A.tiers.length), tb = !!(B && B.tiers.length);
+    if (cc.mode === "blend"){ if (ta && tb){ A.wrap1 = .5; B.wrap0 = .5; } else if (ta) A.wrap1 = 1; else if (tb) B.wrap0 = 1; }
+    else if (cc.mode === "split"){ const mt = cc.meet == null ? .5 : Math.max(0, Math.min(1, cc.meet)); if (ta) A.wrap1 = mt; if (tb) B.wrap0 = 1 - mt; }
+    s.corners[c.key] = {mode: cc.mode === "custom" || cc.mode === "stand" ? "stand" : "open", roof: cc.roof !== false}; }
+  s.cornersV = 2; return s;
+}
 let S;
 (function load(){
   try { S = JSON.parse(localStorage.getItem(KEY)); } catch(e) { S = null; }
   if (!S){ try { S = migrate(JSON.parse(localStorage.getItem("groundworks-v5"))); } catch(e) { S = null; } }
   if (!S || S.version !== 6 || !SPORTS[S.sport]) S = clone(PRESETS.ot);
+  upgradeCorners(S);
 })();
