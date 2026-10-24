@@ -56,12 +56,13 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   // screens: adding one then switching it to an LED ribbon used to wipe the whole stadium from the 3D view
   await page.click('#panes [data-pane="look"]');
   await page.click("#addScreen"); await page.waitForTimeout(300);
+  check(!(await page.evaluate(() => window.__gw.last().issues.some(i => /^Screen/.test(i.text)))), "a new screen is mounted somewhere it fits");
   for (const mount of ["ribbon", "roof", "ribbon"]) { await page.locator("#screens .screen").last().locator('[data-sf="mount"]').selectOption(mount); await page.waitForTimeout(300); }
   check(errors.length === 0 && (await cap()) > 0, "screens and LED ribbons can be added and changed");
 
   // share link round trip: copy a link, open it in a fresh page, get the same stadium
   const before = await page.evaluate(() => JSON.stringify(window.__gw.state()));
-  const link = await page.evaluate(async () => { let url = ""; navigator.clipboard.writeText = async t => { url = t; }; navigator.share = undefined; document.getElementById("shareBtn").click(); await new Promise(r => setTimeout(r, 500)); return url; });
+  const link = await page.evaluate(async () => { let url = ""; navigator.clipboard.writeText = async t => { url = t; }; navigator.share = undefined; document.getElementById("shareBtn").click(); for (let i = 0; i < 100 && !url; i++) await new Promise(r => setTimeout(r, 100)); return url; });
   check(/#d=z/.test(link), "Share makes a compressed link");
   const page2 = await ctx.newPage();
   page2.on("pageerror", e => errors.push(e.message));

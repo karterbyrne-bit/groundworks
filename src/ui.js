@@ -161,7 +161,7 @@ function showIssue(is){
 }
 
 /* ================= camera ================= */
-let camMode = "aerial", anim = null, look = false, picking = false, wire = false;
+let camMode = "aerial", anim = null, look = false, picking = false, wire = false, screenFocus = 0;
 const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const tipEl = document.getElementById("tip");
 let tipOverride = null;
@@ -190,6 +190,13 @@ function camTarget(mode){
     const p = new THREE.Vector3(-D.F.W*0.12, 1.7 + focusY, D.F.H/2 + Math.min(D.set*0.5, 4));
     const aim = new THREE.Vector3(D.F.W*0.08, 2 + focusY + R0*0.05, -D.F.H/2);
     return {p, t:p.clone().add(aim.sub(p).normalize().multiplyScalar(0.5))};
+  }
+  if (mode === "screen"){
+    const sp = D.screenSpots && D.screenSpots[screenFocus]; if (!sp) return camTarget("aerial");
+    const t = new THREE.Vector3(...sp), flat = Math.hypot(sp[0], sp[2]);
+    const p = flat < 5 ? new THREE.Vector3(D.F.W*0.3, Math.max(4, sp[1]*0.45), D.F.H*0.3) // hanging over the centre: look up at it from the play
+      : new THREE.Vector3(-sp[0]*0.3, Math.max(5, sp[1]*0.55), -sp[2]*0.3);
+    return {p, t:p.clone().add(t.sub(p).normalize().multiplyScalar(0.5)), look:true};
   }
   if (mode === "exterior" || mode === "under"){
     const r = regionFor(tab === "B" || tab === "C" || tab === "F" ? "N" : tab); if (!r) return camTarget("aerial");
@@ -688,19 +695,29 @@ const screensOf = () => { if (!Array.isArray(S.screens)) S.screens = screenList(
 function renderScreens(){
   const list = Array.isArray(S.screens) ? S.screens : screenList(LAST && LAST.closedAt);
   $("screens").innerHTML = list.length ? list.map((sc, i) => `<div class="screen" data-i="${i}">
-    <div class="tier-h"><span>Screen ${i+1}</span><button class="mini" data-sact="remove" data-i="${i}">Remove</button></div>
+    <div class="tier-h"><span>Screen ${i+1}</span><span class="acts-row"><button class="mini" data-sact="view" data-i="${i}">Look at it</button><button class="mini" data-sact="remove" data-i="${i}">Remove</button></span></div>
     <div class="row"><label>Where</label><select data-sf="at" data-i="${i}" aria-label="Screen ${i+1} position">${Object.entries(SCREEN_AT).map(([k,v]) => `<option value="${k}"${k===sc.at?" selected":""}>${v}</option>`).join("")}</select></div>
     ${sc.at === "centre" ? "" : `<div class="row"><label>Mounted</label><select data-sf="mount" data-i="${i}" aria-label="Screen ${i+1} mounting">${Object.entries(SCREEN_MOUNTS).map(([k,v]) => `<option value="${k}"${k===(sc.mount||"gap")?" selected":""}>${v}</option>`).join("")}</select></div>`}
     ${sc.mount === "ribbon" && sc.at !== "centre" ? "" : `<div class="row"><label>Width</label><output>${sc.size || 16} m</output><input type="range" data-sf="size" data-i="${i}" min="4" max="40" step="1" value="${sc.size || 16}" aria-label="Screen ${i+1} width"></div>
     ${sc.at === "centre" ? "" : `<div class="row"><label>Along the stand</label><output>${(sc.pos||0) === 0 ? "centre" : Math.abs(sc.pos) + "% " + (sc.pos < 0 ? "left" : "right")}</output><input type="range" data-sf="pos" data-i="${i}" min="-100" max="100" step="5" value="${sc.pos || 0}" aria-label="Screen ${i+1} position along the stand"></div>`}`}
   </div>`).join("") : `<p class="hint">No screens yet.</p>`;
 }
+/* Fly round to face a screen: from above, most of them are hidden under a roof or too small to spot. */
+function viewScreen(i){ screenFocus = i; requestAnimationFrame(() => requestAnimationFrame(() => { if (LAST.screenSpots && LAST.screenSpots[i]) goCam("screen"); })); }
 $("addScreen").addEventListener("click", () => { const L2 = screensOf(); const used = new Set(L2.map(x => x.at)); const at = ["E","W","N","S"].find(k => !used.has(k)) || "E";
-  L2.push({at, mount:"gap", size:12, pos:0}); renderScreens(); changed(); });
-$("screens").addEventListener("click", e => { const b = e.target.closest("[data-sact]"); if (!b) return; screensOf().splice(+b.dataset.i, 1); renderScreens(); changed(); });
+  const sc = {at, mount:"gap", size:12, pos:0}, i = L2.length; L2.push(sc);
+  // start with the first way of mounting it that fits this ground without a warning
+  const key = "screen:" + i, fits = ["gap","roof","top","back"].find(m => { sc.mount = m; return !dryIssues().some(x => x.key === key); });
+  sc.mount = fits || "back";
+  renderScreens(); changed(); viewScreen(i);
+  toast(`<b>Screen added</b> ${SCREEN_MOUNTS[sc.mount].charAt(0).toLowerCase() + SCREEN_MOUNTS[sc.mount].slice(1)}, at the ${SCREEN_AT[at].toLowerCase()}. Aerial takes you back up.`, UNDO);
+});
+$("screens").addEventListener("click", e => { const b = e.target.closest("[data-sact]"); if (!b) return;
+  if (b.dataset.sact === "view") return viewScreen(+b.dataset.i);
+  screensOf().splice(+b.dataset.i, 1); if (camMode === "screen") goCam("aerial"); renderScreens(); changed(); });
 $("screens").addEventListener("input", e => { const el = e.target; if (!el.dataset.sf || el.tagName === "SELECT") return; const sc = screensOf()[+el.dataset.i]; sc[el.dataset.sf] = +el.value;
   const out = el.parentElement.querySelector("output"); if (out) out.textContent = el.dataset.sf === "size" ? el.value + " m" : (+el.value === 0 ? "centre" : Math.abs(+el.value) + "% " + (+el.value < 0 ? "left" : "right")); changed(false, true); });
-$("screens").addEventListener("change", e => { const el = e.target; if (!el.dataset.sf || el.tagName !== "SELECT") return; screensOf()[+el.dataset.i][el.dataset.sf] = el.value; renderScreens(); changed(); });
+$("screens").addEventListener("change", e => { const el = e.target; if (!el.dataset.sf || el.tagName !== "SELECT") return; screensOf()[+el.dataset.i][el.dataset.sf] = el.value; renderScreens(); changed(); viewScreen(+el.dataset.i); });
 for (const id of ["crowd","night","seeThrough"]) $(id).addEventListener("change", e => { S[id] = e.target.checked; changed(); });
 $("seeBtn").addEventListener("click", () => { S.seeThrough = !S.seeThrough; changed(); });
 $("nightBtn").addEventListener("click", () => { S.night = !S.night; changed(); });

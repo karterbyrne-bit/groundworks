@@ -238,6 +238,7 @@ function planScreens(F, anchors, closedAt, outerTop, set, issue){
       const fp = [g.o[i][0] + g.info[i].front*g.v[i][0], g.o[i][1] + g.info[i].front*g.v[i][1]];
       cands.push({g, i, lat: fp[0]*perp[0] + fp[1]*perp[1], own: g.key === sc.at}); }
     if (cands.some(c => c.own)) cands = cands.filter(c => c.own);
+    if (!cands.length && sc.mount === "ribbon"){ issue(`${label}: there's no stand there to run an LED ribbon along, so it isn't drawn. Pick a stand, or another way to mount it.`, key, "geo", {fix:null}); return; }
     if (!cands.length){ // nothing built there: stand it on legs in the open
       const r = corner ? Math.hypot(F.W/2, F.H/2) + set + 8 : (dir[0] ? F.W/2 : F.H/2) + set + 6;
       const x = dir[0]*r + perp[0]*(sc.pos||0)/100*(dir[0] ? F.H/2 : F.W/2), z = dir[1]*r + perp[1]*(sc.pos||0)/100*(dir[0] ? F.H/2 : F.W/2);
@@ -250,7 +251,9 @@ function planScreens(F, anchors, closedAt, outerTop, set, issue){
     const P = d => [g.o[i][0] + d*g.v[i][0], g.o[i][1] + d*g.v[i][1]];
     const cfgRef = sc.at in S.stands && (layoutOf() !== "bowl") ? S.stands[sc.at] : (g.key === "B" ? S.bowl : null);
     let h = w*0.42, mount = sc.mount || "gap";
-    if (mount === "ribbon"){ plans.push({kind:"ribbon", g, idx}); return; }
+    if (mount === "ribbon"){ // aim the camera at the front of the tiers, halfway along
+      const pr = (g.profs[i] || []).slice(g.drawFrom).filter(q => q && !q.ghost && nRows(q) >= 1), top = pr[pr.length - 1], f = pr.length ? pr[0].front : x.front;
+      const q = P(f); plans.push({kind:"ribbon", g, idx, x:q[0], y: top && top.stacked ? top.hF : 3, z:q[1]}); return; }
     if ((mount === "gap" || mount === "roof") && !R){
       issue(`${label}: there's no roof over that part of the stand to hang it from, so it sits on top of the back row instead.`, key, "geo", {fix: cfgRef ? {label:"Give that stand a roof", run:() => { cfgRef.roof.shape = "slope"; return true; }} : null}); mount = "top"; }
     if (mount === "gap"){
@@ -837,7 +840,8 @@ function build(){
   applyMood();
   const sc = sun.shadow.camera, half = Math.max(ext[0],ext[1]) + 30;
   sc.left=-half; sc.right=half; sc.top=half; sc.bottom=-half; sc.near=10; sc.far=1400; sc.updateProjectionMatrix();
-  LAST = Object.assign(result, {closedAt, focusIn, F, farName, ext, sext, parts, set, steepInfo, poly, lay, standInfo, handles});
+  const screenSpots = []; for (const p of screenPlans) screenSpots[p.idx] = [p.x, p.y, p.z];
+  LAST = Object.assign(result, {closedAt, focusIn, F, farName, ext, sext, parts, set, steepInfo, poly, lay, standInfo, handles, screenSpots});
   LAST_REGIONS = regions;
   renderStats(); refreshOutputs(); invalidate();
   return result;
