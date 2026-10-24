@@ -188,14 +188,33 @@ const BASE = {
   outer:{shape:"follow", fit:"ring", size:0}, groundRoof:Object.assign({}, GROUND_ROOF)
 };
 const Pz = o => Object.assign(clone(BASE), o);
+const fac = (cfg, f) => Object.assign(cfg, {facade:Object.assign({}, cfg.facade, f)}); // a stand with its own walls
 const PRESETS = {
-  ot:Pz({sport:"football",layout:"hybrid",cornerShape:"curved",setback:8,corner:0,
-    bowl:mk("modern",[t("seated",34,20)],{shape:"none"}),
-    stands:{N:mk("modern",[t("exec",4,22,true,{over:0,gap:3}),t("seated",27,28,true,{over:0})]),S:mk("regular",[],{shape:"slope",support:"none"}),
-      E:mk("modern",[t("exec",3,22,true,{over:0,gap:3}),t("seated",28,28,true,{over:0})]),W:mk("modern",[t("exec",3,22,true,{over:0,gap:3}),t("seated",28,28,true,{over:0})])},
-    corners:allCorners("split"),
+  /* Old Trafford around 2003: the lower tier wraps three sides as a bowl; above it the three-tier North Stand, the two-tier
+     Stretford End and Scoreboard End, and the low single-tier South Stand under its own roof. The north quadrants were
+     still open (they were filled in 2006). */
+  ot:Pz({sport:"football",layout:"hybrid",cornerShape:"curved",setback:8,corner:6,
+    bowl:fac(mk("modern",[t("seated",32,20)],{shape:"none"}), {look:"sheet", colour:"#b9bfc4", accent:"#c3322b", concourse:true}),
+    stands:{
+      N:fac(mk("modern",[t("exec",4,22,true,{over:0,gap:3}),t("seated",18,27,true,{over:0,gap:3.2}),t("seated",28,32,true,{over:-5,gap:3})],
+        {shape:"slope",mat:"translucent",support:"ribs",reach:3,lift:6,tilt:4}), {look:"sheet", colour:"#b9bfc4", accent:"#c3322b", concourse:true, windows:0.5}),
+      S:fac(mk("regular",[],{shape:"slope",mat:"translucent",support:"none",reach:1,lift:3.5,tilt:6}), {look:"sheet", colour:"#b9bfc4", accent:"#c3322b"}),
+      E:fac(mk("modern",[t("exec",3,22,true,{over:0,gap:3}),t("seated",22,29,true,{over:-3,gap:3.4})],{shape:"slope",mat:"translucent",support:"ribs",reach:2,lift:5,tilt:4}), {look:"sheet", colour:"#b9bfc4", accent:"#c3322b", concourse:true, windows:0.5}),
+      W:fac(mk("modern",[t("exec",3,22,true,{over:0,gap:3}),t("seated",22,29,true,{over:-3,gap:3.4})],{shape:"slope",mat:"translucent",support:"ribs",reach:2,lift:5,tilt:4}), {look:"sheet", colour:"#b9bfc4", accent:"#c3322b", concourse:true, windows:0.5})},
+    corners:allCorners("open"),
     types:{seated:{row:0.8,width:0.47},exec:{row:1.05,width:0.6},rail:{row:0.8,width:0.5},bench:{row:0.76,width:0.46},terrace:{row:0.38,density:4.7}},
-    design:{gangEvery:28,gangWidth:1.1,barrierEvery:9,exitEvery:14,exitWidth:2.4},seat:"#c3322b",lights:false}),
+    design:{gangEvery:28,gangWidth:1.1,barrierEvery:9,exitEvery:14,exitWidth:2.4},seat:"#c3322b",lights:true,floodlights:"roof"}),
+  /* Ibrox: the 1928 Leitch main stand (brick front, enclosure, balcony upper deck) with the Club Deck added on top in 1991,
+     carried by towers at each end and a truss so nobody looks round a pillar. Two-tier ends and the Govan stand opposite. */
+  ibrox:Pz({sport:"football",layout:"stands",cornerShape:"curved",setback:7,corner:10,
+    stands:{
+      N:fac(mk("historic",[t("seated",15,17),t("seated",13,23,true,{over:-1,gap:4,pillars:true,front:"lattice",frontColour:"#1f3f8f"}),
+        t("seated",12,28,true,{over:-8,gap:5,hold:"towers",front:"glass",trim0:4,trim1:4})],{shape:"slope",mat:"metal",support:"none",reach:-1,lift:3,tilt:2}),
+        {look:"brick", accent:"#e8dcc4", towers:true, gates:true, sign:"IBROX STADIUM", signColour:"#f2f2f2", windows:1.25}),
+      S:fac(mk("modern",[t("seated",22,22),t("exec",3,22,true,{over:2,gap:3.6}),t("seated",14,28,true,{over:-9,gap:4})],{shape:"slope",mat:"translucent",support:"none",reach:2,lift:5}), {look:"sheet", colour:"#9ba5ad", accent:"#1f3f8f"}),
+      E:fac(mk("brutalist",[t("seated",20,22),t("seated",14,28,true,{over:0,gap:4})],{shape:"slope",mat:"metal",support:"none",reach:0,lift:4}), {look:"sheet", colour:"#9ba5ad", accent:"#1f3f8f"}),
+      W:fac(mk("brutalist",[t("seated",20,22),t("seated",14,28,true,{over:0,gap:4})],{shape:"slope",mat:"metal",support:"none",reach:0,lift:4}), {look:"sheet", colour:"#9ba5ad", accent:"#1f3f8f"})},
+    corners:{NE:corner("open"),SE:corner("blend"),SW:corner("blend"),NW:corner("open")},seat:"#1f3f8f",lights:true,floodlights:"roof"}),
   monument:Pz({sport:"football",layout:"stands",cornerShape:"curved",setback:9,
     stands:{N:mk("regular",[t("seated",20,22)]),S:mk("regular",[t("seated",20,22)]),W:mk("regular",[t("seated",18,22)]),
       E:mk("hugeend")},

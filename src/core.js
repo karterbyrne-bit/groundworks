@@ -251,9 +251,21 @@ function setSeatColours(){
 }
 setSeatColours();
 let group = new THREE.Group(); scene.add(group);
+/* Texture coordinates in metres for a textured wall: along the wall and up it on walls, flat on floors. */
+function wallUV(arr){
+  const uv = new Float32Array(arr.length/3*2);
+  for (let t=0;t<arr.length;t+=9){
+    const ux = arr[t+3]-arr[t], uy = arr[t+4]-arr[t+1], uz = arr[t+5]-arr[t+2], vx = arr[t+6]-arr[t], vy = arr[t+7]-arr[t+1], vz = arr[t+8]-arr[t+2];
+    const nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx, nl = Math.hypot(nx, ny, nz) || 1, wall = Math.abs(ny/nl) < 0.6, hl = Math.hypot(nx, nz) || 1;
+    for (let k=0;k<3;k++){ const x = arr[t+3*k], y = arr[t+3*k+1], z = arr[t+3*k+2], o = (t/3 + k)*2;
+      if (wall){ uv[o] = (x*-nz + z*nx)/hl; uv[o+1] = y; } else { uv[o] = x; uv[o+1] = z; } }
+  }
+  return uv;
+}
 function meshFrom(arr, mat, shadow){
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(arr,3)); g.computeVertexNormals();
+  if (mat && mat.map && mat.map.repeat.x < 1) g.setAttribute("uv", new THREE.Float32BufferAttribute(wallUV(arr), 2));
   const m = new THREE.Mesh(g, mat); m.castShadow = shadow !== false; m.receiveShadow = true; return m;
 }
 

@@ -19,6 +19,13 @@ function cornerTiers(c, f){
   else if (cc.tiers === "upper" && out.length > 1) out[0] = Object.assign({}, out[0], {ghost:true});
   return out;
 }
+/* A material in a colour picked in the editor: a copy of a shared one, made once and kept with them. */
+function tint(base, hex){
+  if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) return base;
+  const k = base + "_" + hex.slice(1).toLowerCase();
+  if (!M[k]){ M[k] = M[base].clone(); M[k].color.set(hex); if (base === "seatBack") M[k].color.multiplyScalar(0.8); }
+  return k;
+}
 const fmt = n => Math.round(n).toLocaleString("en-GB");
 const lerp = (a,b,f) => a + (b-a)*f;
 
@@ -157,7 +164,7 @@ function skinTexture(kind){
     g.fillStyle = "#2a2522"; g.beginPath(); g.moveTo(88,240); g.lineTo(88,120); g.arc(128,120,40,Math.PI,0); g.lineTo(168,240); g.closePath(); g.fill();
     g.fillStyle = "#d9cfc0"; g.fillRect(0,0,256,10); }
   else { g.fillStyle = "#7fa9bf"; g.fillRect(0,0,256,256); g.fillStyle = "rgba(255,255,255,.35)"; g.fillRect(0,0,256,40); g.fillStyle = "#2f3a40"; g.fillRect(0,0,6,256); g.fillRect(0,0,256,6); g.fillRect(0,128,256,4); }
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return (skinTex[kind] = t);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.keep = true; return (skinTex[kind] = t);
 }
 function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf, ext){
   if (outline.length < 3) return 0;
@@ -331,10 +338,17 @@ function scoreboardTexture(){
   g.font = "bold 74px sans-serif"; g.fillText("2 – 1", 256, 128);
   g.font = "bold 30px sans-serif"; g.fillText("HOME", 96, 120); g.fillText("AWAY", 416, 120);
   g.fillStyle = "#ffd65a"; g.font = "bold 26px monospace"; g.fillText("63:12", 256, 172);
-  const t = new THREE.CanvasTexture(c); return (boardTex[k] = t);
+  const t = new THREE.CanvasTexture(c); t.keep = true; return (boardTex[k] = t);
+}
+/* One screen-face material per seat colour, kept between rebuilds rather than made afresh every change. */
+const faceMats = {};
+function screenFace(){
+  const k = S.seat, m = faceMats[k] || (faceMats[k] = new THREE.MeshStandardMaterial({map:scoreboardTexture(), emissive:0xffffff, emissiveMap:scoreboardTexture(), roughness:.4}));
+  m.keep = true; m.emissiveIntensity = S.night ? 1 : .55; return m;
 }
 function drawScreens(plans, bf, anchors){
-  const face = new THREE.MeshStandardMaterial({map:scoreboardTexture(), emissive:0xffffff, emissiveMap:scoreboardTexture(), emissiveIntensity: S.night ? 1 : .55, roughness:.4});
+  if (!plans.length) return;
+  const face = screenFace();
   for (const p of plans){
     if (p.kind === "ribbon"){ // LED boards along every tier front of that stand
       const g = p.g, b = bf("board");
@@ -359,8 +373,55 @@ function drawScreens(plans, bf, anchors){
    yb, facing out along n. Everything stands slightly proud of the wall so it reads from the street and from the air. */
 const FACADE_LOOKS = {brick:"Brick, with rows of windows", timber:"Painted timber", deco:"Art deco ribs", concrete:"Concrete bands",
   sheet:"Metal cladding with a club-colour stripe", fins:"Metal fins over a glazed concourse", glass:"Glass curtain wall", grid:"Windows all over", plain:"Plain wall"};
-function dressWall(buf, look, wallKey, a, b, ya, yb, n){
+/* Real-looking wall materials: brick courses, board-marked concrete, profiled metal sheet and timber boarding, drawn as
+   light patterns that the wall's own colour tints. They repeat every few metres along the wall. */
+const wallTex = {};
+function wallTexture(kind){
+  if (wallTex[kind]) return wallTex[kind];
+  const c = document.createElement("canvas"), N = 512; c.width = c.height = N; const g = c.getContext("2d");
+  let seed = 7; const rnd = () => { seed = (seed*16807) % 2147483647; return seed/2147483647; };
+  const shade = v => { const x = Math.round(255*Math.max(0, Math.min(1, v))); return `rgb(${x},${x},${x})`; };
+  let metres = 4;
+  if (kind === "brick"){ // 4 m square: 0.075 m courses of 0.225 m bricks in stretcher bond, lighter mortar
+    g.fillStyle = shade(1); g.fillRect(0,0,N,N); const ch = N/53.3, bw = N/17.8;
+    for (let r=0, y=0; y<N; r++, y+=ch) for (let x = (r%2) ? -bw/2 : 0; x<N; x+=bw){ g.fillStyle = shade(0.74 + rnd()*0.16); g.fillRect(x + 1, y + 1, bw - 2, ch - 2); } }
+  else if (kind === "concrete"){ // 4.8 m: board-marked panels with tie holes and a little staining
+    metres = 4.8; g.fillStyle = shade(0.92); g.fillRect(0,0,N,N);
+    for (let i=0;i<5000;i++){ g.fillStyle = shade(0.84 + rnd()*0.14); g.fillRect(rnd()*N, rnd()*N, 2, 2); }
+    g.fillStyle = shade(0.78); for (const y of [0, N/2]) g.fillRect(0, y, N, 3); for (const x of [0, N/2]) g.fillRect(x, 0, 3, N);
+    g.fillStyle = shade(0.7); for (const x of [N/8, 3*N/8, 5*N/8, 7*N/8]) for (const y of [N/8, 3*N/8, 5*N/8, 7*N/8]){ g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill(); } }
+  else if (kind === "cladding"){ // 2 m: profiled metal sheet with a rib every 0.25 m
+    metres = 2; for (let x=0;x<N;x++){ const f = (x % (N/8))/(N/8), v = f < .15 ? 0.7 + f*1.5 : f < .3 ? 1 : 0.88 + 0.04*Math.sin(f*6); g.fillStyle = shade(v); g.fillRect(x, 0, 1, N); }
+    g.fillStyle = shade(0.8); g.fillRect(0, N - 3, N, 3); }
+  else { // timber boarding, 0.16 m boards
+    metres = 3; for (let y=0, i=0; y<N; y+=N/18.75, i++){ g.fillStyle = shade(0.82 + rnd()*0.14); g.fillRect(0, y, N, N/18.75); g.fillStyle = shade(0.6); g.fillRect(0, y, N, 2); } }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1/metres, 1/metres);
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy(); t.keep = true; return (wallTex[kind] = t);
+}
+const LOOK_TEX = {brick:"brick", timber:"timber", sheet:"cladding", fins:"cladding", deco:"concrete", concrete:"concrete", grid:"concrete", plain:"concrete"};
+function textured(key, kind){
+  if (!kind) return key; const k = key + "~" + kind;
+  if (!M[k]){ M[k] = M[key].clone(); M[k].map = wallTexture(kind); }
+  return k;
+}
+/* Lettering for an outside wall or a roof front, in the club's own words. */
+const signTex = {};
+function signMaterial(text, colour){
+  const k = text + "|" + colour; if (signTex[k]) return signTex[k];
+  const font = "800 110px 'Big Shoulders Display', 'Arial Narrow', sans-serif", c = document.createElement("canvas"), g = c.getContext("2d");
+  g.font = font; c.width = Math.min(4096, Math.ceil(g.measureText(text).width) + 40); c.height = 140;
+  g.font = font; g.fillStyle = colour; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, c.width/2, 76);
+  const t = new THREE.CanvasTexture(c); t.keep = true;
+  const m = new THREE.MeshStandardMaterial({map:t, transparent:true, alphaTest:.25, roughness:.5, emissive:new THREE.Color(colour), emissiveMap:t, emissiveIntensity:0});
+  m.keep = true; m.aspect = c.width/c.height;
+  if (!document.fonts || document.fonts.check(font)) signTex[k] = m; // try again once the lettering font has loaded
+  return m;
+}
+const ACCENTS = new Set(["trim", "band", "steel", "white", "lattice"]);
+function dressWall(buf, look, wallKey, a, b, ya, yb, n, opt){
   const len = Math.hypot(b[0]-a[0], b[1]-a[1]); if (len < 0.5) return;
+  opt = opt || {}; const dens = opt.windows == null ? 1 : opt.windows, wsz = opt.winSize || 1, buf0 = buf;
+  buf = k => buf0(opt.accent && ACCENTS.has(k) ? tint(k, opt.accent) : k); // trims, bands and fins in the accent colour
   const tg = [(b[0]-a[0])/len, (b[1]-a[1])/len], lo = Math.min(ya, yb);
   const P = (f, out) => [a[0] + (b[0]-a[0])*f + n[0]*out, a[1] + (b[1]-a[1])*f + n[1]*out];
   const Q = (p, y) => [p[0], y, p[1]];
@@ -378,7 +439,7 @@ function dressWall(buf, look, wallKey, a, b, ya, yb, n){
     quad(buf(key), Q(r0,y0), Q(r1,y0), Q(r1,y1), Q(r0,y1)); quad(buf(key), Q(q0,y0), Q(r0,y0), Q(r0,y1), Q(q0,y1));
     quad(buf(key), Q(r1,y0), Q(q1,y0), Q(q1,y1), Q(r1,y1)); quad(buf(key), Q(r0,y1), Q(r1,y1), Q(q1,y1), Q(q0,y1)); };
   const cells = step => Math.max(1, Math.round(len/step));
-  const windows = (key, step, storey, first, w, h, sill) => { const nC = cells(step);
+  const windows = (key, step, storey, first, w, h, sill) => { if (dens <= 0) return; const nC = cells(step/dens); w *= wsz; h = Math.min(h*wsz, storey - 0.6);
     for (let c=0;c<nC;c++){ const fc = (c + .5)/nC, fw = w/2/len;
       for (let y = first; y + h < Math.min(top(fc), lo + 2) - 1.2; y += storey){ panel(key, fc - fw, fc + fw, y, y + h, .06); if (sill) panel(sill, fc - fw*1.25, fc + fw*1.25, y - .22, y, .14); } } };
   if (look === "brick"){
@@ -392,11 +453,11 @@ function dressWall(buf, look, wallKey, a, b, ya, yb, n){
     ledge("roofGreen", lo - .9, lo - .2, .3, true);
   } else if (look === "deco"){
     const nC = cells(3.2);
-    for (let c=0;c<nC;c++){ const fc = (c + .5)/nC, fw = .7/len; panel("window", fc - fw, fc + fw, 2.2, Math.max(2.4, top(fc) - 3), .05); }
+    if (dens > 0) for (let c=0;c<nC;c++){ if (dens < 1 && (c % Math.round(1/dens))) continue; const fc = (c + .5)/nC, fw = .7*wsz/len; panel("window", fc - fw, fc + fw, 2.2, Math.max(2.4, top(fc) - 3), .05); }
     for (let c=0;c<=nC;c++) rib("trim", c/nC, .6, .4, Math.max(1, top(c/nC) - .6), .9);
     ledge("trim", lo - 1.3, lo - .3, .7, true); panel("trim", 0, 1, 0, .6, .12);
   } else if (look === "concrete"){
-    for (let y = 3; y + 3.2 < lo - .5; y += 5.2){ panel("window", 0, 1, y, y + 1.6, .05); ledge("concrete", y + 1.6, y + 3.1, .8); }
+    for (let y = 3; y + 3.2 < lo - .5; y += 5.2){ if (dens > 0) panel("window", 0, 1, y, y + 1.6*wsz, .05); ledge("concrete", y + 1.6, y + 3.1, .8); }
     ledge("concrete", lo - 1.2, lo - .2, .9, true);
   } else if (look === "sheet"){
     for (let y = 2.4; y < lo - .5; y += 2.4) panel("band", 0, 1, y, y + .07, .04);
@@ -417,6 +478,11 @@ function dressWall(buf, look, wallKey, a, b, ya, yb, n){
   } else if (look === "grid"){
     windows("window", 2.6, 3.3, 1.6, 1.3, 1.8, null);
     ledge("trim", lo - .8, lo - .2, .3, true);
+  }
+  if (opt.concourse && lo > 6 && look !== "fins" && look !== "glass"){ // a glazed concourse along the ground floor, under a canopy
+    panel("window", 0, 1, .3, 4.4, .08); panel("glass", 0, 1, .3, 4.4, .5);
+    for (let c=0;c<=cells(2.4);c++) rib("steel", c/cells(2.4), .12, .3, 4.4, .55);
+    ledge("steel", 4.4, 4.75, 1.6);
   }
 }
 /* Floodlights fixed to the leading edge of each roof (or on short poles along the top of open stands). */
@@ -453,7 +519,8 @@ function build(){
   const poly = S.plot.on && S.plot.pts ? S.plot.pts : null;
   if (!DRY){
     scene.remove(group);
-    group.traverse(o => { if (o.geometry) o.geometry.dispose(); for (const m of [].concat(o.material || [])) if (m.map && m.map.dispose) m.map.dispose(); });
+    const shared = new Set(Object.values(M)); // free what this build made, but keep the shared materials and cached textures
+    group.traverse(o => { if (o.geometry) o.geometry.dispose(); for (const m of [].concat(o.material || [])){ if (m.map && m.map.dispose && !m.map.keep) m.map.dispose(); if (!m.keep && !shared.has(m)) m.dispose(); } });
     group = new THREE.Group(); scene.add(group);
   }
   const Bf = {}; const buf = k => (Bf[k] = Bf[k] || []);
@@ -525,9 +592,15 @@ function build(){
     const roofOn = !groundRoof && rf.shape !== "none" && st.roofOn !== false;
     const margin = roofOn ? 1.6 : 0.3;
     let overflow = 0;
+    const s0 = setAt(Math.floor(m/2));
+    const cum = [0]; for (let i=1;i<m;i++){ const a = pt(i-1,s0), b = pt(i,s0); cum.push(cum[i-1] + Math.hypot(b[0]-a[0], b[1]-a[1])); }
+    const lenTotal = cum[m-1] + (closed ? Math.hypot(pt(0,s0)[0]-pt(m-1,s0)[0], pt(0,s0)[1]-pt(m-1,s0)[1]) : 0);
+    /* A tier can stop short of either end of an open stand (start is the left end, seen from the play). */
+    const cut = (tiers, i) => closed || !tiers.some((tr,k) => k >= st.drawFrom && (tr.trim0 > 0 || tr.trim1 > 0)) ? tiers
+      : tiers.map((tr,k) => k >= st.drawFrom && (cum[i] < (tr.trim0 || 0) - 1e-6 || cum[i] > lenTotal - (tr.trim1 || 0) + 1e-6) ? Object.assign({}, tr, {ghost:true}) : tr); // laid out but not built, so anything above it stays up
     const profs = [], tierList = [];
     for (let i=0;i<m;i++){
-      let tiers = st.tiersFor(i); const s0 = setAt(i);
+      let tiers = cut(st.tiersFor(i), i); const s0 = setAt(i);
       if (poly){
         const dm = exitDist(poly, o[i], v[i], s0);
         if (S.plot.clip) tiers = trimTiers(tiers, dm - margin, s0);
@@ -549,9 +622,6 @@ function build(){
     }
     if (overflow > 0.05) issue(`The ${st.name.toLowerCase()} runs ${Math.round(overflow)} m past the plot boundary.`, "site:" + st.name, "geo",
       {tab:st.key, fix:{label:"Cut it back to fit the plot", run:() => { S.plot.clip = true; return true; }}});
-    const s0 = setAt(Math.floor(m/2));
-    const cum = [0]; for (let i=1;i<m;i++){ const a = pt(i-1,s0), b = pt(i,s0); cum.push(cum[i-1] + Math.hypot(b[0]-a[0], b[1]-a[1])); }
-    const lenTotal = cum[m-1] + (closed ? Math.hypot(pt(0,s0)[0]-pt(m-1,s0)[0], pt(0,s0)[1]-pt(m-1,s0)[1]) : 0);
     const marks = step => { const out = new Set(); if (lenTotal < step*0.6) return out; let next = step/2;
       for (let i=0;i<m;i++){ if (cum[i] >= next){ out.add(i); next += step; } } return out; };
     const tangent = i => { let a, b;
@@ -559,8 +629,9 @@ function build(){
       const tx = b[0]-a[0], tz = b[1]-a[1], l = Math.hypot(tx,tz) || 1; return [tx/l, tz/l]; };
     const above = st.drawFrom > 0, K = Math.max(0, ...profs.map(p => p.length));
     const realCount = Math.max(0, ...profs.map(p => p.filter((x,k) => k >= st.drawFrom && !x.ghost).length));
-    let standSeats = 0, standEvac = 0, standTop = 0, standBack = 0; const kinds = new Set(), segRecs = [], cols = [], tierRecs = [];
-    const wallKey = sty.wall === "concrete" ? "concrete" : sty.wall === "glassClad" ? "glassClad" : "clad_" + cfg.style;
+    let standSeats = 0, standEvac = 0, standTop = 0, standBack = 0; const kinds = new Set(), segRecs = [], cols = [], tierRecs = [], towerReqs = [];
+    const wallBase = sty.wall === "concrete" ? "concrete" : sty.wall === "glassClad" ? "glassClad" : "clad_" + cfg.style;
+    const wallKey = textured(tint(wallBase, fac.colour), wallBase === "glassClad" ? null : LOOK_TEX[look]); // the wall's colour and real material
     const pillarAt = marks(12), midI = (() => { let best = Math.floor(m/2), bd = Infinity; for (let i=0;i<m;i++){ const d = Math.abs(cum[i] - lenTotal/2); if (d < bd && profs[i].some(p => nRows(p) >= 1 && !p.ghost)){ bd = d; best = i; } } return best; })();
     const sideMids = (() => { if (!st.sideAt) return []; const by = {}; for (let i=0;i<m;i++){ const s = st.sideAt(i); if (s) (by[s] = by[s] || []).push(i); }
       return Object.entries(by).map(([s, l]) => [l[Math.floor(l.length/2)], s]); })();
@@ -575,7 +646,7 @@ function build(){
       for (let i=0;i<m;i++){ const p = profs[i][k]; if (p && !p.ghost && nRows(p) >= 1){ tierType = tierType || p.type; if (!best || nRows(p) > nRows(best)) best = p; } }
       if (!tierType) continue;
       const T = S.types[tierType].row, eye = TYPES[tierType].eye;
-      const kk = k - st.drawFrom, ref = st.tierRef ? st.tierRef(kk) : null, where = {tab:st.key, k:kk};
+      const kk = k - st.drawFrom, ref = st.tierRef ? st.tierRef(kk) : null, tc = ref || {}, where = {tab:st.key, k:kk};
       const name = cap1((st.name + " " + tierName(kDrawn, realCount, above)).trim() + ((realCount > 1 || above) ? " tier" : ""));
       kDrawn++;
       curRef = {ref, name};
@@ -632,9 +703,14 @@ function build(){
           Object.assign({fix: ref ? {label:"Raise it to give 2.4 m", run:() => { ref.gap = (ref.gap == null ? 3 : ref.gap) + (2.4 - head); return true; }} : null}, where));
         if (best.over > 12) issue(`${name} projects ${best.over.toFixed(0)} m over the tier below: a very long cantilever. Fine for a sandbox, ambitious in real life.`, `cant:${st.name}:${kk}`, "geo", Object.assign({fix:null}, where));
       }
-      if (best.stacked && best.gap > 14 && !best.pillars && !best.lowerGhost) issue(`${name} floats ${best.gap.toFixed(0)} m above the tier below with nothing visibly holding it up.`, `float:${st.name}:${kk}`, "geo",
+      if (best.stacked && best.gap > 14 && !best.pillars && !best.lowerGhost && tc.hold !== "towers") issue(`${name} floats ${best.gap.toFixed(0)} m above the tier below with nothing visibly holding it up.`, `float:${st.name}:${kk}`, "geo",
         Object.assign({fix: ref ? {label:"Add pillars under it", run:() => { ref.pillars = true; return true; }} : null}, where));
-      const fasc = buf(bad && S.trim ? "fasciaBad" : st.sel ? "fasciaSel" : "fascia");
+      /* the tier's own look: the style and colour of its front, and its own seat colour */
+      const front = tc.front && tc.front !== "auto" ? tc.front : (sty.lattice ? "lattice" : "plain");
+      const frontKey = front === "concrete" ? tint("concrete", tc.frontColour) : front === "brick" ? tint("clad_historic", tc.frontColour) : tint("fascia", tc.frontColour);
+      const fasc = buf(bad && S.trim ? "fasciaBad" : st.sel ? "fasciaSel" : frontKey);
+      const seatKey = (tierType === "seated" || tierType === "rail") && tc.seatColour ? tint(tierType, tc.seatColour) : tierType;
+      const backKey = seatKey !== tierType ? tint("seatBack", tc.seatColour) : "seatBack";
       const aisleAt = marks(tierType === "terrace" ? 24 : S.design.gangEvery*S.types[tierType].width + S.design.gangWidth);
       const vomAt = !best.stacked && nRows(best) >= 10 ? marks(S.design.exitEvery) : new Set();
       const rowLen = [], recs = []; let frontLen = 0;
@@ -645,21 +721,22 @@ function build(){
           for (let j=0;j<mr;j++){
             const a0 = p0.front + j*T, a1 = p1.front + j*T, h0 = p0.hs[j], h1 = p1.hs[j];
             const alt = (tierType === "seated" || tierType === "rail") && altRow(i, j, kk);
-            quad(buf(alt ? "seatAlt" : tierType), V(i,a0,h0), V(j1,a1,h1), V(j1,a1+T,h1), V(i,a0+T,h0));
+            quad(buf(alt ? "seatAlt" : seatKey), V(i,a0,h0), V(j1,a1,h1), V(j1,a1+T,h1), V(i,a0+T,h0));
             if (j>0) quad(buf("riser"), V(i,a0,p0.hs[j-1]), V(j1,a1,p1.hs[j-1]), V(j1,a1,h1), V(i,a0,h0));
             const b0 = a0+T-.1, b1 = a1+T-.1;
             if (tierType === "rail") quad(buf("barrier"), V(i,b0,h0+.95), V(j1,b1,h1+.95), V(j1,b1,h1+1.05), V(i,b0,h0+1.05));
             else if (tierType === "terrace"){ if (j>0 && j % S.design.barrierEvery === 0) quad(buf("barrier"), V(i,a0+.08,h0+.95), V(j1,a1+.08,h1+.95), V(j1,a1+.08,h1+1.12), V(i,a0+.08,h0+1.12)); }
-            else if (tierType !== "bench"){ const bh = tierType === "exec" ? .55 : .42; quad(buf(tierType === "exec" ? "exec" : alt ? "seatAltBack" : "seatBack"), V(i,b0,h0), V(j1,b1,h1), V(j1,b1,h1+bh), V(i,b0,h0+bh)); }
+            else if (tierType !== "bench"){ const bh = tierType === "exec" ? .55 : .42; quad(buf(tierType === "exec" ? "exec" : alt ? "seatAltBack" : backKey), V(i,b0,h0), V(j1,b1,h1), V(j1,b1,h1+bh), V(i,b0,h0+bh)); }
             const m0 = pt(i, a0+T/2), m1 = pt(j1, a1+T/2), len = Math.hypot(m1[0]-m0[0], m1[1]-m0[1]);
             rowLen[j] = (rowLen[j]||0) + len; if (j === 0) frontLen += len;
             recs.push({j, len, d:(a0+a1)/2, x:(m0[0]+m1[0])/2, z:(m0[1]+m1[1])/2, i, m0, m1, h0, h1, type:tierType});
           }
           const y00 = p0.stacked ? p0.hF-1.5 : 0, y10 = p1.stacked ? p1.hF-1.5 : 0;
           quad(fasc, V(i,p0.front,y00), V(j1,p1.front,y10), V(j1,p1.front,p1.hF), V(i,p0.front,p0.hF));
-          if (tierType === "exec") quad(buf("glass"), V(i,p0.front,p0.hF), V(j1,p1.front,p1.hF), V(j1,p1.front,p1.hF+1.1), V(i,p0.front,p0.hF+1.1));
-          if (p0.stacked && sty.lattice){ // criss-cross balcony truss
-            const lb = buf("lattice"), yA = p0.hF-1.45, yB = p0.hF-0.05, f0 = p0.front-.06, f1 = p1.front-.06;
+          if (tierType === "exec" || front === "glass") quad(buf("glass"), V(i,p0.front,p0.hF), V(j1,p1.front,p1.hF), V(j1,p1.front,p1.hF+1.1), V(i,p0.front,p0.hF+1.1));
+          if (front === "concrete" || front === "brick") quad(fasc, V(i,p0.front,p0.hF), V(j1,p1.front,p1.hF), V(j1,p1.front,p1.hF+1), V(i,p0.front,p0.hF+1)); // a solid parapet
+          if (p0.stacked && front === "lattice"){ // criss-cross balcony truss
+            const lb = buf(tint("lattice", tc.frontColour)), yA = p0.hF-1.45, yB = p0.hF-0.05, f0 = p0.front-.06, f1 = p1.front-.06;
             quad(lb, V(i,f0,yA), V(i,f0,yA+.14), V(j1,f1,yB), V(j1,f1,yB-.14));
             quad(lb, V(i,f0,yB), V(i,f0,yB-.14), V(j1,f1,yA), V(j1,f1,yA+.14));
           }
@@ -706,13 +783,15 @@ function build(){
             quad(buf("void"), [a[0]-tg[0]*ew,h,a[1]-tg[1]*ew], [a[0]+tg[0]*ew,h,a[1]+tg[1]*ew], [b[0]+tg[0]*ew,h,b[1]+tg[1]*ew], [b[0]-tg[0]*ew,h,b[1]-tg[1]*ew]); }
         }
         // pillars under a stacked tier's front (always when the tier below is left open)
-        if (p.stacked && (p.pillars || p.lowerGhost) && pillarAt.has(s)){
+        if (p.stacked && (p.pillars || p.lowerGhost) && tc.hold !== "towers" && pillarAt.has(s)){
           const cd = p.front + 0.4, q = pt(s, cd), base = p.lowerGhost ? 0 : heightAt(profs[s].slice(0,k), cd);
           post(buf("column"), q[0], q[1], base, p.hF - 1.5, 0.45); if (!p.lowerGhost) cols.push({x:q[0], z:q[1], d:cd});
         }
         const bp = pt(s, p.front + n*T - T/2); farFrom(bp[0], bp[1], p.hs[n-1] + eye);
         standTop = Math.max(standTop, p.hs[n-1] + 1.2); standBack = Math.max(standBack, p.front + n*T);
       }
+      if (tc.hold === "towers" && !closed && best.stacked){ const live = []; for (let s=0;s<m;s++){ const p = profs[s][k]; if (p && !p.ghost && nRows(p) >= 1) live.push(s); }
+        if (live.length >= 2) towerReqs.push({k, live}); }
       if (st.sel && ref){ // one depth handle in the middle, or one per side when a bowl's sides have their own rows
         const spots = st.sideAt && S.bowl.varyRows ? sideMids : [[midI, null]];
         spots.forEach(([hi, side], si) => { const p = profs[hi][k]; if (!p || p.ghost || nRows(p) < 1) return;
@@ -804,6 +883,22 @@ function build(){
     } else {
       for (let i=0;i<m;i++){ const x = info[i]; if (x){ const g = pt(i, x.back); grow(g[0], g[1]); } }
     }
+    /* A deck held up by a tower at each end carrying a truss over the stand, as with Ibrox's Club Deck: no pillars in front of fans. */
+    for (const tw of towerReqs){
+      const at = s => profs[s][tw.k], mid = s => { const p = at(s); return p.front + nRows(p)*p.T*0.5; };
+      let yT = Math.max(...tw.live.map(s => at(s).hs[nRows(at(s))-1])) + 5.5;
+      if (RRout) for (const s of tw.live) if (RRout[s]) yT = Math.max(yT, RRout[s].y(0) + 1.5, RRout[s].y(1) + 1.5);
+      const yB = yT - 4.5, a = tw.live[0], b = tw.live[tw.live.length-1], sb = buf("steel");
+      const tower = (s, dir) => { const tg = tangent(s), q = pt(s, mid(s)); return [q[0] + tg[0]*dir*5, q[1] + tg[1]*dir*5]; };
+      const ta = tower(a, -1), tb = tower(b, 1);
+      for (const q of [ta, tb]){ post(buf("concrete"), q[0], q[1], 0, yT + 1.5, 3.4); grow(q[0], q[1]); }
+      const line = [ta].concat(tw.live.map(s => pt(s, mid(s))), [tb]);
+      for (let i=0;i<line.length-1;i++){ const p = line[i], q = line[i+1];
+        bar(sb, [p[0],yT,p[1]], [q[0],yT,q[1]], .5); bar(sb, [p[0],yB,p[1]], [q[0],yB,q[1]], .5);
+        bar(sb, i % 2 ? [p[0],yT,p[1]] : [p[0],yB,p[1]], i % 2 ? [q[0],yB,q[1]] : [q[0],yT,q[1]], .3); }
+      const hang = marks(10); for (const s of tw.live) if (hang.has(s)){ const p = at(s), f = pt(s, p.front + .3), c = pt(s, mid(s)); bar(sb, [c[0],yB,c[1]], [f[0],p.hF,f[1]], .18); }
+      topAll = Math.max(topAll, yT + 1.5);
+    }
     // façade extras: stair towers, entrance gates and window mullions on the back wall
     const backAt = i => info[i] ? info[i].back + (roofOn ? 1.5 : 0) : null;
     if (fac.towers){ const ts = closed ? [...marks(60)] : [0, m-1];
@@ -813,12 +908,32 @@ function build(){
       quad(buf("gate"), [q[0]-tg[0]*1.6, 0, q[1]-tg[1]*1.6], [q[0]+tg[0]*1.6, 0, q[1]+tg[1]*1.6], [q[0]+tg[0]*1.6, 3.4, q[1]+tg[1]*1.6], [q[0]-tg[0]*1.6, 3.4, q[1]-tg[1]*1.6]); }
     /* The outside wall, dressed in the stand's look: windows, pilasters, bands, fins or glass. It runs along the roof's back
        edge where there is a roof, otherwise along the back of the top tier. */
-    if (look !== "plain") for (let i=0;i<segs;i++){
+    const wallOpt = {windows:fac.windows, winSize:fac.winSize, concourse:fac.concourse, accent:fac.accent};
+    if (look !== "plain" || fac.concourse) for (let i=0;i<segs;i++){
       const j1 = nx(i), x0 = info[i], x1 = info[j1]; if (!x0 || !x1) continue;
       const ra = RRout && RRout[i], rb = RRout && RRout[j1], roofed = roofOn && ra && rb;
       const d0 = roofed ? ra.outer : x0.back, d1 = roofed ? rb.outer : x1.back, y0 = roofed ? ra.y(1) : x0.top, y1 = roofed ? rb.y(1) : x1.top;
       const nv = [v[i][0] + v[j1][0], v[i][1] + v[j1][1]], nl = Math.hypot(nv[0], nv[1]) || 1;
-      dressWall(buf, look, wallKey, pt(i, d0), pt(j1, d1), y0, y1, [nv[0]/nl, nv[1]/nl]);
+      dressWall(buf, look, wallKey, pt(i, d0), pt(j1, d1), y0, y1, [nv[0]/nl, nv[1]/nl], wallOpt);
+    }
+    if (fac.sign && !DRY){ // lettering on the outside wall, or along the roof front facing the play
+      let si = midI;
+      if (closed){ let bd = -2; for (let i=0;i<m;i++){ if (!info[i]) continue; const d = -v[i][1]/(Math.hypot(v[i][0], v[i][1]) || 1); if (d > bd){ bd = d; si = i; } } if (bd < 0.95) si = -1; }
+      const x = si >= 0 ? info[si] : null, R2 = x && RRout ? RRout[si] : null;
+      if (x){
+        const mat = signMaterial(String(fac.sign).slice(0, 30), fac.signColour || "#ffffff"), onRoof = fac.signAt === "roof" && roofOn && R2;
+        mat.emissiveIntensity = S.night ? .9 : .35; // a little light keeps it legible in shadow
+        const vl = Math.hypot(v[si][0], v[si][1]) || 1, nOut = [v[si][0]/vl, v[si][1]/vl], tg = tangent(si);
+        const top = onRoof ? R2.y(0) : roofOn && R2 ? R2.y(1) : x.top;
+        let h = Math.max(1.4, Math.min(5, top*0.11)); if (h*mat.aspect > lenTotal*0.85) h = lenTotal*0.85/mat.aspect;
+        const w = h*mat.aspect, mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+        if (onRoof){ const p = pt(si, R2.inner - .3), yc = R2.y(0) - .3 - h/2, hw = w/2 + 1.5, q = pt(si, R2.inner - .1);
+          quad(buf("roofEdge"), [q[0]-tg[0]*hw, yc - h/2 - .4, q[1]-tg[1]*hw], [q[0]+tg[0]*hw, yc - h/2 - .4, q[1]+tg[1]*hw], [q[0]+tg[0]*hw, R2.y(0), q[1]+tg[1]*hw], [q[0]-tg[0]*hw, R2.y(0), q[1]-tg[1]*hw]);
+          mesh.position.set(p[0], yc, p[1]); mesh.lookAt(p[0] - nOut[0], yc, p[1] - nOut[1]); }
+        else { const p = pt(si, (roofOn && R2 ? R2.outer : x.back) + (look === "fins" ? 1.6 : look === "glass" ? .6 : .3)), yc = top - h*.75;
+          mesh.position.set(p[0], yc, p[1]); mesh.lookAt(p[0] + nOut[0], yc, p[1] + nOut[1]); }
+        mesh.userData.stadium = true; group.add(mesh);
+      }
     }
     if (st.sel && st.key in S.stands && lay === "stands" && info[midI]){ const q = pt(midI, info[midI].front);
       handles.push({kind:"dist", x:q[0], y:0.6, z:q[1], o:o[midI], v:v[midI], cfg}); }
@@ -861,7 +976,8 @@ function build(){
   const nc = NC(shape);
   const ringGeo = () => densify(linearize(d => closedPathS(F, radius, d, shape), true), 4, set + 6);
   const cornerCfg = (sa, sb, cc) => { const src = [sa, sb].find(x => x.tiers.length && x.roof.shape !== "none");
-    return {style:(sa.tiers.length ? sa : sb).style, roof: cc.roof && src ? Object.assign({}, src.roof, {shape: src.roof.shape === "closed" ? "slope" : src.roof.shape, support: src.roof.support === "truss" ? "none" : src.roof.support}) : R("none"), facade:{}}; };
+    return {style:(sa.tiers.length ? sa : sb).style, roof: cc.roof && src ? Object.assign({}, src.roof, {shape: src.roof.shape === "closed" ? "slope" : src.roof.shape, support: src.roof.support === "truss" ? "none" : src.roof.support}) : R("none"),
+      facade:Object.assign({}, (sa.tiers.length ? sa : sb).facade, {towers:false, gates:false, sign:""})}; }; // corners wear their stand's walls
   /* Upper tiers on their own outline, like La Cartuja or the Monumental: the lower tier keeps hugging the play while every
      tier above it is bent, slice by slice, onto an oval or a circle. "ring" puts the front of the upper tiers on the outline;
      "fill" grows the top tier back to it, so the outer wall and roof trace the shape. */
@@ -1056,7 +1172,7 @@ function build(){
   addProps(group, F, buf);
   for (const key in Bf) if (Bf[key].length){
     const mesh = meshFrom(Bf[key], M[key], !["roof","roofGlass","glass","roofClosed","aisle","void","glassClad"].includes(key));
-    if (TYPES[key] || key === "floorSeat") mesh.userData.seat = true;
+    if (TYPES[key.split("_")[0]] || key === "floorSeat") mesh.userData.seat = true;
     mesh.userData.stadium = true;
     group.add(mesh);
   }
@@ -1109,7 +1225,8 @@ function build(){
   const sc = sun.shadow.camera, half = Math.max(ext[0],ext[1]) + 30;
   sc.left=-half; sc.right=half; sc.top=half; sc.bottom=-half; sc.near=10; sc.far=1400; sc.updateProjectionMatrix();
   const screenSpots = []; for (const p of screenPlans) screenSpots[p.idx] = [p.x, p.y, p.z];
-  LAST = Object.assign(result, {closedAt, focusIn, F, farName, ext, sext, parts, set, steepInfo, poly, lay, standInfo, handles, screenSpots});
+  LAST = Object.assign(result, {closedAt, focusIn, F, farName, ext, sext, parts, set, steepInfo, poly, lay, standInfo, handles, screenSpots,
+    screenCtx:{F, anchors, closedAt, outerTop, set}}); // lets a new screen try its mountings without rebuilding the stadium
   LAST_REGIONS = regions;
   renderStats(); refreshOutputs(); invalidate();
   return result;

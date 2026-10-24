@@ -193,10 +193,11 @@ function camTarget(mode){
   }
   if (mode === "screen"){
     const sp = D.screenSpots && D.screenSpots[screenFocus]; if (!sp) return camTarget("aerial");
+    // orbit round the screen from out over the play, so dragging and zooming still work normally
     const t = new THREE.Vector3(...sp), flat = Math.hypot(sp[0], sp[2]);
     const p = flat < 5 ? new THREE.Vector3(D.F.W*0.3, Math.max(4, sp[1]*0.45), D.F.H*0.3) // hanging over the centre: look up at it from the play
       : new THREE.Vector3(-sp[0]*0.3, Math.max(5, sp[1]*0.55), -sp[2]*0.3);
-    return {p, t:p.clone().add(t.sub(p).normalize().multiplyScalar(0.5)), look:true};
+    return {p, t};
   }
   if (mode === "exterior" || mode === "under"){
     const r = regionFor(tab === "B" || tab === "C" || tab === "F" ? "N" : tab); if (!r) return camTarget("aerial");
@@ -453,7 +454,20 @@ const SIDE_SHORT = {N:"Main", S:"Opposite", E:"East", W:"West"};
 /* Rows for each side of a bowl, side by side, instead of one number for the whole way round. */
 const sideRowsBox = (tr, pre, isT) => `<div class="row"><label>${isT ? "Steps" : "Rows"} on each side</label></div><div class="siderows">${SIDES.map(s => { const gone = bowlGone(s);
   return `<label><span>${SIDE_SHORT[s]}</span><input type="number" data-p="${pre}sideRows.${s}" value="${gone ? 0 : Math.round(sideRowsOf(tr, s))}" min="0" max="90" step="1"${gone ? " disabled" : ""} aria-label="${isT ? "Steps" : "Rows"} on the ${SIDE_NAMES[s].toLowerCase()}"></label>`; }).join("")}</div>`;
-function tierBlocks(arr, above, base, bySide){
+const TIER_FRONTS = {auto:"Stand's own style", plain:"Plain fascia", lattice:"Criss-cross lattice (Leitch)", glass:"Glass balustrade", concrete:"Concrete parapet", brick:"Brick parapet"};
+const TIER_HOLDS = {none:"Nothing visible (cantilever)", pillars:"Pillars under its front edge", towers:"Towers at each end with a truss"};
+const colourPick = (label, p, val, def) => `<div class="row colour"><label>${label}</label><span class="num"><input type="color" data-p="${p}" value="${val || def || "#888888"}" aria-label="${label}">
+  ${val ? `<button class="mini" data-act="clearColour" data-cp="${p}">Default</button>` : `<small>default</small>`}</span></div>`;
+/* The tier's own look, its length and what holds it up. */
+const openMore = new Set();
+const tierMore = (tr, pre, stacked, ends) => `<details class="sub" data-more="${tab}:${pre}"${openMore.has(tab + ":" + pre) ? " open" : ""}><summary>Look${ends ? ", length" : ""}${stacked ? " and support" : ""}</summary><div class="inner">
+  ${pick("Front", pre + "front", tr.front || "auto", TIER_FRONTS)}
+  ${colourPick("Front colour", pre + "frontColour", tr.frontColour)}
+  ${tr.type === "seated" || tr.type === "rail" ? colourPick("Seat colour", pre + "seatColour", tr.seatColour) : ""}
+  ${ends ? pair("Stops short of the left end", pre + "trim0", tr.trim0 || 0, 0, 80, 1, "m", "Left and right as seen from the play.") + pair("Stops short of the right end", pre + "trim1", tr.trim1 || 0, 0, 80, 1, "m") : ""}
+  ${stacked ? pick("Held up by", pre + "support", tr.hold === "towers" ? "towers" : tr.pillars ? "pillars" : "none", TIER_HOLDS) : ""}
+</div></details>`;
+function tierBlocks(arr, above, base, bySide, ends){
   return arr.map((tr,k) => {
     const isT = tr.type === "terrace", nm = tierName(k, arr.length, above), stacked = k > 0 || above;
     const pre = (base ? base + "." : "") + "tiers." + k + ".";
@@ -465,7 +479,8 @@ function tierBlocks(arr, above, base, bySide){
         ${tr.auto ? "" : `<input type="range" data-p="${pre}rake" min="8" max="45" step="1" value="${tr.rake}" aria-label="Steepness in degrees">`}</div>
       ${stacked ? `${pair("Projects forward over the tier below", pre + "over", tr.over || 0, -15, 40, 0.5, "m", "Negative sets it back instead.")}
       ${pair("Height above the tier below", pre + "gap", tr.gap == null ? 3 : tr.gap, 1.5, 40, 0.5, "m")}
-      ${check("Pillars under its front edge", pre + "pillars", tr.pillars)}` : ""}
+` : ""}
+      ${tierMore(tr, pre, stacked, ends)}
     </div>`;
   }).join("");
 }
@@ -538,11 +553,19 @@ function renderEditor(){
         ${pair("Extra length at each end", "extend", cfg.extend || 0, -40, 60, 1, "m", "Only where the corner next to it is open.")}</div></details>` : ""}
       ${above ? `<p class="hint">These tiers sit on top of the lower bowl and follow its shape. Remove them all to leave just the bowl here, with or without a roof.${bowlGone(tab) ? " The lower bowl is left out on this side, so they start at ground level." : ""}</p>` : ""}
       ${bowl || ring ? bowlShapeBlock() : ""}
-      ${tierBlocks(cfg.tiers, above, "", (bowl || ring) && S.bowl.varyRows)}
+      ${tierBlocks(cfg.tiers, above, "", (bowl || ring) && S.bowl.varyRows, !bowl && !ring)}
       ${cfg.tiers.length < 4 ? `<button class="btn small" data-act="addTier">Add a tier</button>` : ""}
       ${ring ? "" : roofBlock(cfg, bowl)}
       ${ring ? "" : `<details class="sub" open><summary>Outside walls</summary><div class="inner">
         ${pick("Look", "facade.look", FACADE_LOOKS[fac.look] ? fac.look : sty.look || "plain", FACADE_LOOKS)}
+        ${colourPick("Wall colour", "facade.colour", fac.colour, "#" + (sty.clad || 0x888888).toString(16).padStart(6, "0"))}
+        ${colourPick("Accent colour", "facade.accent", fac.accent, "#d9d2c2")}
+        <p class="hint">The accent colours the trims, bands, ribs and fins.</p>
+        ${pair("Windows", "facade.windows", fac.windows == null ? 1 : fac.windows, 0, 2, 0.25, "×", "0 leaves the wall blank, 2 doubles them.")}
+        ${pair("Window size", "facade.winSize", fac.winSize || 1, 0.5, 1.6, 0.1, "×")}
+        ${check("Glazed concourse along the ground floor", "facade.concourse", fac.concourse)}
+        <div class="row"><label for="facSign">Lettering</label><input type="text" id="facSign" data-p="facade.sign" maxlength="30" value="${esc(fac.sign || "")}" placeholder="e.g. YOUR CLUB" aria-label="Lettering"></div>
+        ${fac.sign ? pick("Lettering goes", "facade.signAt", fac.signAt || "wall", {wall:"On the outside wall", roof:"Along the roof front"}) + colourPick("Lettering colour", "facade.signColour", fac.signColour, "#ffffff") : ""}
         ${check("Stair towers", "facade.towers", fac.towers)}${check("Entrance gates", "facade.gates", fac.gates)}
         <button class="btn link" data-act="seeOutside">See it from the street</button></div></details>`}`;
   }
@@ -574,6 +597,9 @@ function applyStyle(cfg, key, ring){
   const roof = st.roof(); if (isBowl() && roof.shape === "gable") roof.shape = "slope"; cfg.roof = roof;
 }
 function targetObj(){ return (!isBowl() && tab === "C") ? {tiers:S.cornerCustom} : cfgForTab(); }
+const getPath = (obj, path) => path.split(".").reduce((o, k) => o == null ? o : o[k], obj);
+/* Redraw the editor without losing the typing cursor (for when lettering appears or goes and its options change). */
+function renderEditorKeepFocus(el){ const id = el.id, pos = el.selectionStart; renderEditor(); const n = id && document.getElementById(id); if (n){ n.focus(); try { n.setSelectionRange(pos, pos); } catch(e) {} } }
 function setPath(obj, path, val){
   const parts = path.split("."); if (parts[0] === "cc"){ obj = {tiers:S.cornerCustom}; parts.shift(); }
   let o = obj; for (let i=0;i<parts.length-1;i++) o = o[parts[i]] = o[parts[i]] || {};
@@ -581,6 +607,7 @@ function setPath(obj, path, val){
   if (last === "curve" || last === "opening") val = val/100;
   o[last] = val;
 }
+$("editor").addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.more){ if (d.open) openMore.add(d.dataset.more); else openMore.delete(d.dataset.more); } }, true);
 $("tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (!b) return; selectTab(b.dataset.tab, false); });
 $("editor").addEventListener("input", e => {
   const el = e.target, p = el.dataset.p; if (!p || el.tagName === "SELECT") return;
@@ -596,6 +623,8 @@ $("editor").addEventListener("input", e => {
     if (p.endsWith(".auto")) renderEditor();
     changed(); return;
   }
+  if (el.type === "color"){ setPath(targetObj(), p, el.value); changed(false, true); return; }
+  if (el.type === "text"){ const had = !!getPath(targetObj(), p); setPath(targetObj(), p, el.value.replace(/[<>"'`\\]/g, "").slice(0, 30)); if (had !== !!el.value) renderEditorKeepFocus(el); changed(false, true); return; }
   const v = +el.value; if (!isFinite(v)) return;
   setPath(targetObj(), p, p.includes(".sideRows.") ? clamp(Math.round(v), 0, 90) : el.type === "number" && p.endsWith("rows") ? Math.max(1, Math.round(v)) : v);
   $("editor").querySelectorAll(`[data-p="${p}"]`).forEach(o => { if (o !== el) o.value = el.value; });
@@ -606,6 +635,10 @@ $("editor").addEventListener("change", e => {
   const el = e.target;
   if (el.dataset.corner){ const cc = S.corners[el.dataset.corner], f = el.dataset.cf; cc[f] = el.type === "checkbox" ? el.checked : el.value; renderEditor(); changed(); return; }
   if (el.dataset.actChange === "style"){ applyStyle(cfgForTab(), el.value, isHybrid() && tab === "B"); renderEditor(); changed(); return; }
+  if (el.tagName === "SELECT" && el.dataset.p && el.dataset.p.endsWith(".support")){ // pillars, towers or nothing
+    const tr = el.dataset.p.split(".").slice(0, -1).reduce((o, k) => o[k], el.dataset.p.startsWith("cc.") ? {cc:{tiers:S.cornerCustom}} : targetObj());
+    tr.pillars = el.value === "pillars"; if (el.value === "towers") tr.hold = "towers"; else delete tr.hold; renderEditor(); changed(); return; }
+  if (el.type === "color") return;
   if (el.tagName === "SELECT" && el.dataset.p){ setPath(targetObj(), el.dataset.p, el.value); renderEditor(); changed(); }
 });
 $("editor").addEventListener("click", e => {
@@ -627,6 +660,7 @@ $("editor").addEventListener("click", e => {
   if (act === "addBoxes"){ if (arr.length >= 4) return say("<b>Four tiers is the most a stand can have.</b> Remove one first.");
     const at = Math.min(1, arr.length); arr.splice(at, 0, t("exec", 4, 22, true, at || isHybrid() ? {over:2, gap:3.6} : {})); }
   if (act === "toggleRoof"){ cfg.roof = cfg.roof.shape === "none" ? STYLES[cfg.style].roof() : Object.assign({}, cfg.roof, {shape:"none"}); if (cfg.roof.shape === "none" && STYLES[cfg.style].roof().shape === "none" && b.textContent.includes("+")) cfg.roof = R("slope"); }
+  if (act === "clearColour"){ const parts = b.dataset.cp.split("."), tr = parts.slice(0, -1).reduce((o, k) => o[k], b.dataset.cp.startsWith("cc.") ? {cc:{tiers:S.cornerCustom}} : targetObj()); delete tr[parts[parts.length-1]]; }
   if (act === "bowlShape"){ const [label, gone] = BOWL_SHAPES[b.dataset.shape]; S.bowl.removed = {}; for (const k of gone) S.bowl.removed[k] = true;
     flash(`<b>${label}.</b> Tap the plan to fine-tune it.`, UNDO); }
   if (act === "mirror"){ S.stands[OPPOSITE[tab]] = clone(cfg); flash(`<b>Copied</b> to the ${SIDE_NAMES[OPPOSITE[tab]].toLowerCase()}.`, UNDO); }
@@ -737,6 +771,35 @@ function plotShape(kind, silent){
 document.querySelectorAll("[data-plot]").forEach(b => b.addEventListener("click", () => plotShape(b.dataset.plot)));
 $("plotOn").addEventListener("change", e => { if (e.target.checked && !S.plot.pts) plotShape("snug"); else { S.plot.on = e.target.checked; changed(true); } setTip(); });
 $("plotClip").addEventListener("change", e => { S.plot.clip = e.target.checked; changed(); });
+/* Typed plot sizes and corners, for when dragging posts isn't precise enough. */
+const plotBox2 = pts => { const xs = pts.map(p => p[0]), zs = pts.map(p => p[1]); return {x0:Math.min(...xs), x1:Math.max(...xs), z0:Math.min(...zs), z1:Math.max(...zs)}; };
+const polyArea = pts => Math.abs(pts.reduce((a, p, i) => { const q = pts[(i+1)%pts.length]; return a + p[0]*q[1] - q[0]*p[1]; }, 0))/2;
+let plotDrawn = null;
+function renderPlot(){
+  const pts = S.plot.pts; if (!pts) return;
+  const b = plotBox2(pts), area = polyArea(pts);
+  $("plotSummary").textContent = `${b.x1-b.x0} × ${b.z1-b.z0} m · ${area >= 10000 ? (area/10000).toFixed(2) + " ha" : fmt(area) + " m²"}`;
+  for (const [id, v] of [["plotW", b.x1-b.x0], ["plotD", b.z1-b.z0]]) if (document.activeElement !== $(id)) $(id).value = v;
+  if ($("plotPts").contains(document.activeElement)) return;
+  plotDrawn = JSON.stringify(pts);
+  $("plotPts").innerHTML = pts.map((p, i) => `<div class="plotpt"><span>Corner ${i+1}</span>
+    <label>E–W <input type="number" data-pi="${i}" data-pa="0" value="${p[0]}" step="1" aria-label="Corner ${i+1}, east to west"></label>
+    <label>N–S <input type="number" data-pi="${i}" data-pa="1" value="${p[1]}" step="1" aria-label="Corner ${i+1}, main to opposite"></label>
+    <button class="mini" data-pdel="${i}"${pts.length <= 3 ? " disabled" : ""} aria-label="Remove corner ${i+1}">Remove</button></div>`).join("");
+}
+for (const [id, axis] of [["plotW", 0], ["plotD", 1]]) $(id).addEventListener("change", e => { // stretch the plot about its middle
+  const v = +e.target.value, pts = S.plot.pts; if (!pts || !(v >= 20)) return;
+  const b = plotBox2(pts), lo = axis ? b.z0 : b.x0, hi = axis ? b.z1 : b.x1, mid = (lo + hi)/2, k = v/Math.max(1, hi - lo);
+  S.plot.pts = pts.map(p => { const q = p.slice(); q[axis] = Math.round(mid + (p[axis] - mid)*k); return q; }); changed(true); });
+$("plotPts").addEventListener("change", e => { const el = e.target; if (el.dataset.pi == null) return; const v = +el.value; if (!isFinite(v)) return;
+  const pts = clone(S.plot.pts); pts[+el.dataset.pi][+el.dataset.pa] = Math.round(v); S.plot.pts = pts; changed(); });
+$("plotPts").addEventListener("click", e => { const b = e.target.closest("[data-pdel]"); if (!b || S.plot.pts.length <= 3) return;
+  const pts = clone(S.plot.pts); pts.splice(+b.dataset.pdel, 1); S.plot.pts = pts; plotDrawn = null; changed(); });
+$("plotAdd").addEventListener("click", () => { // a new corner halfway along the longest edge, ready to drag or type
+  const pts = clone(S.plot.pts); let bi = 0, bl = -1;
+  pts.forEach((p, i) => { const q = pts[(i+1)%pts.length], l = Math.hypot(q[0]-p[0], q[1]-p[1]); if (l > bl){ bl = l; bi = i; } });
+  const p = pts[bi], q = pts[(bi+1)%pts.length]; pts.splice(bi+1, 0, [Math.round((p[0]+q[0])/2), Math.round((p[1]+q[1])/2)]);
+  S.plot.pts = pts; plotDrawn = null; changed(); toast(`<b>Corner ${bi+2} added</b> halfway along the longest edge. Drag its post or type where it goes.`); });
 for (const s of SWATCHES){
   const b = document.createElement("button"); b.style.background = s[1]; b.title = s[0]; b.setAttribute("aria-label", s[0]); b.dataset.hex = s[1];
   b.addEventListener("click", () => { S.seat = s[1]; setSeatColours(); changed(); });
@@ -756,8 +819,10 @@ $("boards").addEventListener("change", e => { S.boards = e.target.checked; chang
 $("flood").innerHTML = Object.entries(FLOODS).map(([k,v]) => `<option value="${k}">${v}</option>`).join("");
 $("flood").addEventListener("change", e => { S.floodlights = e.target.value; S.lights = e.target.value !== "none"; changed(); });
 const screensOf = () => { if (!Array.isArray(S.screens)) S.screens = screenList(LAST && LAST.closedAt).map(x => Object.assign({}, x)); return S.screens; };
+let screensDrawn = null;
 function renderScreens(){
   const list = Array.isArray(S.screens) ? S.screens : screenList(LAST && LAST.closedAt);
+  screensDrawn = JSON.stringify(list);
   $("screens").innerHTML = list.length ? list.map((sc, i) => `<div class="screen" data-i="${i}">
     <div class="tier-h"><span>Screen ${i+1}</span><span class="acts-row"><button class="mini" data-sact="view" data-i="${i}">Look at it</button><button class="mini" data-sact="remove" data-i="${i}">Remove</button></span></div>
     <div class="row"><label>Where</label><select data-sf="at" data-i="${i}" aria-label="Screen ${i+1} position">${Object.entries(SCREEN_AT).map(([k,v]) => `<option value="${k}"${k===sc.at?" selected":""}>${v}</option>`).join("")}</select></div>
@@ -770,8 +835,9 @@ function renderScreens(){
 function viewScreen(i){ screenFocus = i; requestAnimationFrame(() => requestAnimationFrame(() => { if (LAST.screenSpots && LAST.screenSpots[i]) goCam("screen"); })); }
 $("addScreen").addEventListener("click", () => { const L2 = screensOf(); const used = new Set(L2.map(x => x.at)); const at = ["E","W","N","S"].find(k => !used.has(k)) || "E";
   const sc = {at, mount:"gap", size:12, pos:0}, i = L2.length; L2.push(sc);
-  // start with the first way of mounting it that fits this ground without a warning
-  const key = "screen:" + i, fits = ["gap","roof","top","back"].find(m => { sc.mount = m; return !dryIssues().some(x => x.key === key); });
+  // start with the first way of mounting it that fits this ground without a warning (checked against the stadium as built)
+  const key = "screen:" + i, C = LAST.screenCtx, fits = ["gap","roof","top","back"].find(m => { sc.mount = m; const found = [];
+    planScreens(C.F, C.anchors, C.closedAt, C.outerTop, C.set, (text, k) => found.push(k)); return !found.includes(key); });
   sc.mount = fits || "back";
   renderScreens(); changed(); viewScreen(i);
   toast(`<b>Screen added</b> ${SCREEN_MOUNTS[sc.mount].charAt(0).toLowerCase() + SCREEN_MOUNTS[sc.mount].slice(1)}, at the ${SCREEN_AT[at].toLowerCase()}. Aerial takes you back up.`, UNDO);
@@ -956,11 +1022,12 @@ function syncUI(){
   $("outerNone").hidden = upper;
   $("grOn").checked = groundRoofOn();
   $("plotOn").checked = S.plot.on; $("plotBox").hidden = !S.plot.on; $("plotClip").checked = S.plot.clip;
+  if (S.plot.pts && plotDrawn !== JSON.stringify(S.plot.pts)) renderPlot();
   $("boards").checked = !!S.boards;
   const AR = Object.assign({skin:"none", skinShape:"round"}, S.arch || {});
   $("skin").value = AR.skin; document.querySelector(`input[name=skinShape][value=${AR.skinShape}]`).checked = true; $("skinShapeRow").hidden = AR.skin === "none";
   for (const k of ["arch","ramps","towers","plaza"]) $("a-"+k).checked = !!AR[k];
-  $("flood").value = floodMode(); if (document.activeElement === document.body || !$("screens").contains(document.activeElement)) renderScreens();
+  $("flood").value = floodMode(); if (!$("screens").contains(document.activeElement) && screensDrawn !== JSON.stringify(Array.isArray(S.screens) ? S.screens : screenList(LAST && LAST.closedAt))) renderScreens();
   $("crowd").checked = S.crowd !== false; $("night").checked = !!S.night; $("seeThrough").checked = !!S.seeThrough;
   $("seeBtn").setAttribute("aria-pressed", String(!!S.seeThrough)); $("nightBtn").setAttribute("aria-pressed", String(!!S.night));
   $("seatPattern").value = S.seatPattern || "solid"; $("seat2Row").hidden = (S.seatPattern || "solid") === "solid";

@@ -48,6 +48,7 @@
         <button class="btn" data-p="urban">Squeezed urban ground<small>wedge site · tall stand</small></button>
         <button class="btn" data-p="dell">Wedged-in ground<small>like The Dell</small></button>
         <button class="btn" data-p="leitch">Leitch-era ground<small>historic · square corners</small></button>
+        <button class="btn" data-p="ibrox">Ibrox<small>Leitch main stand · Club Deck</small></button>
         <button class="btn" data-p="bowl">Modern bowl<small>3 tiers · cantilever</small></button>
         <button class="btn" data-p="horseshoe">Horseshoe<small>open end · deeper main side</small></button>
         <button class="btn" data-p="ringroof">One roof over all<small>four stands · oval roof</small></button>
@@ -154,6 +155,13 @@
           <button class="btn" data-plot="corner">Clipped corner<small>a building in the way</small></button>
           <button class="btn" data-plot="triangle">Triangular site<small>two streets meeting</small></button>
         </div>
+        <details class="sub" id="plotExact"><summary>Exact size and corners<small id="plotSummary"></small></summary><div class="inner">
+          <div class="row"><label for="plotW">Width (east to west)</label><span class="num"><input type="number" id="plotW" min="20" max="1000" step="1"> m</span></div>
+          <div class="row"><label for="plotD">Depth (main to opposite)</label><span class="num"><input type="number" id="plotD" min="20" max="1000" step="1"> m</span></div>
+          <p class="hint">Corners are in metres from the centre spot: east is +, west is −, the opposite side is +, the main stand side is −.</p>
+          <div id="plotPts" class="plotpts"></div>
+          <button class="btn small" id="plotAdd">Add a corner</button>
+        </div></details>
         <label class="toggle"><input type="checkbox" id="plotClip"> Treat the boundary as a hard limit and cut stands back to fit</label>
         <p class="hint">Untick it to use the boundary as a soft guide: stands are built in full and you get a note where they cross it.</p>
       </div>

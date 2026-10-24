@@ -84,6 +84,26 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(rr.total > 15000 && rr.covered / rr.total > 0.9 && !rr.issues, 'preset "ringroof" builds under one roof with no warnings');
   await page.click('#panes [data-pane="start"]');
 
+  // Ibrox: a deck on towers over an old stand; per-tier looks and lettering; typed plot sizes
+  await page.click('[data-p="ibrox"]');
+  await page.waitForFunction(() => window.__gw.last().parts.some(p => p.label === "Main stand") && window.__gw.state().stands.N.tiers.length === 3);
+  const ib = await last();
+  check(ib.total > 20000 && !ib.issues, 'preset "ibrox" builds with no warnings');
+  await page.click('[data-p="ot"]'); await page.waitForTimeout(300);
+  check(!(await last()).issues, 'preset "ot" builds with no warnings');
+  await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="N"]'); await page.waitForTimeout(300);
+  await page.locator('.tier[data-k="2"] details[data-more] summary').click();
+  await page.selectOption('.tier[data-k="2"] select[data-p="tiers.2.support"]', "towers"); await page.waitForTimeout(300);
+  check((await page.evaluate(() => window.__gw.state().stands.N.tiers[2].hold)) === "towers", "a tier can be held up by towers at each end");
+  await page.fill('input[type=number][data-p="tiers.2.trim0"]', "12"); await page.waitForTimeout(300);
+  check((await page.evaluate(() => window.__gw.state().stands.N.tiers[2].trim0)) === 12 && (await cap()) > 0, "a tier can stop short of the end of its stand");
+  await page.fill("#facSign", "GROUNDWORKS"); await page.waitForTimeout(300);
+  check((await page.evaluate(() => window.__gw.state().stands.N.facade.sign)) === "GROUNDWORKS", "lettering can go on the outside wall");
+  await page.click('#panes [data-pane="ground"]'); await page.check("#plotOn"); await page.waitForTimeout(300);
+  await page.locator("#plotExact summary").click(); await page.fill("#plotW", "260"); await page.press("#plotW", "Enter"); await page.waitForTimeout(300);
+  check((await page.evaluate(() => { const xs = window.__gw.state().plot.pts.map(p => p[0]); return Math.max(...xs) - Math.min(...xs); })) === 260, "the plot can be set to an exact width");
+  await page.click('#panes [data-pane="start"]');
+
   const beforeRandom = await page.evaluate(() => JSON.stringify(window.__gw.state()));
   await page.click("#randomBtn"); await page.waitForTimeout(300);
   check((await cap()) > 0, "Surprise me builds a stadium");

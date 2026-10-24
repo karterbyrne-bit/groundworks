@@ -8,10 +8,10 @@ It's a creative tool. Its checks are loosely based on UK sports-ground guidance 
 
 - **Playing areas:** football, rugby, cricket, athletics, baseball, and arena floors (Wrestleball, boxing, MMA cage, basketball, ice hockey, tennis, concert, bullring, or any custom size).
 - **Layouts:** separate stands, a continuous bowl, or a bowl with independent stands above it. Upper tiers can follow their own oval or round outline (like La Cartuja or El Monumental) while the lower tier hugs the play. Bowls can leave out any side or corner (a horseshoe, two sides, an L) and give each side its own number of rows, with the corners blending between them.
-- **Outside walls:** brick with windows, timber, art deco ribs, concrete bands, metal cladding, fins, glass curtain walls; windows light up at night.
-- **Stands:** 21 architectural styles, up to four tiers each (seats, executive boxes, rail seats, benches or terracing), overhangs, pillars, corners that join some or all tiers, and drag handles in the 3D view.
+- **Outside walls:** brick with windows, timber, art deco ribs, concrete bands, metal cladding, fins, glass curtain walls, with real brick, concrete, metal and timber textures. Pick each stand's wall and accent colours, how many windows and how big, a glazed concourse, and lettering on the wall or roof front; windows light up at night.
+- **Stands:** 21 architectural styles, up to four tiers each (seats, executive boxes, rail seats, benches or terracing), overhangs, pillars, corners that join some or all tiers, and drag handles in the 3D view. Each tier can have its own front (plain, Leitch lattice, glass, concrete, brick) and colours, stop short of either end, and be held up by towers at each end with a truss, like Ibrox's Club Deck. Upper tiers stay level along their stand.
 - **Roofs:** sloping, pitched or closed; five materials; five structural styles; level rooflines. Or one roof over the whole ground, designed on its own: it follows the stands or is oval or round, spans gaps and open corners, and can close over the floor.
-- **Sites:** squeeze the ground onto a plot, with hard or soft boundaries.
+- **Sites:** squeeze the ground onto a plot, with hard or soft boundaries; drag its posts or type its exact width, depth and corners.
 - **Architecture:** outer skins, an arch, spiral ramp towers, entrance towers, a raised plaza.
 - **Floodlights and screens:** corner masts, lattice pylons or roof-edge lights; screens on any stand, corner or over the centre.
 - **Atmosphere:** crowd, night matches, see-through roofs, seat colours and patterns.
