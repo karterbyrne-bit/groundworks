@@ -734,7 +734,34 @@ function build(){
        tallest point needs, and its rows are raked from there. Corners are left to blend between their stands. */
     /* A bowl's sides can legitimately differ in depth, so each side is levelled on its own and the corners blend between
        them; a separate stand is levelled along its whole length. */
-    if (st.key !== "C"){
+    if (st.key !== "C" && st.levelPiece){
+      /* Per-side bowl: each side sits level at its own height, and a corner sweeps smoothly from one side's height to the
+         next. If a corner's tier below pushes it higher than that sweep, both sides it joins are raised to suit. */
+      const pcs = profs.map((_, i) => st.levelPiece(i)), K0 = Math.max(0, ...profs.map(p => p.length));
+      const live = p => p && p.stacked && !p.ghost && nRows(p) >= 1, ease = f => (1 - Math.cos(Math.PI*f))/2;
+      const lifts = profs.map(() => []);
+      for (let k=1;k<K0;k++){
+        const L = {}, R = {};
+        profs.forEach((pr, i) => { const pc = pcs[i], p = pr[k]; if (!pc || pc.corner || !live(p)) return; L[pc.key] = Math.max(L[pc.key] == null ? -Infinity : L[pc.key], p.hF); R[pc.key] = Math.max(R[pc.key] || 0, p.rows); });
+        const target = pc => { const a = L[pc.before], b = L[pc.after]; return a == null ? b : b == null ? a : lerp(a, b, ease(pc.f)); };
+        for (let pass=0;pass<4;pass++){
+          const up = {};
+          profs.forEach((pr, i) => { const pc = pcs[i], p = pr[k]; if (!pc || !pc.corner || !live(p)) return;
+            const t = target(pc);
+            if (t == null) return; // a tier only in the corner: nothing to line up with
+            const e = p.hF - t; if (e <= 0.01) return;
+            /* where the tier is tailing away to nothing round the corner, it simply ends rather than pushing both sides up */
+            if (p.rows < 0.5*Math.max(R[pc.before] || 0, R[pc.after] || 0)){ tierList[i] = tierList[i].map((tr, j) => j === k ? Object.assign({}, tr, {rows:0}) : tr); profs[i] = profile(tierList[i], setAt(i), lifts[i]); return; }
+            for (const s of [pc.before, pc.after]) if (L[s] != null) up[s] = Math.max(up[s] || 0, e); });
+          if (!Object.keys(up).some(s => up[s] > 0.01)) break;
+          for (const s in up) if (L[s] != null) L[s] += up[s];
+        }
+        let any = false;
+        profs.forEach((pr, i) => { const pc = pcs[i]; if (!pc || !live(pr[k])) return; const t = pc.corner ? target(pc) : L[pc.key];
+          if (t != null && t > pr[k].hF + 0.01){ lifts[i][k] = t; any = true; } });
+        if (any) for (let i=0;i<m;i++) if (lifts[i].length) profs[i] = profile(tierList[i], setAt(i), lifts[i]);
+      }
+    } else if (st.key !== "C"){
       const group = st.levelAt || (() => 0), lifts = {}, K0 = Math.max(0, ...profs.map(p => p.length));
       for (let k=1;k<K0;k++){
         const top = {}, uneven = {};
@@ -1240,11 +1267,11 @@ function build(){
   /* The bowl as one closed ring, or one open strip per unbroken stretch when parts of it are left out. */
   const bowlGeos = ring => runs ? runs.map(r => subGeo(ring, r.lo, r.hi, total4)) : [ring];
   const sideAt = geo => i => { const pc = bowlPiece(geo.tag[i], nc); return pc.corner ? null : pc.key; };
-  const levelBySide = geo => S.bowl.varyRows ? sideAt(geo) : null; // only matters when the bowl's sides differ
+  const levelBySide = geo => S.bowl.varyRows ? i => bowlPiece(geo.tag[i], nc) : null; // only matters when the bowl's sides differ
   if (lay === "bowl"){
     const ring0 = ringGeo();
     for (const geo of bowlGeos(ring0)){
-      const st = buildSliced({name:"Bowl", key:"B", geo, cfg:S.bowl, set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc), geo.o[i], geo.v[i]), tierRef:k => S.bowl.tiers[k], drawFrom:0, sel: tab === "B", sideAt:sideAt(geo), levelAt:levelBySide(geo)});
+      const st = buildSliced({name:"Bowl", key:"B", geo, cfg:S.bowl, set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc), geo.o[i], geo.v[i]), tierRef:k => S.bowl.tiers[k], drawFrom:0, sel: tab === "B", sideAt:sideAt(geo), levelPiece:levelBySide(geo)});
       if (st && st.closedAt) closedAt = st.closedAt;
     }
     if (runs && S.bowl.roof.shape === "closed" && !groundRoof) issue("A roof closed over the floor needs the whole bowl, so with parts left out it's built open. One roof over the whole ground can still close over it.", "bowl:closed", "geo",
@@ -1287,7 +1314,7 @@ function build(){
   } else {
     const ring = ringGeo(), rc = S.bowl.tiers.length, lowCfg = Object.assign({}, S.bowl, {roof:R("none")});
     for (const geo of bowlGeos(ring))
-      buildSliced({name:"Lower bowl", key:"B", geo, cfg:lowCfg, set, tiersFor:i => bowlTiersAt(geo.tag[i], nc), tierRef:k => S.bowl.tiers[k], drawFrom:0, sel: tab === "B", sideAt:sideAt(geo), levelAt:levelBySide(geo)});
+      buildSliced({name:"Lower bowl", key:"B", geo, cfg:lowCfg, set, tiersFor:i => bowlTiersAt(geo.tag[i], nc), tierRef:k => S.bowl.tiers[k], drawFrom:0, sel: tab === "B", sideAt:sideAt(geo), levelPiece:levelBySide(geo)});
     const split = key => S.corners[key].mode === "split";
     for (const s of SIDES){
       const cfg = S.stands[s]; if (!cfg.tiers.length && cfg.roof.shape === "none") continue;
@@ -1295,7 +1322,7 @@ function build(){
       const meet = key => nc*Math.max(0, Math.min(1, S.corners[key].meet == null ? 0.5 : S.corners[key].meet)); // where the stands meet, from the first one
       const lo = gb*(nc+1) + (split(kb) ? meet(kb) : nc), hi = ga*(nc+1) + (split(ka) ? meet(ka) : 0);
       const geo = subGeo(ring, lo, hi, total4);
-      buildSliced({name:SIDE_NAMES[s], key:s, geo, cfg, set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc).concat(cfg.tiers), geo.o[i], geo.v[i]), tierRef:k => cfg.tiers[k], drawFrom:rc, sel: tab === s, levelAt:levelBySide(geo)});
+      buildSliced({name:SIDE_NAMES[s], key:s, geo, cfg, set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc).concat(cfg.tiers), geo.o[i], geo.v[i]), tierRef:k => cfg.tiers[k], drawFrom:rc, sel: tab === s, levelPiece:levelBySide(geo)});
     }
     for (const c of CORNERS){
       const cc = S.corners[c.key], mode = cc.mode; if (mode !== "blend" && mode !== "custom") continue;

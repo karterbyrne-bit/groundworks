@@ -71,6 +71,13 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check((await cap()) === fullBowl, "giving each side its own rows starts from the same bowl");
   await page.fill('input[data-p="tiers.0.sideRows.E"]', "10"); await page.waitForTimeout(300);
   check((await cap()) < fullBowl, "one side of a bowl can be made shallower");
+  const zigs = await page.evaluate(() => { const r = window.__gw.regions()[0], P = r.profs, n = P.length; let worst = 0;
+    for (let k=1;k<3;k++){ let flips = 0, dir = 0;
+      for (let i=0;i<n;i++){ const p = P[i][k], q = P[(i+1)%n][k]; if (!p || !q || p.rows < 1 || q.rows < 1 || p.ghost || q.ghost) continue;
+        const d = q.hF - p.hF; if (Math.abs(d) < 0.01) continue; const sg = Math.sign(d); if (dir && sg !== dir) flips++; dir = sg; }
+      worst = Math.max(worst, flips); }
+    return worst; });
+  check(zigs <= 4, `upper tiers of a bowl sweep smoothly round its corners, no kinks (${zigs} turns)`);
   await page.click('[data-act="toggleRoof"]'); await page.waitForTimeout(300);
   const bare = (await last()).covered;
   await page.check("#grOn"); await page.waitForTimeout(300);
