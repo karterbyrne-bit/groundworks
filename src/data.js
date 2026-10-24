@@ -48,6 +48,11 @@ const ROOF_SHAPES = {none:"No roof", slope:"Flat or sloping", gable:"Pitched, wi
 const ROOF_MATS = {translucent:"Translucent", metal:"Metal sheet", concrete:"Concrete", green:"Painted tin", glass:"Glass"};
 const ROOF_SUPPORTS = {none:"Hidden cantilever", ribs:"Exposed ribs", columns:"Pillars at the front", truss:"Goalpost truss", masts:"Masts and cables"};
 const ROOF_MAT_KEY = {translucent:"roof", metal:"roofSolid", concrete:"roofConcrete", green:"roofGreen", glass:"roofGlass"};
+/* One roof over the whole ground, designed on its own rather than per stand. */
+const GROUND_ROOF = {on:false, shape:"follow", cover:"ring", reach:2, back:1.5, lift:5, tilt:4, curve:0, mat:"translucent", support:"columns", opening:0.5, wall:false};
+const GROUND_ROOF_SHAPES = {follow:"Follows the stands", oval:"Oval", circle:"Round"};
+const GROUND_ROOF_COVER = {ring:"A ring, open over the play", closed:"Closed over the floor"};
+const GROUND_ROOF_SUPPORTS = {columns:"Columns round the outside", none:"Hidden (a tension ring)", ribs:"Exposed ribs", truss:"Ring truss round the inner edge", masts:"Masts and cables"};
 const R = (shape, o) => Object.assign({shape, reach:1.5, lift:6, tilt:4, curve:0, mat:"translucent", support:"none", opening:0}, o || {});
 /* A tier: what's in it, how many rows, how steep, and (for tiers above the first) how far it projects over the one below and how high it sits. */
 const t = (type, rows, rake, auto, extra) => {
@@ -180,7 +185,7 @@ const BASE = {
   seat:"#c3322b", lights:true, boards:true, scoreboard:false, trim:true, views:[],
   crowd:true, night:false, seeThrough:false, keepClose:true, roofAlign:false,
   arch:{skin:"none", skinShape:"round", arch:false, ramps:false, towers:false, plaza:false, pylons:false}, seatPattern:"solid", seat2:"#f2f2f2", focusIn:null,
-  outer:{shape:"follow", fit:"ring", size:0}
+  outer:{shape:"follow", fit:"ring", size:0}, groundRoof:Object.assign({}, GROUND_ROOF)
 };
 const Pz = o => Object.assign(clone(BASE), o);
 const PRESETS = {
@@ -235,6 +240,16 @@ const PRESETS = {
   oval:Pz({sport:"football",layout:"bowl",cornerShape:"curved",setback:9,corner:12,
     bowl:mk("interwar",[t("seated",30,20),t("seated",18,28,true,{over:0,gap:4}),t("seated",16,31,true,{over:0,gap:3.6})],{shape:"none"}),
     outer:{shape:"oval",fit:"ring",size:0},seat:"#c3322b",seatPattern:"bands",seat2:"#f2f2f2",lights:true,boards:true}),
+  /* A bowl with its west end left out, deepest along the main side, where the upper tier stops short of the east end. */
+  horseshoe:Pz({sport:"football",layout:"bowl",cornerShape:"curved",setback:8,corner:18,
+    bowl:Object.assign(mk("modern",[t("seated",28,20,true,{sideRows:{N:34,S:30,E:24,W:30}}),t("seated",18,28,true,{over:2,gap:4,sideRows:{N:22,S:16,E:0,W:16}})],{shape:"slope",mat:"metal",support:"ribs",reach:2,lift:6,tilt:6}),
+      {removed:{W:true,NW:true,SW:true}, varyRows:true}),
+    seat:"#1f3f8f",lights:true,floodlights:"roof"}),
+  /* Four different stands with open corners, all under one oval roof that spans the gaps between them. */
+  ringroof:Pz({sport:"football",layout:"stands",cornerShape:"curved",setback:8,
+    stands:{N:mk("modern",[t("seated",24,22),t("seated",12,28,true,{over:3,gap:4})]),S:mk("regular",[t("seated",22,22)]),E:mk("compact",[t("seated",20,24)]),W:mk("wall",[t("rail",26,24)])},
+    corners:allCorners("open"),groundRoof:Object.assign({}, GROUND_ROOF, {on:true,shape:"oval",reach:5,back:3,lift:6,tilt:6,curve:0.3,mat:"translucent",support:"masts"}),
+    seat:"#2f6b3d",lights:false}),
   ballpark:Pz({sport:"baseball",layout:"stands",cornerShape:"curved",setback:10,
     stands:{N:mk("american",[t("seated",20,22),t("seated",10,28,true,{over:4,gap:4})]),W:mk("american",[t("seated",20,22),t("seated",10,28,true,{over:4,gap:4})]),
       S:mk("regular",[t("bench",14,24)],{shape:"none"}),E:mk("regular",[t("bench",10,24)],{shape:"none"})},

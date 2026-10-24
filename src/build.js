@@ -22,6 +22,47 @@ function cornerTiers(c, f){
 const fmt = n => Math.round(n).toLocaleString("en-GB");
 const lerp = (a,b,f) => a + (b-a)*f;
 
+/* ---------- bowl pieces ----------
+   Going round the ring, a bowl is eight pieces: the SE corner, the opposite side, the SW corner, the west end and so on.
+   Any of them can be left out (a horseshoe, say), and each side can have its own number of rows, with the corners
+   blending smoothly from one side's depth to the next. */
+const BOWL_PIECES = ["SE","S","SW","W","NW","N","NE","E"];
+const CORNER_AFTER = ["S","W","N","E"], CORNER_BEFORE = ["E","S","W","N"];
+const bowlGone = k => !!(S.bowl.removed && S.bowl.removed[k]);
+function bowlPiece(tag, nc){
+  const tot = 4*(nc+1), tg = ((tag % tot) + tot) % tot, g = Math.min(3, Math.floor(tg/(nc+1))), loc = tg - g*(nc+1);
+  return loc <= nc + 1e-6 ? {key:GROUP_KEY[g], corner:true, f: nc ? Math.min(1, loc/nc) : 0.5, before:CORNER_BEFORE[g], after:CORNER_AFTER[g]}
+    : {key:CORNER_AFTER[g], corner:false};
+}
+const sideRowsOf = (tr, s) => S.bowl.varyRows && tr.sideRows && tr.sideRows[s] != null ? Math.max(0, tr.sideRows[s]) : tr.rows;
+const withRows = (tiers, f) => tiers.map((tr,k) => Object.assign({}, tr, {rows:f(tr,k)}));
+/* The bowl's tiers at one point round the ring: that side's rows, a blend in a corner, or nothing where it's left out. */
+function bowlTiersAt(tag, nc){
+  const pc = bowlPiece(tag, nc), T = S.bowl.tiers;
+  if (bowlGone(pc.key)) return withRows(T, () => 0);
+  if (!S.bowl.varyRows) return T;
+  if (!pc.corner) return withRows(T, tr => sideRowsOf(tr, pc.key));
+  const a = !bowlGone(pc.before), b = !bowlGone(pc.after), f = (1 - Math.cos(Math.PI*pc.f))/2;
+  return withRows(T, tr => a && b ? lerp(sideRowsOf(tr, pc.before), sideRowsOf(tr, pc.after), f) : a ? sideRowsOf(tr, pc.before) : b ? sideRowsOf(tr, pc.after) : tr.rows);
+}
+const bowlSideTiers = s => withRows(S.bowl.tiers, tr => bowlGone(s) ? 0 : sideRowsOf(tr, s));
+/* The unbroken stretches of a bowl with parts left out, as ranges round the ring; null when nothing is left out. */
+function bowlRuns(nc){
+  const on = BOWL_PIECES.map(k => !bowlGone(k));
+  if (on.every(Boolean)) return null;
+  const runs = [], start = on.indexOf(false); let cur = null;
+  for (let s=1;s<=8;s++){ const p = (start + s) % 8;
+    if (on[p]){ if (!cur) cur = {from:p}; cur.to = p; }
+    else if (cur){ runs.push(cur); cur = null; } }
+  const tot = 4*(nc+1), range = p => { const g = Math.floor(p/2); return p % 2 ? [g*(nc+1)+nc, (g+1)*(nc+1)] : [g*(nc+1), g*(nc+1)+nc]; };
+  return runs.map(r => ({lo:range(r.from)[0], hi:range(r.to)[1] % tot}));
+}
+/* Distance along a line from o (in steps of v) to where it meets an ellipse round the centre, on the far side. */
+function ellipseHit(o, v, A, B){
+  const a = (v[0]/A)**2 + (v[1]/B)**2, b = 2*(o[0]*v[0]/(A*A) + o[1]*v[1]/(B*B)), c = (o[0]/A)**2 + (o[1]/B)**2 - 1, disc = b*b - 4*a*c;
+  return a > 0 && disc >= 0 ? (-b + Math.sqrt(disc))/(2*a) : null;
+}
+
 /* Two-tone seat patterns: bands of rows, or a scattered mosaic like many modern grounds. */
 function altRow(i, j, k){
   const p = S.seatPattern || "solid"; if (p === "solid") return false;
@@ -251,24 +292,25 @@ function planScreens(F, anchors, closedAt, outerTop, set, issue){
     const vl = Math.hypot(g.v[i][0], g.v[i][1]) || 1, n = [-g.v[i][0]/vl, -g.v[i][1]/vl];
     const P = d => [g.o[i][0] + d*g.v[i][0], g.o[i][1] + d*g.v[i][1]];
     const cfgRef = sc.at in S.stands && (layoutOf() !== "bowl") ? S.stands[sc.at] : (g.key === "B" ? S.bowl : null);
+    const gRoof = S.groundRoof && S.groundRoof.on, roofRef = gRoof ? S.groundRoof : cfgRef && cfgRef.roof;
     let h = w*0.42, mount = sc.mount || "gap";
     if (mount === "ribbon"){ // aim the camera at the front of the tiers, halfway along
       const pr = (g.profs[i] || []).slice(g.drawFrom).filter(q => q && !q.ghost && nRows(q) >= 1), top = pr[pr.length - 1], f = pr.length ? pr[0].front : x.front;
       const q = P(f); plans.push({kind:"ribbon", g, idx, x:q[0], y: top && top.stacked ? top.hF : 3, z:q[1]}); return; }
     if ((mount === "gap" || mount === "roof") && !R){
-      issue(`${label}: there's no roof over that part of the stand to hang it from, so it sits on top of the back row instead.`, key, "geo", {fix: cfgRef ? {label:"Give that stand a roof", run:() => { cfgRef.roof.shape = "slope"; return true; }} : null}); mount = "top"; }
+      issue(`${label}: there's no roof over that part of the stand to hang it from, so it sits on top of the back row instead.`, key, "geo", {fix: cfgRef && !gRoof ? {label:"Give that stand a roof", run:() => { cfgRef.roof.shape = "slope"; return true; }} : null}); mount = "top"; }
     if (mount === "gap"){
       const d = x.back - 0.6, f = Math.max(0, Math.min(1, (d - R.inner)/Math.max(.1, R.outer - R.inner))), ceil = R.y(f) - 0.5, floorY = x.top + 0.2, avail = ceil - floorY;
       if (avail < h){
         const need = h - avail;
         if (avail < 2.5 || need > 0.5) issue(`${label} needs ${h.toFixed(1)} m between the back row and the roof but there's only ${Math.max(0, avail).toFixed(1)} m, so it's squashed. Raise that roof to fit it properly.`, key, "geo",
-          {fix: cfgRef ? {label:`Raise the roof ${need.toFixed(1)} m`, run:() => { cfgRef.roof.lift = (cfgRef.roof.lift || 0) + need + 0.2; return true; }} : null});
+          {fix: roofRef ? {label:`Raise the roof ${need.toFixed(1)} m`, run:() => { roofRef.lift = (roofRef.lift || 0) + need + 0.2; return true; }} : null});
         h = Math.max(1.2, avail); }
       const p = P(d); plans.push({kind:"board", x:p[0], y:floorY + h/2, z:p[1], w, h, n, hang: ceil, idx});
     } else if (mount === "roof"){
       const d = R.inner + 1.2, top = R.y(0) - 0.6, bottom = top - h, below = heightAt(x.prof, d) + 2.6;
       if (bottom < below) issue(`${label} hangs down into the fans below the roof edge. Raise the roof or use a smaller screen.`, key, "geo",
-        {fix: cfgRef ? {label:`Raise the roof ${(below - bottom).toFixed(1)} m`, run:() => { cfgRef.roof.lift = (cfgRef.roof.lift || 0) + (below - bottom) + 0.2; return true; }} : null});
+        {fix: roofRef ? {label:`Raise the roof ${(below - bottom).toFixed(1)} m`, run:() => { roofRef.lift = (roofRef.lift || 0) + (below - bottom) + 0.2; return true; }} : null});
       const p = P(d); plans.push({kind:"board", x:p[0], y:top - h/2, z:p[1], w, h, n, hang: top + 0.6, idx});
     } else if (mount === "top"){
       const d = R ? (R.inner + R.outer)/2 : x.back - 1, base = (R ? Math.max(R.y(0), R.y(1)) : x.top) + 1, p = P(d);
@@ -399,7 +441,7 @@ let PRE = false;
 function build(){
   let alignTop = null, roofNeedMax = 0;
   if (S.roofAlign && !PRE){ PRE = true; const d0 = DRY; DRY = true; try { alignTop = build().roofNeedMax; } finally { DRY = d0; PRE = false; } }
-  const F = field(), L = S.limits, lay = layoutOf(), shape = S.cornerShape || "curved";
+  const F = field(), L = S.limits, lay = layoutOf(), shape = S.cornerShape || "curved", groundRoof = !!(S.groundRoof && S.groundRoof.on);
   focusY = F.focusY || 0;
   focusIn = S.focusIn != null ? Math.max(0, Math.min(S.focusIn, maxFocusIn(F))) : defaultFocusIn(F);
   const floorRows = F.custom ? Math.max(0, Math.round(S.custom.floor || 0)) : 0;
@@ -480,7 +522,7 @@ function build(){
     const pt = (i,d) => [o[i][0] + d*v[i][0], o[i][1] + d*v[i][1]];
     const V = (i,d,y) => { const p = pt(i,d); return [p[0], y, p[1]]; };
     const segs = closed ? m : m-1, nx = i => (i+1)%m;
-    const roofOn = rf.shape !== "none" && st.roofOn !== false;
+    const roofOn = !groundRoof && rf.shape !== "none" && st.roofOn !== false;
     const margin = roofOn ? 1.6 : 0.3;
     let overflow = 0;
     const profs = [];
@@ -508,6 +550,8 @@ function build(){
     let standSeats = 0, standEvac = 0, standTop = 0, standBack = 0; const kinds = new Set(), segRecs = [], cols = [], tierRecs = [];
     const wallKey = sty.wall === "concrete" ? "concrete" : sty.wall === "glassClad" ? "glassClad" : "clad_" + cfg.style;
     const pillarAt = marks(12), midI = (() => { let best = Math.floor(m/2), bd = Infinity; for (let i=0;i<m;i++){ const d = Math.abs(cum[i] - lenTotal/2); if (d < bd && profs[i].some(p => nRows(p) >= 1 && !p.ghost)){ bd = d; best = i; } } return best; })();
+    const sideMids = (() => { if (!st.sideAt) return []; const by = {}; for (let i=0;i<m;i++){ const s = st.sideAt(i); if (s) (by[s] = by[s] || []).push(i); }
+      return Object.entries(by).map(([s, l]) => [l[Math.floor(l.length/2)], s]); })();
     const cap = (s, p, from, to) => {
       const T = p.T, d1 = p.front + from*T, d2 = p.front + to*T;
       const y1 = p.stacked ? (from === 0 ? p.hF - 1.5 : p.hs[from] - 1.5) : 0, y2 = p.stacked ? p.hs[to-1] - 1.5 : 0;
@@ -657,10 +701,12 @@ function build(){
         const bp = pt(s, p.front + n*T - T/2); farFrom(bp[0], bp[1], p.hs[n-1] + eye);
         standTop = Math.max(standTop, p.hs[n-1] + 1.2); standBack = Math.max(standBack, p.front + n*T);
       }
-      if (st.sel && ref){ const p = profs[midI][k]; if (p && !p.ghost && nRows(p) >= 1){
-        const n = nRows(p), bk = p.front + n*T;
-        handles.push({kind:"depth", x:pt(midI,bk)[0], y:p.hs[n-1] + 1.2, z:pt(midI,bk)[1], o:o[midI], v:v[midI], ref, front:p.front, T});
-        if (p.stacked) handles.push({kind:"over", x:pt(midI,p.front)[0], y:p.hF, z:pt(midI,p.front)[1], o:o[midI], v:v[midI], ref, lowerBack:p.lowerBack, lowerBackH:p.lowerBackH}); } }
+      if (st.sel && ref){ // one depth handle in the middle, or one per side when a bowl's sides have their own rows
+        const spots = st.sideAt && S.bowl.varyRows ? sideMids : [[midI, null]];
+        spots.forEach(([hi, side], si) => { const p = profs[hi][k]; if (!p || p.ghost || nRows(p) < 1) return;
+          const n = nRows(p), bk = p.front + n*T;
+          handles.push({kind:"depth", x:pt(hi,bk)[0], y:p.hs[n-1] + 1.2, z:pt(hi,bk)[1], o:o[hi], v:v[hi], ref, front:p.front, T, side});
+          if (p.stacked && si === 0) handles.push({kind:"over", x:pt(hi,p.front)[0], y:p.hF, z:pt(hi,p.front)[1], o:o[hi], v:v[hi], ref, lowerBack:p.lowerBack, lowerBackH:p.lowerBackH}); }); }
       let seats = 0; rowLen.forEach(l => { if (l) seats += capRow(l, tierType); });
       for (const r of recs){ r.seats = rowLen[r.j] ? capRow(rowLen[r.j], tierType) * r.len / rowLen[r.j] : 0; segRecs.push(r); }
       byType[tierType] += seats; standSeats += seats; total += seats; kinds.add(TYPES[tierType].short);
@@ -812,11 +858,11 @@ function build(){
   let shapeT = tiers => tiers;
   const lastBack = pr => { let b = null; for (const p of pr) if (p.rows > 0.5) b = p.back; return b; };
   if (OUT.shape !== "follow" && lay !== "stands"){
-    const ring0 = ringGeo(), lowB = lastBack(profile(S.bowl.tiers.slice(0, nLow), set)) || set;
+    const ring0 = ringGeo(), lows = ring0.o.map((_, i) => lastBack(profile(bowlTiersAt(ring0.tag[i], nc).slice(0, nLow), set)) || set), lowB = Math.max(...lows);
     let A, B;
     if (OUT.fit === "fill"){ // the smallest outline that takes in the back of every stand as built
       const backOf = list => lastBack(profile(list, set)) || lowB;
-      const full = s2 => lay === "bowl" ? S.bowl.tiers : S.bowl.tiers.concat(S.stands[s2].tiers);
+      const full = s2 => lay === "bowl" ? bowlSideTiers(s2) : bowlSideTiers(s2).concat(S.stands[s2].tiers);
       const bk = {}; for (const s2 of SIDES) bk[s2] = backOf(full(s2));
       const sideOf = v2 => Math.abs(v2[0]) > Math.abs(v2[1]) ? (v2[0] > 0 ? "E" : "W") : (v2[1] > 0 ? "S" : "N");
       const pts = ring0.o.map((o2, i) => { const d = bk[sideOf(ring0.v[i])]; return [o2[0] + d*ring0.v[i][0], o2[1] + d*ring0.v[i][1]]; });
@@ -824,14 +870,12 @@ function build(){
       if (OUT.shape === "circle") A = B = Math.max(...pts.map(q => Math.hypot(q[0], q[1])));
       else { const k = Math.max(1, ...pts.map(q => Math.hypot(q[0]/a0, q[1]/b0))); A = a0*k; B = b0*k; }
     } else { // the smallest outline that clears the back of the lower tier all the way round
-      const pts = ring0.o.map((o2, i) => [o2[0] + lowB*ring0.v[i][0], o2[1] + lowB*ring0.v[i][1]]);
+      const pts = ring0.o.map((o2, i) => [o2[0] + lows[i]*ring0.v[i][0], o2[1] + lows[i]*ring0.v[i][1]]);
       if (OUT.shape === "circle") A = B = Math.max(...pts.map(q => Math.hypot(q[0], q[1])));
       else { const a0 = F.W/2 + lowB, b0 = F.H/2 + lowB, k = Math.max(1, ...pts.map(q => Math.hypot(q[0]/a0, q[1]/b0))); A = a0*k; B = b0*k; }
     }
     A += OUT.size || 0; B += OUT.size || 0;
-    const hit = (o2, v2) => { // distance along a slice to the outline
-      const a = (v2[0]/A)**2 + (v2[1]/B)**2, b = 2*(o2[0]*v2[0]/(A*A) + o2[1]*v2[1]/(B*B)), c = (o2[0]/A)**2 + (o2[1]/B)**2 - 1, disc = b*b - 4*a*c;
-      return a > 0 && disc >= 0 ? (-b + Math.sqrt(disc))/(2*a) : null; };
+    const hit = (o2, v2) => ellipseHit(o2, v2, A, B); // distance along a slice to the outline
     shapeT = (tiers, o2, v2) => {
       if (tiers.length <= nLow) return tiers;
       const d = hit(o2, v2); if (!(d > 0)) return tiers;
@@ -846,10 +890,18 @@ function build(){
       return tt;
     };
   }
+  const total4 = 4*(nc+1), runs = lay === "stands" ? null : bowlRuns(nc);
+  /* The bowl as one closed ring, or one open strip per unbroken stretch when parts of it are left out. */
+  const bowlGeos = ring => runs ? runs.map(r => subGeo(ring, r.lo, r.hi, total4)) : [ring];
+  const sideAt = geo => i => { const pc = bowlPiece(geo.tag[i], nc); return pc.corner ? null : pc.key; };
   if (lay === "bowl"){
     const ring0 = ringGeo();
-    const st = buildSliced({name:"Bowl", key:"B", geo:ring0, cfg:S.bowl, set, tiersFor:i => shapeT(S.bowl.tiers, ring0.o[i], ring0.v[i]), tierRef:k => S.bowl.tiers[k], drawFrom:0, sel: tab === "B"});
-    if (st && st.closedAt) closedAt = st.closedAt;
+    for (const geo of bowlGeos(ring0)){
+      const st = buildSliced({name:"Bowl", key:"B", geo, cfg:S.bowl, set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc), geo.o[i], geo.v[i]), tierRef:k => S.bowl.tiers[k], drawFrom:0, sel: tab === "B", sideAt:sideAt(geo)});
+      if (st && st.closedAt) closedAt = st.closedAt;
+    }
+    if (runs && S.bowl.roof.shape === "closed" && !groundRoof) issue("A roof closed over the floor needs the whole bowl, so with parts left out it's built open. One roof over the whole ground can still close over it.", "bowl:closed", "geo",
+      {tab:"B", fix:{label:"Use one roof over the whole ground", run:() => { S.groundRoof = Object.assign({}, GROUND_ROOF, S.groundRoof, {on:true, cover:"closed", opening:0}); return true; }}});
   } else if (lay === "stands"){
     for (const s of SIDES){
       const cfg = S.stands[s]; if (!cfg.tiers.length) continue;
@@ -868,26 +920,107 @@ function build(){
         tiersFor:i => cornerTiers(c, geo.frac[i]), tierRef: mode === "custom" ? k => S.cornerCustom[k] : null, drawFrom:0, sel: tab === "C", styleLabel:false});
     }
   } else {
-    const ring = ringGeo(), total4 = 4*(nc+1);
-    const ringT = S.bowl.tiers, rc = ringT.length;
-    buildSliced({name:"Lower bowl", key:"B", geo:ring, cfg:Object.assign({}, S.bowl, {roof:R("none")}), set, tiersFor:() => ringT, tierRef:k => S.bowl.tiers[k], drawFrom:0, sel: tab === "B"});
+    const ring = ringGeo(), rc = S.bowl.tiers.length, lowCfg = Object.assign({}, S.bowl, {roof:R("none")});
+    for (const geo of bowlGeos(ring))
+      buildSliced({name:"Lower bowl", key:"B", geo, cfg:lowCfg, set, tiersFor:i => bowlTiersAt(geo.tag[i], nc), tierRef:k => S.bowl.tiers[k], drawFrom:0, sel: tab === "B", sideAt:sideAt(geo)});
     const split = key => S.corners[key].mode === "split";
     for (const s of SIDES){
       const cfg = S.stands[s]; if (!cfg.tiers.length && cfg.roof.shape === "none") continue;
       const [gb, ga] = SIDE_GROUPS[s], kb = GROUP_KEY[gb], ka = GROUP_KEY[ga];
       const lo = gb*(nc+1) + (split(kb) ? nc/2 : nc), hi = ga*(nc+1) + (split(ka) ? nc/2 : 0);
       const geo = subGeo(ring, lo, hi, total4);
-      buildSliced({name:SIDE_NAMES[s], key:s, geo, cfg, set, tiersFor:i => shapeT(ringT.concat(cfg.tiers), geo.o[i], geo.v[i]), tierRef:k => cfg.tiers[k], drawFrom:rc, sel: tab === s});
+      buildSliced({name:SIDE_NAMES[s], key:s, geo, cfg, set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc).concat(cfg.tiers), geo.o[i], geo.v[i]), tierRef:k => cfg.tiers[k], drawFrom:rc, sel: tab === s});
     }
     for (const c of CORNERS){
       const cc = S.corners[c.key], mode = cc.mode; if (mode !== "blend" && mode !== "custom") continue;
       const sa = S.stands[c.a], sb = S.stands[c.b]; if (mode === "blend" && !sa.tiers.length && !sb.tiers.length) continue;
       if (shape === "square") continue;
       const geo = subGeo(ring, c.g*(nc+1), c.g*(nc+1) + nc, total4);
-      buildSliced({name:c.name, key:"C", ck:c.key, geo, cfg:cornerCfg(sa, sb, cc), set, tiersFor:i => shapeT(ringT.concat(cornerTiers(c, geo.frac[i])), geo.o[i], geo.v[i]),
+      buildSliced({name:c.name, key:"C", ck:c.key, geo, cfg:cornerCfg(sa, sb, cc), set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc).concat(cornerTiers(c, geo.frac[i])), geo.o[i], geo.v[i]),
         tierRef: mode === "custom" ? k => S.cornerCustom[k] : null, drawFrom:rc, sel: tab === "C", styleLabel:false});
     }
   }
+  /* ---------- one roof over the whole ground ----------
+     Designed on its own rather than stand by stand: a ring between an inner and an outer outline, level all the way round,
+     spanning whatever lies underneath, gaps and open corners included. Its outer edge clears the back of every stand. */
+  if (groundRoof){
+    const gr = Object.assign({}, GROUND_ROOF, S.groundRoof);
+    const ring = ringGeo(), n = ring.o.length, P = (i, d) => [ring.o[i][0] + d*ring.v[i][0], ring.o[i][1] + d*ring.v[i][1]];
+    const hx = F.W/2 + set, hz = F.H/2 + set, backs = [[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz]];
+    for (const g of anchors) for (let i=0;i<g.m;i++){ const x = g.info[i]; if (x) backs.push([g.o[i][0] + x.back*g.v[i][0], g.o[i][1] + x.back*g.v[i][1]]); }
+    const hull = hull2(backs), back = Math.max(0, gr.back || 0), reach = gr.reach || 0;
+    // how far into the play the inner edge may come before the ring's own slices cross over each other
+    const inMin = shape === "square" ? -0.45*Math.min(F.W, F.H) : -0.9*Math.min(radius, F.W/2, F.H/2);
+    let dIn, dOut;
+    if (gr.shape === "follow"){
+      dOut = ring.o.map((o2, i) => exitDist(hull, o2, ring.v[i], 0) + back);
+      dIn = ring.o.map(() => set - reach);
+    } else { // the smallest oval or circle round every stand, and a ring of even depth inside it
+      const a0 = hx, b0 = hz; let A, B;
+      if (gr.shape === "circle") A = B = Math.max(...hull.map(q => Math.hypot(q[0], q[1]))) + back;
+      else { const k = Math.max(1, ...hull.map(q => Math.hypot(q[0]/a0, q[1]/b0))); A = a0*k + back; B = b0*k + back; }
+      const depth = Math.min(A, B) - (Math.min(F.W, F.H)/2 + set - reach); // so the inner edge is `reach` past the front row halfway along the long sides
+      dOut = ring.o.map((o2, i) => ellipseHit(o2, ring.v[i], A, B));
+      dIn = ring.o.map((o2, i) => ellipseHit(o2, ring.v[i], Math.max(1, A - depth), Math.max(1, B - depth)));
+    }
+    for (let i=0;i<n;i++){
+      dIn[i] = Math.max(inMin, dIn[i] == null ? inMin : dIn[i]);
+      if (dOut[i] == null) dOut[i] = exitDist(hull, ring.o[i], ring.v[i], 0) + back;
+      if (poly && S.plot.clip && inPoly(ring.o[i], poly)) dOut[i] = Math.min(dOut[i], exitDist(poly, ring.o[i], ring.v[i], 0) - 0.3);
+      dOut[i] = Math.max(dOut[i], dIn[i] + 2);
+    }
+    if (poly && !S.plot.clip && ring.o.some((_, i) => !inPoly(P(i, dOut[i]), poly))) issue("The roof over the ground runs past the plot boundary.", "site:roof", "geo",
+      {fix:{label:"Cut it back to fit the plot", run:() => { S.plot.clip = true; return true; }}});
+    const base = Math.max(outerTop, 4) + Math.max(1.5, gr.lift), tilt = Math.tan((gr.tilt || 0)*Math.PI/180);
+    const yIn = base + tilt*Math.max(...dOut.map((d, i) => d - dIn[i])), curve = gr.curve || 0;
+    const yAt = (span, f) => lerp(yIn, base, f) + curve*span*0.2*Math.sin(Math.PI*f);
+    const Y = i => f => yAt(dOut[i] - dIn[i], f), at = (i, f) => lerp(dIn[i], dOut[i], f), V3 = (i, d, y) => { const p = P(i, d); return [p[0], y, p[1]]; };
+    const rm = buf(ROOF_MAT_KEY[gr.mat] || "roof"), nS = curve > 0.01 ? 6 : 1, edgeH = gr.support === "none" ? 2.4 : 1.2;
+    const wallKey = {translucent:"glassClad", glass:"glassClad", concrete:"concrete", green:"roofGreen"}[gr.mat] || "roofSolid";
+    let top = Math.max(yIn, base);
+    for (let i=0;i<n;i++){ const j = (i+1)%n, a = Y(i), b = Y(j);
+      for (let s=0;s<nS;s++){ const f0 = s/nS, f1 = (s+1)/nS; quad(rm, V3(i,at(i,f0),a(f0)), V3(j,at(j,f0),b(f0)), V3(j,at(j,f1),b(f1)), V3(i,at(i,f1),a(f1))); }
+      quad(buf("roofEdge"), V3(i,dIn[i],a(0)-edgeH), V3(j,dIn[j],b(0)-edgeH), V3(j,dIn[j],b(0)), V3(i,dIn[i],a(0)));
+      const low = gr.wall ? [0, 0] : [a(1) - .8, b(1) - .8];
+      quad(buf(gr.wall ? wallKey : "roofEdge"), V3(i,dOut[i],low[0]), V3(j,dOut[j],low[1]), V3(j,dOut[j],b(1)), V3(i,dOut[i],a(1)));
+      if (gr.support === "truss"){ for (const off of [-.2, 1.8]) quad(buf("steel"), V3(i,dIn[i]+off,a(0)), V3(j,dIn[j]+off,b(0)), V3(j,dIn[j]+off,b(0)+3.2), V3(i,dIn[i]+off,a(0)+3.2));
+        quad(buf("steel"), V3(i,dIn[i]-.2,a(0)+3.2), V3(j,dIn[j]-.2,b(0)+3.2), V3(j,dIn[j]+1.8,b(0)+3.2), V3(i,dIn[i]+1.8,a(0)+3.2)); }
+      roofQuads.push([P(i,dIn[i]), P(j,dIn[j]), P(j,dOut[j]), P(i,dOut[i])]);
+    }
+    const cum = [0]; for (let i=1;i<n;i++){ const p = P(i-1,dOut[i-1]), q = P(i,dOut[i]); cum.push(cum[i-1] + Math.hypot(q[0]-p[0], q[1]-p[1])); }
+    const every = step => { const out = new Set(); let next = step/2; for (let i=0;i<n;i++) if (cum[i] >= next){ out.add(i); next += step; } return out; };
+    const ribAt = every(12), colAt = every(16), mastAt = every(36);
+    for (let i=0;i<n;i++){ const a = Y(i);
+      top = Math.max(top, a(0), a(1), a(.5) + (gr.support === "ribs" ? 4 : gr.support === "truss" ? 3.2 : .5));
+      if (gr.support === "ribs" && ribAt.has(i)) for (let s=0;s<nS;s++){ const f0 = s/nS, f1 = (s+1)/nS;
+        quad(buf("steel"), V3(i,at(i,f0),a(f0)), V3(i,at(i,f1),a(f1)), V3(i,at(i,f1),a(f1) + .4 + 3.6*f1), V3(i,at(i,f0),a(f0) + .4 + 3.6*f0)); }
+      if (gr.support === "columns" && colAt.has(i)){ const d = dOut[i] - .5, q = P(i, d); post(buf("column"), q[0], q[1], 0, a((d - dIn[i])/(dOut[i] - dIn[i])), .6); }
+      if (gr.support === "masts" && mastAt.has(i)){ const q = P(i, dOut[i] + 4), mt = a(1) + 22, p0 = P((i-1+n)%n, dOut[i]), p1 = P((i+1)%n, dOut[i]);
+        const tl = Math.hypot(p1[0]-p0[0], p1[1]-p0[1]) || 1, tg = [(p1[0]-p0[0])/tl, (p1[1]-p0[1])/tl];
+        post(buf("steel"), q[0], q[1], 0, mt, .9);
+        for (const [p2, y2] of [[P(i, dIn[i] + 1), a(0)], [P(i, at(i, .45)), a(.45)]]) quad(buf("cable"), [q[0]-tg[0]*.08, mt, q[1]-tg[1]*.08], [q[0]+tg[0]*.08, mt, q[1]+tg[1]*.08], [p2[0]+tg[0]*.08, y2, p2[1]+tg[1]*.08], [p2[0]-tg[0]*.08, y2, p2[1]-tg[1]*.08]);
+        top = Math.max(top, mt); grow(q[0], q[1]); }
+      const g = P(i, dOut[i]); grow(g[0], g[1]);
+    }
+    if (gr.cover === "closed"){ // closed over the floor, optionally with an opening in the middle
+      const cy = yIn + 9, op = Math.max(0, Math.min(0.9, gr.opening || 0)), b = buf("roofClosed");
+      for (let i=0;i<n;i++){ const j = (i+1)%n, pa = P(i,dIn[i]), pc = P(j,dIn[j]);
+        if (op < 0.02) tri(b, [0,cy,0], [pa[0],yIn,pa[1]], [pc[0],yIn,pc[1]]);
+        else quad(b, [pa[0],yIn,pa[1]], [pc[0],yIn,pc[1]], [pc[0]*op, lerp(yIn,cy,1-op), pc[1]*op], [pa[0]*op, lerp(yIn,cy,1-op), pa[1]*op]); }
+      top = Math.max(top, cy); if (op < 0.02) roofQuads.push("all"); closedAt = yIn;
+    }
+    maxH = Math.max(maxH, top); outerTop = Math.max(outerTop, base);
+    // let each stand know where the roof is above it, for screens and roof-edge floodlights
+    const inner = ring.o.map((_, i) => P(i, dIn[i])), outer = ring.o.map((_, i) => P(i, dOut[i]));
+    const lastHit = (pl, o2, v2) => { let best = null;
+      for (let k=0;k<pl.length;k++){ const A2 = pl[k], B2 = pl[(k+1)%pl.length], E = [B2[0]-A2[0], B2[1]-A2[1]], den = cross(v2, E); if (Math.abs(den) < 1e-12) continue;
+        const w = [A2[0]-o2[0], A2[1]-o2[1]], d = cross(w, E)/den, s = cross(w, v2)/den; if (s >= -1e-9 && s <= 1+1e-9 && (best == null || d > best)) best = d; }
+      return best; };
+    for (const g of anchors) g.RR = g.info.map((x, i) => { if (!x) return null;
+      const a = lastHit(inner, g.o[i], g.v[i]), b = lastHit(outer, g.o[i], g.v[i]); if (a == null || b == null || b < a + 0.5) return null;
+      return {inner:a, outer:b, y:f => yAt(b - a, f), yIn, yOut:base}; });
+  }
+  { const seen = new Set(), uniq = issues.filter(x => !seen.has(x.key) && seen.add(x.key)); issues.length = 0; issues.push(...uniq); } // a bowl in several pieces raises each of its checks once
   let covered = 0;
   if (roofQuads.includes("all")) covered = allRecs.reduce((a,r) => a + r.seats, 0);
   else for (const r of allRecs){ if (roofQuads.some(q => q !== "all" && inPoly([r.x, r.z], q))) covered += r.seats; }

@@ -55,6 +55,31 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check((await page.evaluate(() => window.__gw.state().bowl.facade.look)) === "glass", "the outside-wall look can be changed");
   await page.click('#panes [data-pane="start"]');
 
+  // bowls with parts left out and their own rows on each side, and one roof over the whole ground
+  const last = () => page.evaluate(() => { const L = window.__gw.last(); return {total:L.total, covered:L.covered, issues:L.issues.length}; });
+  await page.click('[data-p="horseshoe"]'); await page.waitForTimeout(300);
+  check((await cap()) > 20000 && !(await last()).issues, 'preset "horseshoe" builds with no warnings');
+  await page.click('[data-p="bowl"]'); await page.waitForTimeout(300);
+  const fullBowl = await cap();
+  await page.click('#panes [data-pane="stands"]');
+  await page.click('[data-act="bowlShape"][data-shape="horseshoe"]'); await page.waitForTimeout(300);
+  const shoe = await cap();
+  check(shoe > 0 && shoe < fullBowl * 0.9, "leaving the end out of a bowl makes a horseshoe");
+  await page.click('[data-piece="W"]'); await page.waitForTimeout(300);
+  check((await cap()) === fullBowl, "building the end again closes the bowl");
+  await page.check('input[data-p="bowlVary"]'); await page.waitForTimeout(300);
+  check((await cap()) === fullBowl, "giving each side its own rows starts from the same bowl");
+  await page.fill('input[data-p="tiers.0.sideRows.E"]', "10"); await page.waitForTimeout(300);
+  check((await cap()) < fullBowl, "one side of a bowl can be made shallower");
+  const coverBefore = (await last()).covered;
+  await page.check("#grOn"); await page.waitForTimeout(300);
+  for (const shape of ["oval", "circle", "follow"]) { await page.selectOption('select[data-p="gr.shape"]', shape); await page.waitForTimeout(300); }
+  check((await last()).covered !== coverBefore && (await cap()) > 0, "one roof over the whole ground replaces the stand roofs");
+  await page.click('[data-p="ringroof"]'); await page.waitForTimeout(300);
+  const rr = await last();
+  check(rr.total > 20000 && rr.covered / rr.total > 0.9 && !rr.issues, 'preset "ringroof" builds under one roof with no warnings');
+  await page.click('#panes [data-pane="start"]');
+
   const beforeRandom = await page.evaluate(() => JSON.stringify(window.__gw.state()));
   await page.click("#randomBtn"); await page.waitForTimeout(300);
   check((await cap()) > 0, "Surprise me builds a stadium");
