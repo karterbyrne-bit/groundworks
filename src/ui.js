@@ -172,7 +172,7 @@ function setTip(){
   tipEl.classList.toggle("msg", !!(tipOverride || picking || look));
 }
 function setLook(on){
-  look = on;
+  look = on; if (!on && crowdClear) clearCrowdNear(null);
   controls.enableZoom = !on; controls.enablePan = !on;
   controls.rotateSpeed = on ? -0.35 : 1;
   controls.maxPolarAngle = on ? Math.PI*0.8 : Math.PI*0.49;
@@ -325,16 +325,19 @@ renderer.domElement.addEventListener("pointerup", e => {
   if (picking){
     const hits = ray.intersectObjects(group.children.filter(m => m.userData.seat), false);
     if (!hits.length){ tipEl.innerHTML = "<b>That's not a seat.</b> Click on the coloured seating."; return; }
-    const h = hits[0].point, f = LAST.F.home || [0,0];
-    const p = new THREE.Vector3(h.x, h.y + 1.2, h.z);
-    const aim = new THREE.Vector3(f[0], focusY + 1, f[1]).sub(p).normalize().multiplyScalar(0.5);
-    picking = false; view.classList.remove("picking"); setLook(true); moveCam(p, p.clone().add(aim)); setTip();
-    return;
+    seatView(hits[0].point, ["terrace","rail"].includes(hits[0].object.userData.kind)); return;
   }
   if (look) return;
   const hits = ray.intersectObjects(group.children.filter(m => m.userData.stadium), false); if (!hits.length) return;
   const key = standAt(hits[0].point); if (key) selectTab(key, true);
 });
+/* The view from a spot in the stands, looking at the middle of the play. Fans stand on terraces and rail seats, so their
+   eyes are higher; the fans right round them are cleared so the view isn't a wall of heads. */
+function seatView(h, standing, instant){
+  const f = LAST.F.home || [0,0], p = new THREE.Vector3(h.x, h.y + (standing ? 1.65 : 1.2), h.z);
+  const aim = new THREE.Vector3(f[0], focusY + 1, f[1]).sub(p).normalize().multiplyScalar(0.5);
+  picking = false; view.classList.remove("picking"); setLook(true); clearCrowdNear([h.x, h.y + 1, h.z]); moveCam(p, p.clone().add(aim), instant); setTip();
+}
 /* Which stand is under a point: the region whose seating slice lies nearest. */
 function standAt(p){
   const D = LAST; if (!D) return null;
@@ -1219,4 +1222,4 @@ requestAnimationFrame(() => requestAnimationFrame(async () => {
 }));
 window.addEventListener("hashchange", openFromLink);
 /* read-only hook for automated checks */
-window.__gw = {state:() => JSON.parse(JSON.stringify(S)), last:() => LAST, regions:() => LAST_REGIONS, look:(p, t, stand) => { anim = null; if (stand){ picking = false; setLook(true); } moveCam(new THREE.Vector3(...p), new THREE.Vector3(...t), true); invalidate(); }};
+window.__gw = {state:() => JSON.parse(JSON.stringify(S)), last:() => LAST, regions:() => LAST_REGIONS, seat:(x, y, z, standing) => seatView({x, y, z}, standing, true), look:(p, t, stand) => { anim = null; if (stand){ picking = false; setLook(true); } moveCam(new THREE.Vector3(...p), new THREE.Vector3(...t), true); invalidate(); }};

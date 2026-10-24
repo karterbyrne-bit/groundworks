@@ -91,6 +91,23 @@ function altRow(i, j, k){
   if (p === "tiers") return k % 2 === 1;
   const h = Math.sin(i*12.9898 + j*78.233 + k*37.719)*43758.5453; return (h - Math.floor(h)) < 0.28;
 }
+/* In the view from a seat, the fans right round you are left out, so you see the play rather than the backs of heads. */
+let crowdClear = null;
+const nearEye = (x, y, z) => { if (!crowdClear) return false; const dx = x - crowdClear[0], dz = z - crowdClear[2], dy = y - crowdClear[1];
+  if (Math.hypot(dx, dz) < 3) return Math.abs(dy) < 3;                                          // your neighbours
+  const l = Math.hypot(crowdClear[0], crowdClear[2]) || 1, ux = -crowdClear[0]/l, uz = -crowdClear[2]/l; // towards the play
+  const along = dx*ux + dz*uz, across = Math.abs(dz*ux - dx*uz);
+  return along > 0 && along < 15 && across < 2 + along*0.5 && dy < 0.5 && dy > -9; };           // and a wedge of rows in front of you
+function clearCrowdNear(eye){
+  crowdClear = eye;
+  const mesh = group.children.find(m => m.userData.crowd); if (!mesh) return;
+  const m4 = new THREE.Matrix4(), zero = new THREE.Matrix4().makeScale(0, 0, 0), hid = mesh.userData.hid || [];
+  for (const [i, arr] of hid) mesh.setMatrixAt(i, m4.fromArray(arr)); // bring back whoever was cleared last time
+  mesh.userData.hid = [];
+  if (eye) for (let i=0;i<mesh.count;i++){ mesh.getMatrixAt(i, m4); const e = m4.elements;
+    if (nearEye(e[12], e[13], e[14])){ mesh.userData.hid.push([i, e.slice()]); mesh.setMatrixAt(i, zero); } }
+  mesh.instanceMatrix.needsUpdate = true; invalidate();
+}
 /* A crowd: one small figure per seat (sampled on very big grounds), in club colours with a few gaps. */
 function addCrowd(recs){
   const totalP = recs.reduce((a,r) => a + (r.seats || 0), 0); if (totalP < 1) return;
@@ -111,6 +128,7 @@ function addCrowd(recs){
       if (rnd() > fill) continue;
       const f = (k + 0.5 + (rnd()-0.5)*0.3)/n;
       pos.set(r.m0[0] + dx*f, lerp(r.h0, r.h1, f) + (stand ? 0.8 : 0.42 + hgt/2) + (rnd()-0.5)*0.08, r.m0[1] + dz*f);
+      if (nearEye(pos.x, pos.y, pos.z)) continue;
       sc.set(widen, hgt*(0.92 + rnd()*0.16), 1); m4.compose(pos, q, sc); mesh.setMatrixAt(c, m4);
       mesh.setColorAt(c, pal[Math.floor(rnd()*pal.length)]); c++;
     }
@@ -1478,7 +1496,7 @@ function build(){
   addProps(group, CV ? CV.F2 : F, buf, CV ? CV.sp : undefined);
   for (const key in Bf) if (Bf[key].length){
     const mesh = meshFrom(Bf[key], M[key], !["roof","roofGlass","glass","roofClosed","aisle","void","glassClad"].includes(key));
-    if (TYPES[key.split("_")[0]] || key === "floorSeat") mesh.userData.seat = true;
+    if (TYPES[key.split("_")[0]] || key === "floorSeat"){ mesh.userData.seat = true; mesh.userData.kind = key.split("_")[0]; }
     mesh.userData.stadium = true;
     group.add(mesh);
   }
