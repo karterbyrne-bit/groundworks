@@ -163,6 +163,23 @@ function inPoly(p, poly){
   }
   return ins;
 }
+/* How far out a slice can go before it runs into an obstacle (a road, a building...). */
+function enterDist(poly, o, v, d0){
+  if (inPoly([o[0]+d0*v[0], o[1]+d0*v[1]], poly)) return d0 - 0.01;
+  let best = Infinity;
+  for (let i=0;i<poly.length;i++){
+    const A = poly[i], B = poly[(i+1)%poly.length], E = [B[0]-A[0], B[1]-A[1]], den = cross(v, E);
+    if (Math.abs(den) < 1e-12) continue;
+    const w = [A[0]-o[0], A[1]-o[1]], d = cross(w, E)/den, s = cross(w, v)/den;
+    if (s >= -1e-9 && s <= 1+1e-9 && d > d0 + 1e-9) best = Math.min(best, d);
+  }
+  return best;
+}
+/* A site feature's footprint, grown by a margin. */
+function featurePoly(f, margin){
+  const a = (f.angle || 0)*Math.PI/180, u = [Math.cos(a), Math.sin(a)], n = [-u[1], u[0]], L = f.length/2 + (margin || 0), W = f.width/2 + (margin || 0);
+  return [[-L,-W],[L,-W],[L,W],[-L,W]].map(([s, t]) => [f.x + u[0]*s + n[0]*t, f.z + u[1]*s + n[1]*t]);
+}
 /* How far out a slice can go before it hits the boundary. */
 function exitDist(poly, o, v, d0){
   const p0 = [o[0]+d0*v[0], o[1]+d0*v[1]];
@@ -240,7 +257,9 @@ const M = {
   dark: new THREE.MeshStandardMaterial({color:0x1d2124, roughness:.6}),
   mast: new THREE.MeshStandardMaterial({color:0x9aa1a5, roughness:.5, metalness:.5}),
   lamp: new THREE.MeshStandardMaterial({color:0xfffbe8, emissive:0xfff3c4, emissiveIntensity:.9}),
-  screen: new THREE.MeshStandardMaterial({color:0x0b1a2b, emissive:0x2a5fa8, emissiveIntensity:.7})
+  screen: new THREE.MeshStandardMaterial({color:0x0b1a2b, emissive:0x2a5fa8, emissiveIntensity:.7}),
+  road: std({color:0x3a3d40, roughness:.95}), pavement: std({color:0xbdbcb4, roughness:.95}), water: std({color:0x3f6f8c, roughness:.12, metalness:.15}),
+  ballast: std({color:0x857d72, roughness:1}), slate: std({color:0x3c4248, roughness:.75})
 };
 for (const st in STYLES) M["clad_"+st] = std({color:STYLES[st].clad, roughness: [0x8b4636,0x9a4a3a,0x7d3b2c].includes(STYLES[st].clad) ? .95 : .6, metalness: st === "showpiece" ? .3 : .15});
 function setSeatColours(){

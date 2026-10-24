@@ -169,6 +169,15 @@ const SIDE_GROUPS = {S:[0,1], W:[1,2], N:[2,3], E:[3,0]};
 const GROUP_KEY = ["SE","SW","NW","NE"];
 /* Which corner sits at each end of a side, in the direction its path runs. */
 const SIDE_ENDS = {N:["NW","NE"], S:["SE","SW"], E:["NE","SE"], W:["SW","NW"]};
+/* Things around the ground, at real sizes: each is a straight piece placed at x, z and turned by angle (degrees). */
+const SITE_KINDS = {
+  road:{label:"Road", length:260, width:12, note:"Two lanes with pavements"},
+  river:{label:"River", length:320, width:30, note:"Between embankment walls"},
+  canal:{label:"Canal", length:280, width:16, note:"With towpaths"},
+  rail:{label:"Railway", length:320, width:14, note:"Two tracks"},
+  houses:{label:"Terraced houses", length:60, width:9, height:9, note:"5 m wide each"},
+  building:{label:"Building", length:40, width:24, height:21, note:"Offices or flats"}
+};
 const clone = o => JSON.parse(JSON.stringify(o));
 const mk = (style, tiers, roof) => ({style, tiers: tiers || STYLES[style].tiers(), roof: Object.assign(STYLES[style].roof(), roof || {}), dist:null, extend:0, facade:Object.assign({}, STYLES[style].facade)});
 const corner = (mode, tiers, roof) => ({mode, tiers: tiers || "all", roof: roof !== false});

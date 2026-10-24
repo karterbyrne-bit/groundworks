@@ -289,7 +289,7 @@ renderer.domElement.addEventListener("pointerdown", e => {
   if (h){ const vl = Math.hypot(h.v[0], h.v[1]) || 1, n = new THREE.Vector3(-h.v[1]/vl, 0, h.v[0]/vl);
     drag = {type:"h", h, plane:new THREE.Plane().setFromNormalAndCoplanarPoint(n, new THREE.Vector3(h.x, h.y, h.z))};
     controls.enabled = false; try { renderer.domElement.setPointerCapture(e.pointerId); } catch(err) {} return; }
-  const p = groundAt(e), ph = plotHandleNear(p);
+  const p = groundAt(e), ph = plotHandleNear(p) || siteHandleNear(p);
   if (ph){ drag = Object.assign(ph, {start:[p.x, p.z], pts:clone(S.plot.pts)}); controls.enabled = false; try { renderer.domElement.setPointerCapture(e.pointerId); } catch(err) {} }
 });
 renderer.domElement.addEventListener("pointermove", e => {
@@ -305,6 +305,10 @@ renderer.domElement.addEventListener("pointermove", e => {
   }
   if (drag){
     const p = groundAt(e); if (!p) return;
+    if (drag.type === "site"){ const f = S.site[drag.i]; if (!f) return;
+      if (drag.end){ f.angle = Math.round(((Math.atan2(p.z - f.z, p.x - f.x)*180/Math.PI) + 360) % 180); f.length = Math.max(5, Math.round(2*Math.hypot(p.x - f.x, p.z - f.z))); }
+      else { f.x = Math.round(p.x); f.z = Math.round(p.z); }
+      changed(false, true); return; }
     const dx = p.x - drag.start[0], dz = p.z - drag.start[1], pts = clone(drag.pts);
     if (drag.type === "v"){ pts[drag.i] = [Math.round(drag.pts[drag.i][0] + dx), Math.round(drag.pts[drag.i][1] + dz)]; }
     else { const a = pts[drag.i], b = pts[(drag.i+1)%pts.length], l = Math.hypot(b[0]-a[0], b[1]-a[1]) || 1, n = [-(b[1]-a[1])/l, (b[0]-a[0])/l], s = dx*n[0] + dz*n[1];
@@ -312,7 +316,7 @@ renderer.domElement.addEventListener("pointermove", e => {
     S.plot.pts = pts; changed(); return;
   }
   if (e.buttons) return;
-  view.style.cursor = handleHit(e) || plotHandleNear(groundAt(e)) ? "grab" : "";
+  view.style.cursor = handleHit(e) || plotHandleNear(groundAt(e)) || siteHandleNear(groundAt(e)) ? "grab" : "";
 });
 renderer.domElement.addEventListener("pointerup", e => {
   if (drag){ const wasH = drag.type === "h"; drag = null; controls.enabled = true; if (wasH){ renderEditor(); } return; }
@@ -797,6 +801,41 @@ function plotShape(kind, silent){
 document.querySelectorAll("[data-plot]").forEach(b => b.addEventListener("click", () => plotShape(b.dataset.plot)));
 $("plotOn").addEventListener("change", e => { if (e.target.checked && !S.plot.pts) plotShape("snug"); else { S.plot.on = e.target.checked; changed(true); } setTip(); });
 $("plotClip").addEventListener("change", e => { S.plot.clip = e.target.checked; changed(); });
+/* Surroundings: add, edit and remove roads, water, railways and buildings. */
+$("siteAdd").innerHTML = Object.entries(SITE_KINDS).map(([k, v]) => `<button class="btn" data-site="${k}">${v.label}<small>${v.note}</small></button>`).join("");
+const siteOf = () => (S.site = Array.isArray(S.site) ? S.site : []);
+let siteDrawn = null;
+function renderSite(){
+  const list = siteOf(); siteDrawn = JSON.stringify(list);
+  if ($("siteList").contains(document.activeElement)) return;
+  const num = (i, k, label, v, min, max, step, unit) => `<div class="row pair"><label>${label}</label><span class="num"><input type="number" data-sf2="${k}" data-i="${i}" value="${Math.round(v*10)/10}" min="${min}" max="${max}" step="${step}" aria-label="${label}"> ${unit}</span>
+    <input type="range" data-sf2="${k}" data-i="${i}" min="${min}" max="${max}" step="${step}" value="${v}" aria-label="${label}"></div>`;
+  $("siteList").innerHTML = list.map((f, i) => { const K = SITE_KINDS[f.kind] || {label:f.kind};
+    return `<div class="screen"><div class="tier-h"><span>${K.label}</span><span class="acts-row"><button class="mini" data-sdel="${i}">Remove</button></span></div>
+      ${num(i, "x", "East–west position", f.x, -600, 600, 1, "m")}${num(i, "z", "North–south position", f.z, -600, 600, 1, "m")}
+      ${num(i, "angle", "Angle", f.angle || 0, 0, 180, 1, "°")}${num(i, "length", "Length", f.length, 5, 1000, 1, "m")}${num(i, "width", "Width", f.width, 3, 200, 0.5, "m")}
+      ${f.height != null ? num(i, "height", "Height", f.height, 3, 150, 0.5, "m") : ""}</div>`; }).join("") || `<p class="hint">Nothing round the ground yet.</p>`;
+}
+$("siteAdd").addEventListener("click", e => { const b = e.target.closest("[data-site]"); if (!b) return;
+  const K = SITE_KINDS[b.dataset.site], list = siteOf(), bd = LAST ? LAST.bounds : [-80, 80, -60, 60];
+  // put it just outside the ground, on the first side that's free
+  const spots = [{x:0, z:bd[2] - K.width/2 - 8, angle:0}, {x:0, z:bd[3] + K.width/2 + 8, angle:0}, {x:bd[1] + K.width/2 + 8, z:0, angle:90}, {x:bd[0] - K.width/2 - 8, z:0, angle:90}];
+  const spot = spots[list.length % 4], f = Object.assign({kind:b.dataset.site, length:K.length, width:K.width}, spot);
+  if (K.height != null) f.height = K.height;
+  if (f.kind === "houses" || f.kind === "building"){ f.length = K.length; f.x = spot.angle ? spot.x : bd[0] + K.length/2; f.z = spot.angle ? bd[2] + K.length/2 : spot.z; }
+  f.x = Math.round(f.x); f.z = Math.round(f.z); list.push(f); siteDrawn = null; changed(true);
+  toast(`<b>${K.label} added</b> beside the ground. Drag its yellow posts in the 3D view, or type where it goes.`, UNDO); });
+$("siteList").addEventListener("input", e => { const el = e.target; if (!el.dataset.sf2) return; const v = +el.value; if (!isFinite(v)) return;
+  siteOf()[+el.dataset.i][el.dataset.sf2] = v; el.closest(".row").querySelectorAll("input").forEach(o => { if (o !== el) o.value = el.value; }); changed(false, true); });
+$("siteList").addEventListener("click", e => { const b = e.target.closest("[data-sdel]"); if (!b) return; siteOf().splice(+b.dataset.sdel, 1); siteDrawn = null; renderSite(); changed(); });
+function siteHandleNear(p){
+  if (!p || look || picking || !Array.isArray(S.site)) return null;
+  const tol = Math.max(3, LAST ? Math.max(LAST.ext[0], LAST.ext[1])*0.03 : 3);
+  for (let i=0;i<S.site.length;i++){ const f = S.site[i], a = (f.angle || 0)*Math.PI/180, ex = f.x + Math.cos(a)*f.length/2, ez = f.z + Math.sin(a)*f.length/2;
+    if (Math.hypot(p.x - ex, p.z - ez) < tol) return {type:"site", i, end:true};
+    if (Math.hypot(p.x - f.x, p.z - f.z) < tol) return {type:"site", i, end:false}; }
+  return null;
+}
 /* Typed plot sizes and corners, for when dragging posts isn't precise enough. */
 const plotBox2 = pts => { const xs = pts.map(p => p[0]), zs = pts.map(p => p[1]); return {x0:Math.min(...xs), x1:Math.max(...xs), z0:Math.min(...zs), z1:Math.max(...zs)}; };
 const polyArea = pts => Math.abs(pts.reduce((a, p, i) => { const q = pts[(i+1)%pts.length]; return a + p[0]*q[1] - q[0]*p[1]; }, 0))/2;
@@ -1049,6 +1088,7 @@ function syncUI(){
   $("grOn").checked = groundRoofOn();
   $("plotOn").checked = S.plot.on; $("plotBox").hidden = !S.plot.on; $("plotClip").checked = S.plot.clip;
   if (S.plot.pts && plotDrawn !== JSON.stringify(S.plot.pts)) renderPlot();
+  if (siteDrawn !== JSON.stringify(S.site || [])) renderSite();
   $("boards").checked = !!S.boards;
   const AR = Object.assign({skin:"none", skinShape:"round"}, S.arch || {});
   $("skin").value = AR.skin; document.querySelector(`input[name=skinShape][value=${AR.skinShape}]`).checked = true; $("skinShapeRow").hidden = AR.skin === "none";

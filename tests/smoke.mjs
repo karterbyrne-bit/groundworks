@@ -106,6 +106,15 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.click('#panes [data-pane="ground"]'); await page.check("#plotOn"); await page.waitForTimeout(300);
   await page.locator("#plotExact summary").click(); await page.fill("#plotW", "260"); await page.press("#plotW", "Enter"); await page.waitForTimeout(300);
   check((await page.evaluate(() => { const xs = window.__gw.state().plot.pts.map(p => p[0]); return Math.max(...xs) - Math.min(...xs); })) === 260, "the plot can be set to an exact width");
+  // surroundings: a road beside the ground, and a building that the east end is cut back to clear
+  await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300);
+  const unboxed = await cap();
+  await page.click('#panes [data-pane="ground"]'); await page.click('[data-site="road"]'); await page.waitForTimeout(300);
+  check((await cap()) === unboxed && (await page.evaluate(() => window.__gw.state().site.length)) === 1, "a road can be added beside the ground");
+  await page.click('[data-site="building"]'); await page.waitForTimeout(300);
+  await page.evaluate(() => { for (const [k, v] of [["x", "75"], ["z", "0"]]){ const el = document.querySelector(`input[type=number][data-sf2="${k}"][data-i="1"]`); el.value = v; el.dispatchEvent(new Event("input", {bubbles:true})); } });
+  await page.waitForTimeout(400);
+  check((await cap()) < unboxed, "a stand is cut back to clear a building");
   await page.click('#panes [data-pane="start"]');
 
   const beforeRandom = await page.evaluate(() => JSON.stringify(window.__gw.state()));

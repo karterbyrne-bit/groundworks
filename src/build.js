@@ -531,6 +531,53 @@ function roofLights(anchors, bf, F){
       if (!best || used.has(best) || bd < 0.5) continue; used.add(best);
       const sp = new THREE.SpotLight(0xfff4dc, 1.1, 0, 1.0, 0.6, 1); sp.position.set(best[0], best[1], best[2]); sp.target.position.set(-best[0]*0.2, 0, -best[2]*0.2); group.add(sp); group.add(sp.target); } }
 }
+/* The surroundings: roads, rivers, canals, railways, terraced houses and buildings, at real sizes, each with a yellow post
+   in the middle (drag to move it) and one at its end (drag to turn and stretch it). */
+function drawSite(features, bf, ext){
+  const brick = textured("clad_historic", "brick"), conc = textured("concrete", "concrete");
+  for (const f of features){
+    const a = (f.angle || 0)*Math.PI/180, u = [Math.cos(a), Math.sin(a)], n = [-u[1], u[0]], L = f.length/2, W = f.width/2;
+    const P = (s, t, y) => [f.x + u[0]*s + n[0]*t, y, f.z + u[1]*s + n[1]*t];
+    const slab = (key, s0, s1, t0, t1, y) => quad(bf(key), P(s0,t0,y), P(s1,t0,y), P(s1,t1,y), P(s0,t1,y));
+    const side = (key, s0, s1, t, y0, y1) => quad(bf(key), P(s0,t,y0), P(s1,t,y0), P(s1,t,y1), P(s0,t,y1));
+    const end = (key, s, t0, t1, y0, y1) => quad(bf(key), P(s,t0,y0), P(s,t1,y0), P(s,t1,y1), P(s,t0,y1));
+    if (f.kind === "road"){ const pv = Math.min(3, W*0.25);
+      slab("pavement", -L, L, -W, W, .03); slab("road", -L, L, -W + pv, W - pv, .05);
+      for (const t of [-W + pv, W - pv]) side("concrete", -L, L, t, .03, .17);
+      for (let s0=-L; s0<L-4; s0+=9) slab("white", s0, s0 + 4.5, -.08, .08, .06); }
+    else if (f.kind === "river" || f.kind === "canal"){ // water at ground level between walls: stone copings on a canal, embankment walls on a river
+      const tow = f.kind === "canal" ? Math.min(3.5, W*0.3) : 0, ww = W - tow, wallH = f.kind === "canal" ? .35 : .9;
+      slab("water", -L, L, -ww, ww, .02);
+      for (const t of [-ww, ww]){ side(f.kind === "canal" ? "trim" : "concrete", -L, L, t, 0, wallH); side(f.kind === "canal" ? "trim" : "concrete", -L, L, t + Math.sign(t)*.5, 0, wallH);
+        quad(bf(f.kind === "canal" ? "trim" : "concrete"), P(-L,t,wallH), P(L,t,wallH), P(L,t + Math.sign(t)*.5,wallH), P(-L,t + Math.sign(t)*.5,wallH)); }
+      if (tow) for (const sg of [-1, 1]) slab("pavement", -L, L, sg*(ww + .5), sg*W, .05); }
+    else if (f.kind === "rail"){
+      slab("ballast", -L, L, -W, W, .08);
+      for (const tc of [-W*0.3, W*0.3]){
+        for (let s0=-L; s0<L; s0+=.8) slab("dark", s0, s0 + .26, tc - 1.3, tc + 1.3, .14);
+        for (const r of [-.72, .72]) bar(bf("steel"), P(-L, tc + r, .24), P(L, tc + r, .24), .1); }
+      for (const t of [-W, W]) side("cable", -L, L, t, .08, 1.8); }
+    else if (f.kind === "houses"){ const eave = Math.max(4, (f.height || 9) - 3), ridge = f.height || 9, nU = Math.max(1, Math.round(f.length/5)), uw = f.length/nU;
+      for (const t of [-W, W]) side(brick, -L, L, t, 0, eave);
+      for (const s2 of [-L, L]){ end(brick, s2, -W, W, 0, eave); tri(bf(brick), P(s2,-W,eave), P(s2,W,eave), P(s2,0,ridge)); }
+      for (const sg of [-1, 1]) quad(bf("slate"), P(-L,sg*(W+.3),eave-.2), P(L,sg*(W+.3),eave-.2), P(L,0,ridge), P(-L,0,ridge));
+      for (let k=0;k<nU;k++){ const s0 = -L + k*uw, c = s0 + uw/2;
+        for (const sg of [-1, 1]){ const t = sg*(W + .05);
+          side("window", c - 1.8, c - .6, t, 3.6, 4.9); side("window", c + .2, c + 1.6, t, 3.6, 4.9); side("window", c + .2, c + 1.6, t, 1, 2.3);
+          side(sg < 0 ? "gate" : "window", c - 1.8, c - .8, t, 0, 2.2); }
+        if (k % 2 === 0){ const q = P(s0 + uw, 0, 0); post(bf(brick), q[0], q[2], ridge - .5, ridge + 1.3, .9); } } } // a chimney stack every other house
+    else if (f.kind === "building"){ const H = f.height || 20, floors = Math.max(1, Math.floor(H/3.5));
+      for (const t of [-W, W]) side(conc, -L, L, t, 0, H);
+      for (const s2 of [-L, L]) end(conc, s2, -W, W, 0, H);
+      slab("roofSolid", -L, L, -W, W, H); for (const t of [-W, W]) side("concrete", -L, L, t, H, H + 1);
+      for (let fl=0;fl<floors;fl++){ const y0 = 1 + fl*3.5;
+        for (const t of [-W - .05, W + .05]) side("window", -L + .8, L - .8, t, y0, y0 + 1.8);
+        for (const s2 of [-L - .05, L + .05]) end("window", s2, -W + .8, W - .8, y0, y0 + 1.8); } }
+    // posts for dragging it about
+    const c = P(0, 0, 0), e = P(L, 0, 0); post(bf("barrier"), c[0], c[2], 0, 3, 1.4); post(bf("barrier"), e[0], e[2], 0, 2.2, 1);
+    for (const q of featurePoly(f, 0)){ ext[0] = Math.max(ext[0], Math.abs(q[0])); ext[1] = Math.max(ext[1], Math.abs(q[1])); }
+  }
+}
 /* A floodlight head: a frame of separate lamps angled down at the play, with a service platform behind. */
 const lampGeo = new THREE.BoxGeometry(1.25, 1.05, .5), lampRim = new THREE.BoxGeometry(1.45, 1.25, .35); lampGeo.keep = lampRim.keep = true;
 function lampHead(x, y, z){
@@ -560,6 +607,9 @@ function build(){
   const standSet = cfg => Math.max(floorNeed, cfg && cfg.dist != null ? cfg.dist : S.setback);
   const radius = (F.custom || F.noStands) ? (F.r > 0 ? F.r : S.corner) : S.corner;
   const poly = S.plot.on && S.plot.pts ? S.plot.pts : null;
+  const site = (Array.isArray(S.site) ? S.site : []).filter(f => SITE_KINDS[f.kind] && f.length > 0 && f.width > 0);
+  const obstacles = site.map(f => ({f, poly:featurePoly(f, 1)})); // stands keep a metre clear of roads, water and buildings
+  const roomAt = (o2, v2, d0) => { let dm = poly ? exitDist(poly, o2, v2, d0) : Infinity; for (const ob of obstacles) dm = Math.min(dm, enterDist(ob.poly, o2, v2, d0)); return dm; };
   if (!DRY){
     scene.remove(group);
     const shared = new Set(Object.values(M)); // free what this build made, but keep the shared materials and cached textures
@@ -644,8 +694,8 @@ function build(){
     const profs = [], tierList = [];
     for (let i=0;i<m;i++){
       let tiers = cut(st.tiersFor(i), i); const s0 = setAt(i);
-      if (poly){
-        const dm = exitDist(poly, o[i], v[i], s0);
+      if (poly || obstacles.length){
+        const dm = roomAt(o[i], v[i], s0); if (!isFinite(dm)){ tierList.push(tiers); profs.push(profile(tiers, s0)); continue; }
         if (S.plot.clip) tiers = trimTiers(tiers, dm - margin, s0);
         else { const pr = profile(tiers, s0).filter(p => nRows(p) >= 1); if (pr.length) overflow = Math.max(overflow, Math.max(...pr.map(p => p.front + nRows(p)*p.T)) + margin - dm); }
       }
@@ -663,8 +713,8 @@ function build(){
         lift[k] = top; for (let i=0;i<m;i++) profs[i] = profile(tierList[i], setAt(i), lift);
       }
     }
-    if (overflow > 0.05) issue(`The ${st.name.toLowerCase()} runs ${Math.round(overflow)} m past the plot boundary.`, "site:" + st.name, "geo",
-      {tab:st.key, fix:{label:"Cut it back to fit the plot", run:() => { S.plot.clip = true; return true; }}});
+    if (overflow > 0.05) issue(`The ${st.name.toLowerCase()} runs ${Math.round(overflow)} m past the plot boundary${obstacles.length ? " or into its surroundings" : ""}.`, "site:" + st.name, "geo",
+      {tab:st.key, fix:{label:"Cut it back to fit", run:() => { S.plot.clip = true; return true; }}});
     const marks = step => { const out = new Set(); if (lenTotal < step*0.6) return out; let next = step/2;
       for (let i=0;i<m;i++){ if (cum[i] >= next){ out.add(i); next += step; } } return out; };
     const tangent = i => { let a, b;
@@ -1188,7 +1238,7 @@ function build(){
     for (let i=0;i<n;i++){
       dIn[i] = Math.max(inMin, dIn[i] == null ? inMin : dIn[i]);
       if (dOut[i] == null) dOut[i] = exitDist(hull, ring.o[i], ring.v[i], 0) + back;
-      if (poly && S.plot.clip && inPoly(ring.o[i], poly)) dOut[i] = Math.min(dOut[i], exitDist(poly, ring.o[i], ring.v[i], 0) - 0.3);
+      if (S.plot.clip && (!poly || inPoly(ring.o[i], poly))){ const room = roomAt(ring.o[i], ring.v[i], 0); if (isFinite(room)) dOut[i] = Math.min(dOut[i], room - 0.3); }
       dOut[i] = Math.max(dOut[i], dIn[i] + 2);
     }
     if (poly && !S.plot.clip && ring.o.some((_, i) => !inPoly(P(i, dOut[i]), poly))) issue("The roof over the ground runs past the plot boundary.", "site:roof", "geo",
@@ -1292,6 +1342,7 @@ function build(){
     ext = [Math.max(ext[0], ...xs.map(Math.abs)), Math.max(ext[1], ...zs.map(Math.abs))];
   }
   const A = S.arch || {}, B2 = {}, buf2 = k => (B2[k] = B2[k] || []);
+  drawSite(site, buf2, ext);
   const archTop = addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, buf2, ext);
   result.maxH = Math.max(result.maxH, archTop);
   if (window.__gwCheck){ let bad = 0; for (const k in B2) for (const v of B2[k]) if (!isFinite(v)) bad++; group.traverse(o => { const a = o.geometry && o.geometry.attributes && o.geometry.attributes.position; if (a && a.array) for (const v of a.array) if (!isFinite(v)) bad++; }); result.archNan = bad; }
