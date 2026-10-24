@@ -55,6 +55,8 @@
         <button class="btn" data-p="fight">Fight night<small>MMA cage · floor seats</small></button>
         <button class="btn" data-p="bearpit">Boxing bear pit<small>steep · right on the ring</small></button>
         <button class="btn" data-p="ballpark">Ballpark<small>baseball · upper decks</small></button>
+        <button class="btn" data-p="oval">Great oval<small>like El Monumental · oval upper rings</small></button>
+        <button class="btn" data-p="cartuja">Oval over a track<small>like La Cartuja · floating upper tier</small></button>
       </div>
     </section>
 
@@ -103,6 +105,26 @@
       <p class="hint">Aiming a few metres into the floor (as arenas do) lets steep stands sit right on top of the action. Aiming at the edge of play is the stricter football rule.</p>
       <div class="row" id="cornerRow"><label for="corner">Corner curve size</label><output id="o-corner"></output>
         <input type="range" id="corner" min="0" max="40" step="1"></div>
+    </section>
+
+    <section class="group" id="outerBox" data-pane="ground">
+      <h2>Upper tiers</h2>
+      <p class="hint">Let the tiers above the lower one follow their own outline, as at La Cartuja or El Monumental: the lower tier hugs the play while the stadium around it is an oval or a circle.</p>
+      <div class="seg" role="radiogroup" aria-label="Upper tiers' outline">
+        <input type="radio" name="outerShape" id="os-follow" value="follow"><label for="os-follow">Same as the lower tier</label>
+        <input type="radio" name="outerShape" id="os-oval" value="oval"><label for="os-oval">Oval</label>
+        <input type="radio" name="outerShape" id="os-circle" value="circle"><label for="os-circle">Round</label>
+      </div>
+      <div id="outerMore" class="group">
+        <div class="seg" role="radiogroup" aria-label="How the upper tiers meet the outline">
+          <input type="radio" name="outerFit" id="of-ring" value="ring"><label for="of-ring">Set back onto it</label>
+          <input type="radio" name="outerFit" id="of-fill" value="fill"><label for="of-fill">Fill out to it</label>
+        </div>
+        <p class="hint" id="outerFitNote"></p>
+        <div class="row"><label for="outerSize">Make the outline bigger or smaller</label><output id="o-outerSize"></output>
+          <input type="range" id="outerSize" min="-20" max="40" step="1"></div>
+      </div>
+      <p class="hint" id="outerNone"></p>
     </section>
 
     <section class="group" id="standsGroup" data-pane="stands">

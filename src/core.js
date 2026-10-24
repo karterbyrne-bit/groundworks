@@ -232,6 +232,7 @@ const M = {
   board: std({color:0x10233f, roughness:.4, emissive:0x163a6e, emissiveIntensity:.8}),
   site: std({color:0xc0392b, roughness:.6}), handle: std({color:0xffffff, roughness:.5, emissive:0x5a1a14}),
   white: std({color:0xffffff, roughness:.4}),
+  window: std({color:0x1d262c, roughness:.25, metalness:.3}), trim: std({color:0xd9d2c2, roughness:.85}),
   canvas: new THREE.MeshStandardMaterial({color:0x2e5fa8, roughness:.8}),
   rope: new THREE.MeshStandardMaterial({color:0xf2f2f2, roughness:.5}),
   cageNet: new THREE.MeshStandardMaterial({color:0x111111, roughness:.6, transparent:true, opacity:.35, side:DS}),

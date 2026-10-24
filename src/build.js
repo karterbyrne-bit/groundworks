@@ -62,6 +62,7 @@ function applyMood(){
   hemi.intensity = night ? 0.16 : 0.75; sun.intensity = night ? 0.06 : 0.9; fill.intensity = night ? 0.04 : 0.25;
   M.lamp.emissiveIntensity = night ? 2.2 : 0.9; M.band.emissive.set(night ? 0xffc46b : 0x000000); M.band.emissiveIntensity = night ? 0.55 : 0;
   M.board.emissiveIntensity = night ? 1.6 : 0.8; M.screen.emissiveIntensity = night ? 1.4 : 0.7;
+  M.window.emissive.set(night ? 0xffc77a : 0x000000); M.window.emissiveIntensity = night ? 0.6 : 0;
   if (night){ scene.background = new THREE.Color(0x0a1220); groundMat.color.set(0x1d2420); plazaMat.color.set(0x262c28); }
   else if (typeof applyTheme === "function") applyTheme(true);
   const see = !!S.seeThrough;
@@ -312,6 +313,70 @@ function drawScreens(plans, bf, anchors){
     if (p.legs != null) for (const e of ends) post(bf("steel"), e[0], e[1], p.legs, p.legTop != null ? p.legTop : p.y - p.h/2, .6);
   }
 }
+/* Façade looks. Each draws onto one stretch of outside wall from a to b (points on the ground), whose top runs from ya to
+   yb, facing out along n. Everything stands slightly proud of the wall so it reads from the street and from the air. */
+const FACADE_LOOKS = {brick:"Brick, with rows of windows", timber:"Painted timber", deco:"Art deco ribs", concrete:"Concrete bands",
+  sheet:"Metal cladding with a club-colour stripe", fins:"Metal fins over a glazed concourse", glass:"Glass curtain wall", grid:"Windows all over", plain:"Plain wall"};
+function dressWall(buf, look, wallKey, a, b, ya, yb, n){
+  const len = Math.hypot(b[0]-a[0], b[1]-a[1]); if (len < 0.5) return;
+  const tg = [(b[0]-a[0])/len, (b[1]-a[1])/len], lo = Math.min(ya, yb);
+  const P = (f, out) => [a[0] + (b[0]-a[0])*f + n[0]*out, a[1] + (b[1]-a[1])*f + n[1]*out];
+  const Q = (p, y) => [p[0], y, p[1]];
+  const top = f => ya + (yb - ya)*f;
+  // a flat panel across part of the wall, standing out from it
+  const panel = (key, f0, f1, y0, y1, out) => { const p0 = P(f0,out), p1 = P(f1,out); quad(buf(key), Q(p0,y0), Q(p1,y0), Q(p1,y1), Q(p0,y1)); };
+  // a horizontal band with a top and underside, so it casts a shadow line
+  const ledge = (key, y0, y1, depth, slope) => { const s0 = slope ? 0 : 0, f = g => slope ? top(g) - lo : s0;
+    const a0 = P(0,0), b0 = P(1,0), a1 = P(0,depth), b1 = P(1,depth);
+    quad(buf(key), Q(a1,y0+f(0)), Q(b1,y0+f(1)), Q(b1,y1+f(1)), Q(a1,y1+f(0)));
+    quad(buf(key), Q(a0,y0+f(0)), Q(b0,y0+f(1)), Q(b1,y0+f(1)), Q(a1,y0+f(0)));
+    quad(buf(key), Q(a0,y1+f(0)), Q(b0,y1+f(1)), Q(b1,y1+f(1)), Q(a1,y1+f(0))); };
+  // a vertical strip standing out from the wall (pilaster, rib or mullion)
+  const rib = (key, f, w, y0, y1, depth) => { const fw = w/2/len, q0 = P(f-fw,0), q1 = P(f+fw,0), r0 = P(f-fw,depth), r1 = P(f+fw,depth);
+    quad(buf(key), Q(r0,y0), Q(r1,y0), Q(r1,y1), Q(r0,y1)); quad(buf(key), Q(q0,y0), Q(r0,y0), Q(r0,y1), Q(q0,y1));
+    quad(buf(key), Q(r1,y0), Q(q1,y0), Q(q1,y1), Q(r1,y1)); quad(buf(key), Q(r0,y1), Q(r1,y1), Q(q1,y1), Q(q0,y1)); };
+  const cells = step => Math.max(1, Math.round(len/step));
+  const windows = (key, step, storey, first, w, h, sill) => { const nC = cells(step);
+    for (let c=0;c<nC;c++){ const fc = (c + .5)/nC, fw = w/2/len;
+      for (let y = first; y + h < Math.min(top(fc), lo + 2) - 1.2; y += storey){ panel(key, fc - fw, fc + fw, y, y + h, .06); if (sill) panel(sill, fc - fw*1.25, fc + fw*1.25, y - .22, y, .14); } } };
+  if (look === "brick"){
+    panel("trim", 0, 1, 0, 0.9, .1);
+    windows("window", 4.5, 4.2, 4.4, 1.5, 2.3, "trim");
+    for (let c=0;c<=cells(4.5);c+=2) rib("trim", c/cells(4.5), .55, .9, Math.max(1.5, top(c/cells(4.5)) - 1.1), .3);
+    ledge("trim", lo - 1.1, lo - .4, .45, true);
+  } else if (look === "timber"){
+    windows("window", 3, 3.6, 2.4, 1.2, 1.6, "white");
+    for (let c=0;c<=cells(1.6);c++) rib("white", c/cells(1.6), .12, .3, Math.max(.8, top(c/cells(1.6)) - .3), .06);
+    ledge("roofGreen", lo - .9, lo - .2, .3, true);
+  } else if (look === "deco"){
+    const nC = cells(3.2);
+    for (let c=0;c<nC;c++){ const fc = (c + .5)/nC, fw = .7/len; panel("window", fc - fw, fc + fw, 2.2, Math.max(2.4, top(fc) - 3), .05); }
+    for (let c=0;c<=nC;c++) rib("trim", c/nC, .6, .4, Math.max(1, top(c/nC) - .6), .9);
+    ledge("trim", lo - 1.3, lo - .3, .7, true); panel("trim", 0, 1, 0, .6, .12);
+  } else if (look === "concrete"){
+    for (let y = 3; y + 3.2 < lo - .5; y += 5.2){ panel("window", 0, 1, y, y + 1.6, .05); ledge("concrete", y + 1.6, y + 3.1, .8); }
+    ledge("concrete", lo - 1.2, lo - .2, .9, true);
+  } else if (look === "sheet"){
+    for (let y = 2.4; y < lo - .5; y += 2.4) panel("band", 0, 1, y, y + .07, .04);
+    for (let c=0;c<=cells(6);c++) rib("band", c/cells(6), .08, 0, Math.max(.5, top(c/cells(6))), .05);
+    if (lo > 6) ledge("lattice", lo - 3.4, lo - 2.2, .12, true);
+    panel("window", 0, 1, .3, Math.min(3, lo - 1), .06);
+  } else if (look === "fins"){
+    panel("window", 0, 1, .3, Math.min(4.6, lo - 1), .05); panel("glass", 0, 1, .3, Math.min(4.6, lo - 1), .5);
+    const nC = cells(2.4);
+    for (let c=0;c<=nC;c++){ const f = c/nC, p0 = P(f, .1), p1 = [p0[0] + n[0]*1.3 + tg[0]*.7, p0[1] + n[1]*1.3 + tg[1]*.7];
+      quad(buf("steel"), Q(p0, 5.2), Q(p1, 5.2), Q(p1, Math.max(5.4, top(f) - .2)), Q(p0, Math.max(5.4, top(f) - .2))); }
+    ledge("steel", 4.6, 5.2, 1.4);
+  } else if (look === "glass"){
+    panel("glass", 0, 1, .2, Math.max(.4, lo - .2), .35);
+    const nC = cells(2.2);
+    for (let c=0;c<=nC;c++) rib("steel", c/nC, .14, .2, Math.max(.4, top(c/nC) - .2), .4);
+    for (let y = 3.6; y < lo - .5; y += 3.6) ledge("steel", y, y + .14, .4);
+  } else if (look === "grid"){
+    windows("window", 2.6, 3.3, 1.6, 1.3, 1.8, null);
+    ledge("trim", lo - .8, lo - .2, .3, true);
+  }
+}
 /* Floodlights fixed to the leading edge of each roof (or on short poles along the top of open stands). */
 function roofLights(anchors, bf, F){
   const lamps = [];
@@ -410,7 +475,7 @@ function build(){
     const {o, v, closed} = st.geo, m = o.length;
     if (m < 2) return null;
     const cfg = st.cfg, sty = STYLES[cfg.style] || STYLES.modern, rf = Object.assign(R("none"), cfg.roof || {});
-    const fac = cfg.facade || sty.facade || {};
+    const fac = cfg.facade || sty.facade || {}, look = FACADE_LOOKS[fac.look] ? fac.look : sty.look || "plain";
     const setAt = i => st.setFor ? st.setFor(i) : st.set;
     const pt = (i,d) => [o[i][0] + d*v[i][0], o[i][1] + d*v[i][1]];
     const V = (i,d,y) => { const p = pt(i,d); return [p[0], y, p[1]]; };
@@ -545,10 +610,19 @@ function build(){
           const bk0 = p0.front + mr*T, bk1 = p1.front + mr*T, t0 = p0.hs[mr-1], t1 = p1.hs[mr-1];
           if (p0.stacked){
             quad(buf("soffit"), V(i,p0.front,y00), V(j1,p1.front,y10), V(j1,bk1,t1-1.5), V(i,bk0,t0-1.5));
+            // a tier set back behind the one below (as on an oval outline) gets a concourse deck across the gap
+            if (!p0.lowerGhost && !p1.lowerGhost && p0.front > p0.lowerBack + 0.5 && p1.front > p1.lowerBack + 0.5){
+              const yd0 = p0.lowerBackH + 1.2, yd1 = p1.lowerBackH + 1.2;
+              quad(buf("concrete"), V(i,p0.lowerBack,yd0), V(j1,p1.lowerBack,yd1), V(j1,p1.front,yd1), V(i,p0.front,yd0));
+              if (y00 > yd0 + .05 || y10 > yd1 + .05) quad(buf(wallKey), V(i,p0.front,yd0), V(j1,p1.front,yd1), V(j1,p1.front,Math.max(yd1, y10)), V(i,p0.front,Math.max(yd0, y00)));
+            }
             if (p0.over > 0.3 && !p0.lowerGhost) roofQuads.push([pt(i,p0.front), pt(j1,p1.front), pt(j1,Math.min(p1.lowerBack, bk1)), pt(i,Math.min(p0.lowerBack, bk0))]);
           }
           quad(buf(wallKey), V(i,bk0,0), V(j1,bk1,0), V(j1,bk1,t1+1.2), V(i,bk0,t0+1.2));
-          if (!roofOn && t0 > 12 && t1 > 12 && sty.wall !== "glassClad"){ const y0 = t0*0.46, y1 = t1*0.46; quad(buf("band"), V(i,bk0+.08,y0), V(j1,bk1+.08,y1), V(j1,bk1+.08,y1+2.4), V(i,bk0+.08,y0+2.4)); }
+          // where the depth changes from one slice to the next (an oval or blended outline), a smooth outer wall hides the steps
+          if (n0 !== n1 && !profs[i].slice(k+1).some(q => q && !q.ghost && nRows(q) >= 1)){
+            const e0 = p0.front + n0*T, e1 = p1.front + n1*T; quad(buf(wallKey), V(i,e0,0), V(j1,e1,0), V(j1,e1,p1.hs[n1-1]+1.2), V(i,e0,p0.hs[n0-1]+1.2)); }
+          if (look === "plain" && !roofOn && t0 > 12 && t1 > 12 && sty.wall !== "glassClad"){ const y0 = t0*0.46, y1 = t1*0.46; quad(buf("band"), V(i,bk0+.08,y0), V(j1,bk1+.08,y1), V(j1,bk1+.08,y1+2.4), V(i,bk0+.08,y0+2.4)); }
         }
         if (n0 > mr) cap(i, p0, mr, n0);
         if (n1 > mr) cap(j1, p1, mr, n1);
@@ -628,8 +702,7 @@ function build(){
           quad(rm, V(i,at(a,f0),a.y(f0)), V(j1,at(b,f0),b.y(f0)), V(j1,at(b,f1),b.y(f1)), V(i,at(a,f1),a.y(f1))); }
         quad(buf("roofEdge"), V(i,a.inner,a.y(0)-1.2), V(j1,b.inner,b.y(0)-1.2), V(j1,b.inner,b.y(0)), V(i,a.inner,a.y(0)));
         quad(clad, V(i,a.outer,0), V(j1,b.outer,0), V(j1,b.outer,b.y(1)), V(i,a.outer,a.y(1)));
-        if (a.y(1) > 14 && b.y(1) > 14 && sty.wall !== "glassClad" && !fac.glass){ const y0 = a.y(1)*0.42, y1 = b.y(1)*0.42; quad(buf("band"), V(i,a.outer+.08,y0), V(j1,b.outer+.08,y1), V(j1,b.outer+.08,y1+2.4), V(i,a.outer+.08,y0+2.4)); }
-        if (fac.glass) quad(buf("glass"), V(i,a.outer+.3,3), V(j1,b.outer+.3,3), V(j1,b.outer+.3,Math.min(9, b.y(1)-1)), V(i,a.outer+.3,Math.min(9, a.y(1)-1)));
+        if (look === "plain" && a.y(1) > 14 && b.y(1) > 14 && sty.wall !== "glassClad"){ const y0 = a.y(1)*0.42, y1 = b.y(1)*0.42; quad(buf("band"), V(i,a.outer+.08,y0), V(j1,b.outer+.08,y1), V(j1,b.outer+.08,y1+2.4), V(i,a.outer+.08,y0+2.4)); }
         if (rf.support === "truss" && !closed){ for (const off of [-.2, 1.8]) quad(buf("steel"), V(i,a.inner+off,a.y(0)), V(j1,b.inner+off,b.y(0)), V(j1,b.inner+off,b.y(0)+3.2), V(i,a.inner+off,a.y(0)+3.2));
           quad(buf("steel"), V(i,a.inner-.2,a.y(0)+3.2), V(j1,b.inner-.2,b.y(0)+3.2), V(j1,b.inner+1.8,b.y(0)+3.2), V(i,a.inner+1.8,a.y(0)+3.2)); }
         roofQuads.push([pt(i,a.inner), pt(j1,b.inner), pt(j1,b.outer), pt(i,a.outer)]);
@@ -647,7 +720,6 @@ function build(){
           post(buf("steel"), q[0], q[1], 0, top, .9);
           for (const [p2, y2] of [[tip, a.y(0)], [mid, a.y(.45)]]) quad(buf("cable"), [q[0]-tg[0]*.08, top, q[1]-tg[1]*.08], [q[0]+tg[0]*.08, top, q[1]+tg[1]*.08], [p2[0]+tg[0]*.08, y2, p2[1]+tg[1]*.08], [p2[0]-tg[0]*.08, y2, p2[1]-tg[1]*.08]);
           topAll = Math.max(topAll, top); }
-        if (fac.fins && marks(6).has(i)){ const q = pt(i, a.outer + .25); post(buf("steel"), q[0], q[1], 0, a.y(1), 0.35); }
         const g = pt(i, a.outer); grow(g[0], g[1]);
       }
       if (!closed){
@@ -681,7 +753,15 @@ function build(){
         post(buf("tower"), q[0] + tg[0]*side, q[1] + tg[1]*side, 0, info[i].top + 3, 6); grow(q[0], q[1]); } }
     if (fac.gates) for (const i of marks(14)){ const b = backAt(i); if (b == null) continue; const tg = tangent(i), q = pt(i, b + .08);
       quad(buf("gate"), [q[0]-tg[0]*1.6, 0, q[1]-tg[1]*1.6], [q[0]+tg[0]*1.6, 0, q[1]+tg[1]*1.6], [q[0]+tg[0]*1.6, 3.4, q[1]+tg[1]*1.6], [q[0]-tg[0]*1.6, 3.4, q[1]-tg[1]*1.6]); }
-    if (fac.mullions) for (const i of marks(4)){ const b = backAt(i); if (b == null) continue; const q = pt(i, b + .2); post(buf("steel"), q[0], q[1], 1, Math.max(4, info[i].top - 1), .25); }
+    /* The outside wall, dressed in the stand's look: windows, pilasters, bands, fins or glass. It runs along the roof's back
+       edge where there is a roof, otherwise along the back of the top tier. */
+    if (look !== "plain") for (let i=0;i<segs;i++){
+      const j1 = nx(i), x0 = info[i], x1 = info[j1]; if (!x0 || !x1) continue;
+      const ra = RRout && RRout[i], rb = RRout && RRout[j1], roofed = roofOn && ra && rb;
+      const d0 = roofed ? ra.outer : x0.back, d1 = roofed ? rb.outer : x1.back, y0 = roofed ? ra.y(1) : x0.top, y1 = roofed ? rb.y(1) : x1.top;
+      const nv = [v[i][0] + v[j1][0], v[i][1] + v[j1][1]], nl = Math.hypot(nv[0], nv[1]) || 1;
+      dressWall(buf, look, wallKey, pt(i, d0), pt(j1, d1), y0, y1, [nv[0]/nl, nv[1]/nl]);
+    }
     if (st.sel && st.key in S.stands && lay === "stands" && info[midI]){ const q = pt(midI, info[midI].front);
       handles.push({kind:"dist", x:q[0], y:0.6, z:q[1], o:o[midI], v:v[midI], cfg}); }
     for (const r of segRecs) allRecs.push(r);
@@ -724,8 +804,51 @@ function build(){
   const ringGeo = () => densify(linearize(d => closedPathS(F, radius, d, shape), true), 4, set + 6);
   const cornerCfg = (sa, sb, cc) => { const src = [sa, sb].find(x => x.tiers.length && x.roof.shape !== "none");
     return {style:(sa.tiers.length ? sa : sb).style, roof: cc.roof && src ? Object.assign({}, src.roof, {shape: src.roof.shape === "closed" ? "slope" : src.roof.shape, support: src.roof.support === "truss" ? "none" : src.roof.support}) : R("none"), facade:{}}; };
+  /* Upper tiers on their own outline, like La Cartuja or the Monumental: the lower tier keeps hugging the play while every
+     tier above it is bent, slice by slice, onto an oval or a circle. "ring" puts the front of the upper tiers on the outline;
+     "fill" grows the top tier back to it, so the outer wall and roof trace the shape. */
+  const OUT = Object.assign({shape:"follow", fit:"ring", size:0}, S.outer || {});
+  const nLow = lay === "bowl" ? 1 : S.bowl.tiers.length;
+  let shapeT = tiers => tiers;
+  const lastBack = pr => { let b = null; for (const p of pr) if (p.rows > 0.5) b = p.back; return b; };
+  if (OUT.shape !== "follow" && lay !== "stands"){
+    const ring0 = ringGeo(), lowB = lastBack(profile(S.bowl.tiers.slice(0, nLow), set)) || set;
+    let A, B;
+    if (OUT.fit === "fill"){ // the smallest outline that takes in the back of every stand as built
+      const backOf = list => lastBack(profile(list, set)) || lowB;
+      const full = s2 => lay === "bowl" ? S.bowl.tiers : S.bowl.tiers.concat(S.stands[s2].tiers);
+      const bk = {}; for (const s2 of SIDES) bk[s2] = backOf(full(s2));
+      const sideOf = v2 => Math.abs(v2[0]) > Math.abs(v2[1]) ? (v2[0] > 0 ? "E" : "W") : (v2[1] > 0 ? "S" : "N");
+      const pts = ring0.o.map((o2, i) => { const d = bk[sideOf(ring0.v[i])]; return [o2[0] + d*ring0.v[i][0], o2[1] + d*ring0.v[i][1]]; });
+      const a0 = F.W/2 + Math.max(bk.E, bk.W), b0 = F.H/2 + Math.max(bk.N, bk.S);
+      if (OUT.shape === "circle") A = B = Math.max(...pts.map(q => Math.hypot(q[0], q[1])));
+      else { const k = Math.max(1, ...pts.map(q => Math.hypot(q[0]/a0, q[1]/b0))); A = a0*k; B = b0*k; }
+    } else { // the smallest outline that clears the back of the lower tier all the way round
+      const pts = ring0.o.map((o2, i) => [o2[0] + lowB*ring0.v[i][0], o2[1] + lowB*ring0.v[i][1]]);
+      if (OUT.shape === "circle") A = B = Math.max(...pts.map(q => Math.hypot(q[0], q[1])));
+      else { const a0 = F.W/2 + lowB, b0 = F.H/2 + lowB, k = Math.max(1, ...pts.map(q => Math.hypot(q[0]/a0, q[1]/b0))); A = a0*k; B = b0*k; }
+    }
+    A += OUT.size || 0; B += OUT.size || 0;
+    const hit = (o2, v2) => { // distance along a slice to the outline
+      const a = (v2[0]/A)**2 + (v2[1]/B)**2, b = 2*(o2[0]*v2[0]/(A*A) + o2[1]*v2[1]/(B*B)), c = (o2[0]/A)**2 + (o2[1]/B)**2 - 1, disc = b*b - 4*a*c;
+      return a > 0 && disc >= 0 ? (-b + Math.sqrt(disc))/(2*a) : null; };
+    shapeT = (tiers, o2, v2) => {
+      if (tiers.length <= nLow) return tiers;
+      const d = hit(o2, v2); if (!(d > 0)) return tiers;
+      const tt = tiers.map(x => Object.assign({}, x));
+      if (OUT.fit === "fill"){
+        const pr = profile(tt, set); let k = pr.length - 1; while (k >= nLow && !(pr[k].rows > 0.5)) k--; if (k < nLow) return tiers;
+        tt[k].rows = Math.max(1, Math.min(120, Math.round(tt[k].rows + (d - pr[k].back)/pr[k].T)));
+      } else {
+        const lb = lastBack(profile(tt.slice(0, nLow), set)); if (lb == null) return tiers;
+        tt[nLow].over = Math.max(-60, Math.min(30, lb - d));
+      }
+      return tt;
+    };
+  }
   if (lay === "bowl"){
-    const st = buildSliced({name:"Bowl", key:"B", geo:ringGeo(), cfg:S.bowl, set, tiersFor:() => S.bowl.tiers, tierRef:k => S.bowl.tiers[k], drawFrom:0, sel: tab === "B"});
+    const ring0 = ringGeo();
+    const st = buildSliced({name:"Bowl", key:"B", geo:ring0, cfg:S.bowl, set, tiersFor:i => shapeT(S.bowl.tiers, ring0.o[i], ring0.v[i]), tierRef:k => S.bowl.tiers[k], drawFrom:0, sel: tab === "B"});
     if (st && st.closedAt) closedAt = st.closedAt;
   } else if (lay === "stands"){
     for (const s of SIDES){
@@ -754,14 +877,14 @@ function build(){
       const [gb, ga] = SIDE_GROUPS[s], kb = GROUP_KEY[gb], ka = GROUP_KEY[ga];
       const lo = gb*(nc+1) + (split(kb) ? nc/2 : nc), hi = ga*(nc+1) + (split(ka) ? nc/2 : 0);
       const geo = subGeo(ring, lo, hi, total4);
-      buildSliced({name:SIDE_NAMES[s], key:s, geo, cfg, set, tiersFor:() => ringT.concat(cfg.tiers), tierRef:k => cfg.tiers[k], drawFrom:rc, sel: tab === s});
+      buildSliced({name:SIDE_NAMES[s], key:s, geo, cfg, set, tiersFor:i => shapeT(ringT.concat(cfg.tiers), geo.o[i], geo.v[i]), tierRef:k => cfg.tiers[k], drawFrom:rc, sel: tab === s});
     }
     for (const c of CORNERS){
       const cc = S.corners[c.key], mode = cc.mode; if (mode !== "blend" && mode !== "custom") continue;
       const sa = S.stands[c.a], sb = S.stands[c.b]; if (mode === "blend" && !sa.tiers.length && !sb.tiers.length) continue;
       if (shape === "square") continue;
       const geo = subGeo(ring, c.g*(nc+1), c.g*(nc+1) + nc, total4);
-      buildSliced({name:c.name, key:"C", ck:c.key, geo, cfg:cornerCfg(sa, sb, cc), set, tiersFor:i => ringT.concat(cornerTiers(c, geo.frac[i])),
+      buildSliced({name:c.name, key:"C", ck:c.key, geo, cfg:cornerCfg(sa, sb, cc), set, tiersFor:i => shapeT(ringT.concat(cornerTiers(c, geo.frac[i])), geo.o[i], geo.v[i]),
         tierRef: mode === "custom" ? k => S.cornerCustom[k] : null, drawFrom:rc, sel: tab === "C", styleLabel:false});
     }
   }

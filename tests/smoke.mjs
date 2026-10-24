@@ -41,10 +41,25 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
     await page.click(`[data-p="${p}"]`); await page.waitForTimeout(300);
     check((await cap()) > 0, `preset "${p}" builds`);
   }
+  // upper tiers on their own outline, and façade looks
+  for (const p of ["oval", "cartuja"]) {
+    await page.click(`[data-p="${p}"]`); await page.waitForTimeout(300);
+    check((await cap()) > 20000 && !(await page.evaluate(() => window.__gw.last().issues.length)), `preset "${p}" builds with no warnings`);
+  }
+  await page.click('#panes [data-pane="ground"]');
+  const capBefore = await cap();
+  for (const [shape, fit] of [["circle", "fill"], ["follow", "ring"], ["oval", "ring"]]) { await page.click(`label[for="os-${shape}"]`); if (shape !== "follow") await page.click(`label[for="of-${fit}"]`); await page.waitForTimeout(300); }
+  check((await cap()) === capBefore, "switching the upper-tier outline round and back restores the stadium");
+  await page.click('#panes [data-pane="stands"]');
+  await page.locator('select[data-p="facade.look"]').selectOption("glass"); await page.waitForTimeout(300);
+  check((await page.evaluate(() => window.__gw.state().bowl.facade.look)) === "glass", "the outside-wall look can be changed");
+  await page.click('#panes [data-pane="start"]');
+
+  const beforeRandom = await page.evaluate(() => JSON.stringify(window.__gw.state()));
   await page.click("#randomBtn"); await page.waitForTimeout(300);
   check((await cap()) > 0, "Surprise me builds a stadium");
   await page.click("#undoBtn"); await page.waitForTimeout(300);
-  check((await page.evaluate(() => window.__gw.state().sport)) === "custom", "Undo goes back to the previous design");
+  check((await page.evaluate(() => JSON.stringify(window.__gw.state()))) === beforeRandom, "Undo goes back to the previous design");
 
   for (const pane of ["ground", "stands", "look", "results", "rules", "start"]) await page.click(`#panes [data-pane="${pane}"]`);
   check(await page.locator('#panebody > [data-pane="start"].on').first().isVisible(), "section tabs switch");

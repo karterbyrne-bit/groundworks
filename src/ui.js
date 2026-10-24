@@ -518,9 +518,10 @@ function renderEditor(){
       ${tierBlocks(cfg.tiers, above)}
       ${cfg.tiers.length < 4 ? `<button class="btn small" data-act="addTier">Add a tier</button>` : ""}
       ${ring ? "" : roofBlock(cfg, bowl)}
-      ${ring ? "" : `<details class="sub"><summary>Façade details</summary><div class="inner">
+      ${ring ? "" : `<details class="sub" open><summary>Outside walls</summary><div class="inner">
+        ${pick("Look", "facade.look", FACADE_LOOKS[fac.look] ? fac.look : sty.look || "plain", FACADE_LOOKS)}
         ${check("Stair towers", "facade.towers", fac.towers)}${check("Entrance gates", "facade.gates", fac.gates)}
-        ${check("Tall window mullions", "facade.mullions", fac.mullions)}${check("Metal fins", "facade.fins", fac.fins)}${check("Glazed band", "facade.glass", fac.glass)}</div></details>`}`;
+        <button class="btn link" data-act="seeOutside">See it from the street</button></div></details>`}`;
   }
   refreshOutputs(); renderSummary();
 }
@@ -591,6 +592,7 @@ $("editor").addEventListener("click", e => {
     const at = Math.min(1, arr.length); arr.splice(at, 0, t("exec", 4, 22, true, at || isHybrid() ? {over:2, gap:3.6} : {})); }
   if (act === "toggleRoof"){ cfg.roof = cfg.roof.shape === "none" ? STYLES[cfg.style].roof() : Object.assign({}, cfg.roof, {shape:"none"}); if (cfg.roof.shape === "none" && STYLES[cfg.style].roof().shape === "none" && b.textContent.includes("+")) cfg.roof = R("slope"); }
   if (act === "mirror"){ S.stands[OPPOSITE[tab]] = clone(cfg); flash(`<b>Copied</b> to the ${SIDE_NAMES[OPPOSITE[tab]].toLowerCase()}.`, UNDO); }
+  if (act === "seeOutside"){ goCam("exterior"); return; }
   if (act === "copy"){ clipboard = clone(cfg); say("<b>Copied.</b> Pick another stand and paste."); renderEditor(); return; }
   if (act === "paste" && clipboard){ const c2 = clone(clipboard); if (isHybrid() && tab === "B") c2.tiers = c2.tiers.slice(0,1); Object.assign(cfg, c2); }
   if (act === "reset"){ const fresh = mk(cfg.style); if (isHybrid()) fresh.tiers = tab === "B" ? fresh.tiers.slice(0,1) : fresh.tiers.slice(1); Object.assign(cfg, fresh); }
@@ -725,6 +727,10 @@ $("seatPattern").addEventListener("change", e => { S.seatPattern = e.target.valu
 $("seat2").addEventListener("input", e => { S.seat2 = e.target.value; setSeatColours(); save(true); });
 bindRange("focusIn", v => S.focusIn = v);
 const archOf = () => (S.arch = Object.assign({skin:"none", skinShape:"round"}, S.arch || {}));
+const outerOf = () => (S.outer = Object.assign({shape:"follow", fit:"ring", size:0}, S.outer || {}));
+bindRadio("outerShape", v => { outerOf().shape = v; changed(); });
+bindRadio("outerFit", v => { outerOf().fit = v; changed(); });
+bindRange("outerSize", v => outerOf().size = v);
 $("skin").innerHTML = Object.entries(SKINS).map(([k,v]) => `<option value="${k}">${v}</option>`).join("");
 $("skin").addEventListener("change", e => { archOf().skin = e.target.value; changed(); });
 bindRadio("skinShape", v => { archOf().skinShape = v; changed(); });
@@ -877,6 +883,15 @@ function syncUI(){
   const fIn = LAST && LAST.focusIn != null ? LAST.focusIn : (S.focusIn || 0);
   $("focusIn").max = Math.max(0.5, Math.floor(maxFocusIn(F)*2)/2);
   so("focusIn", fIn, fIn < 0.05 ? "edge of play" : `${+fIn.toFixed(1)} m into the floor` + (S.focusIn == null ? " (auto)" : ""));
+  const OU = Object.assign({shape:"follow", fit:"ring", size:0}, S.outer || {}), upper = lay === "bowl" ? S.bowl.tiers.length > 1 : SIDES.some(s => S.stands[s].tiers.length);
+  $("outerBox").hidden = lay === "stands";
+  document.querySelector(`input[name=outerShape][value=${OU.shape}]`).checked = true;
+  document.querySelector(`input[name=outerFit][value=${OU.fit}]`).checked = true;
+  $("outerMore").hidden = OU.shape === "follow" || !upper;
+  so("outerSize", OU.size, (OU.size > 0 ? "+" : "") + OU.size + " m");
+  $("outerFitNote").textContent = OU.fit === "fill" ? "The upper tiers grow back until their back row, outer wall and roof trace the outline, so the corners get deeper." : "The front of the upper tiers sits on the outline, floating back from the lower tier along the sides.";
+  $("outerNone").textContent = upper ? "" : (lay === "bowl" ? "Add a second tier to the bowl (under Stands) to use this." : "Give a stand some tiers above the lower bowl (under Stands) to use this.");
+  $("outerNone").hidden = upper;
   $("plotOn").checked = S.plot.on; $("plotBox").hidden = !S.plot.on; $("plotClip").checked = S.plot.clip;
   $("boards").checked = !!S.boards;
   const AR = Object.assign({skin:"none", skinShape:"round"}, S.arch || {});

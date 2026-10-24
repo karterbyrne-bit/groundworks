@@ -7,7 +7,8 @@ It's a creative tool. Its checks are loosely based on UK sports-ground guidance 
 ## What it does
 
 - **Playing areas:** football, rugby, cricket, athletics, baseball, and arena floors (Wrestleball, boxing, MMA cage, basketball, ice hockey, tennis, concert, bullring, or any custom size).
-- **Layouts:** separate stands, a continuous bowl, or a bowl with independent stands above it.
+- **Layouts:** separate stands, a continuous bowl, or a bowl with independent stands above it. Upper tiers can follow their own oval or round outline (like La Cartuja or El Monumental) while the lower tier hugs the play.
+- **Outside walls:** brick with windows, timber, art deco ribs, concrete bands, metal cladding, fins, glass curtain walls; windows light up at night.
 - **Stands:** 21 architectural styles, up to four tiers each (seats, executive boxes, rail seats, benches or terracing), overhangs, pillars, corners that join some or all tiers, and drag handles in the 3D view.
 - **Roofs:** sloping, pitched or closed; five materials; five structural styles; level rooflines.
 - **Sites:** squeeze the ground onto a plot, with hard or soft boundaries.
@@ -34,6 +35,10 @@ It's a creative tool. Its checks are loosely based on UK sports-ground guidance 
 | `sw.js`, `manifest.webmanifest`, `icon*`, `og.png` | Offline support, the installable-app details, icons and the link preview image |
 | `tests/smoke.mjs` | Automated test that opens the app in a real browser and clicks through it |
 | `docs/NFRs.md` | Non-functional requirements: speed, reliability, privacy and so on, with their status |
+
+## Hosting it on Vercel
+
+Import the repository in Vercel; `vercel.json` already tells it to run `npm run build` and publish the `dist/` folder. No other settings are needed.
 
 ## Making changes
 
