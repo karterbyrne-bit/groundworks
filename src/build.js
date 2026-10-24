@@ -588,6 +588,16 @@ function drawSite(features, bf, ext){
     for (const q of featurePoly(f, 0)){ ext[0] = Math.max(ext[0], Math.abs(q[0])); ext[1] = Math.max(ext[1], Math.abs(q[1])); }
   }
 }
+/* One bay of an open box truss resting on a roof's front edge, from slice i to slice j: top and bottom chords on two faces
+   (at the edge and 2 m back), a diagonal and an upright in each face, and ties across the top. at(k, off) gives the point
+   on the roof surface off metres back from the edge at slice k. */
+function latticeAlong(sb, i, j, at){
+  const H = 3.2, up = (p, y) => [p[0], p[1] + y, p[2]];
+  for (const off of [-.2, 1.8]){ const p = at(i, off)[0], q = at(j, off)[0];
+    bar(sb, p, q, .28); bar(sb, up(p, H), up(q, H), .28);
+    bar(sb, (i + j) % 2 ? up(p, H) : p, (i + j) % 2 ? q : up(q, H), .16); bar(sb, p, up(p, H), .14); }
+  bar(sb, up(at(i, -.2)[0], H), up(at(i, 1.8)[0], H), .14); bar(sb, at(i, -.2)[0], up(at(i, 1.8)[0], H), .12);
+}
 /* A floodlight head: a frame of separate lamps angled down at the play, with a service platform behind. */
 const lampGeo = new THREE.BoxGeometry(1.25, 1.05, .5), lampRim = new THREE.BoxGeometry(1.45, 1.25, .35); lampGeo.keep = lampRim.keep = true;
 function lampHead(x, y, z){
@@ -803,7 +813,7 @@ function build(){
           const key = `C:${st.name}:${kk}`, mm = Math.round(tierC*1000), front = firstC*1000 < L.minC + 3;
           const rowsDown = r => { const out = []; for (let x = Math.round(rowsOf(r)) - 1; x >= 2; x--) out.push(x); return out; };
           const setbacks = () => { const out = []; const base = st.key in S.stands && S.stands[st.key].dist != null ? S.stands[st.key].dist : S.setback;
-            for (let x = base + 0.5; x <= base + 20; x += 0.5) out.push(x); return out; };
+            for (let x = base + 0.5; x <= base + 20; x += 0.5) out.push(x); for (let x = base + 21; x <= base + 40; x += 1) out.push(x); return out; };
           const setDist = v2 => { if (lay === "stands" && S.stands[st.key] && S.stands[st.key].dist != null) S.stands[st.key].dist = v2; else S.setback = v2; };
           let text, fix = null; const close = [], away = [];
           const maxIn = maxFocusIn(F), aims = []; for (let x = Math.ceil(focusIn*2)/2 + 0.5; x <= maxIn + 1e-6; x += 0.5) aims.push(x);
@@ -843,7 +853,9 @@ function build(){
              the designer prefers moving seats back. A fix only gives up (and undoes itself) when none of them work. */
           const keeps = [], moves = [];
           if (rakes.length) keeps.push(steeper);
-          if (best.stacked && ref) moves.push(() => { const o0 = ref.over || 0; return searchFix(v2 => { ref.over = Math.max(-15, o0 - v2); }, [1,2,3,4,6,8,10,12,15], key); });
+          if (best.stacked && ref) moves.push(() => { const o0 = ref.over || 0; return searchFix(v2 => { ref.over = Math.max(-40, o0 - v2); }, [1,2,3,4,6,8,10,12,15,20,25,30,40], key); });
+          const below = kk > 0 && st.tierRef ? st.tierRef(kk - 1) : null; // a tier perched on a very deep one: make the one below shallower
+          if (best.stacked && below) moves.push(() => { const top = Math.round(rowsOf(below)), steps = []; for (let x = top - 2; x >= Math.max(4, Math.round(top*0.4)); x -= 2) steps.push(x); return searchFix(v2 => setRows(below, v2), steps, key); });
           if (!st.ck) moves.push(() => searchFix(setDist, setbacks(), key));
           if (ref) moves.push(() => searchFix(v2 => setRows(ref, v2), rowsDown(ref), key));
           for (const f of cornerFixes) moves.push(f.run);
@@ -1021,8 +1033,7 @@ function build(){
         quad(buf("roofEdge"), V(i,a.inner,a.y(0)-1.2), V(j1,b.inner,b.y(0)-1.2), V(j1,b.inner,b.y(0)), V(i,a.inner,a.y(0)));
         quad(clad, V(i,a.outer,0), V(j1,b.outer,0), V(j1,b.outer,b.y(1)), V(i,a.outer,a.y(1)));
         if (look === "plain" && a.y(1) > 14 && b.y(1) > 14 && sty.wall !== "glassClad"){ const y0 = a.y(1)*0.42, y1 = b.y(1)*0.42; quad(buf("band"), V(i,a.outer+.08,y0), V(j1,b.outer+.08,y1), V(j1,b.outer+.08,y1+2.4), V(i,a.outer+.08,y0+2.4)); }
-        if (rf.support === "truss" && !closed){ for (const off of [-.2, 1.8]) quad(buf("steel"), V(i,a.inner+off,a.y(0)), V(j1,b.inner+off,b.y(0)), V(j1,b.inner+off,b.y(0)+3.2), V(i,a.inner+off,a.y(0)+3.2));
-          quad(buf("steel"), V(i,a.inner-.2,a.y(0)+3.2), V(j1,b.inner-.2,b.y(0)+3.2), V(j1,b.inner+1.8,b.y(0)+3.2), V(i,a.inner+1.8,a.y(0)+3.2)); }
+        if (rf.support === "truss" && !closed) latticeAlong(buf("steel"), i, j1, (k, off) => { const r = k === i ? a : b; return [V(k, r.inner + off, r.y(Math.max(0, off)/(r.outer - r.inner)))]; });
         roofQuads.push([pt(i,a.inner), pt(j1,b.inner), pt(j1,b.outer), pt(i,a.outer)]);
       }
       const ribAt = marks(12), colAt = marks(14), mastAt = marks(32);
@@ -1334,8 +1345,7 @@ function build(){
       quad(buf("roofEdge"), V3(i,dIn[i],a(0)-edgeH), V3(j,dIn[j],b(0)-edgeH), V3(j,dIn[j],b(0)), V3(i,dIn[i],a(0)));
       const low = gr.wall ? [0, 0] : [a(1) - .8, b(1) - .8];
       quad(buf(gr.wall ? wallKey : "roofEdge"), V3(i,dOut[i],low[0]), V3(j,dOut[j],low[1]), V3(j,dOut[j],b(1)), V3(i,dOut[i],a(1)));
-      if (gr.support === "truss"){ for (const off of [-.2, 1.8]) quad(buf("steel"), V3(i,dIn[i]+off,a(0)), V3(j,dIn[j]+off,b(0)), V3(j,dIn[j]+off,b(0)+3.2), V3(i,dIn[i]+off,a(0)+3.2));
-        quad(buf("steel"), V3(i,dIn[i]-.2,a(0)+3.2), V3(j,dIn[j]-.2,b(0)+3.2), V3(j,dIn[j]+1.8,b(0)+3.2), V3(i,dIn[i]+1.8,a(0)+3.2)); }
+      if (gr.support === "truss") latticeAlong(buf("steel"), i, j, (k, off) => { const ys = k === i ? a : b, sp = dOut[k] - dIn[k]; return [V3(k, dIn[k] + off, ys(Math.max(0, off)/sp))]; });
       roofQuads.push([P(i,dIn[i]), P(j,dIn[j]), P(j,dOut[j]), P(i,dOut[i])]);
     }
     const cum = [0]; for (let i=1;i<n;i++){ const p = P(i-1,dOut[i-1]), q = P(i,dOut[i]); cum.push(cum[i-1] + Math.hypot(q[0]-p[0], q[1]-p[1])); }
@@ -1383,11 +1393,20 @@ function build(){
     if (ck){ fixes.push({label:"Bring that tier less far round the corner", run:() => { const cc = S.corners[ck], r0 = (cc.reach || []).slice();
       return searchFix(v2 => { cc.reach = r0.slice(); cc.reach[farRef.kk] = {a:v2, b:v2}; }, [.8,.6,.5,.4,.3,.2,.1,0], "far"); }});
       fixes.push({label:"Leave that corner open", run:() => { S.corners[ck].mode = "open"; return !dryIssues().some(i => i.key === "far"); }}); }
+    /* Taking one stand back can leave another as the furthest, so keep trimming whichever seats are now furthest until it clears. */
+    const fixFar = () => { const snap = JSON.stringify(S);
+      for (let n=0;n<30;n++){ const r = dryRun(); if (!r.issues.some(i => i.key === "far")) return true; const f2 = r.farRef; if (!f2) break;
+        if (f2.ref){ const now = Math.round(rowsOf(f2.ref)); if (now <= 2) break; setRows(f2.ref, Math.max(2, now - Math.max(1, Math.round(now*0.12)))); }
+        else if (f2.ck){ const cc = S.corners[f2.ck], cur = cc.reach && cc.reach[f2.kk] && cc.reach[f2.kk].a != null ? cc.reach[f2.kk].a : 1;
+          if (cur <= 0.05) cc.mode = "open"; else { cc.reach = (cc.reach || []).slice(); cc.reach[f2.kk] = {a:Math.max(0, cur - .2), b:Math.max(0, cur - .2)}; } }
+        else break; }
+      if (!dryIssues().some(i => i.key === "far")) return true; S = JSON.parse(snap); return false; };
+    const farFixes = (fixes.length ? fixes : [{label:"Trim the furthest seats", run:() => false}]).map(f => Object.assign({}, f, {run:() => { const snap = JSON.stringify(S); if (f.run() || fixFar()) return true; S = JSON.parse(snap); return false; }}));
     issue(`The furthest fan${farRef ? " (back of the " + farRef.name.toLowerCase() + ")" : ""} is ${Math.round(far)} m from the ${farName}. The limit is ${L.maxView} m.`, "far", "view",
-      {fix: fixes[0] || null, alts: fixes.slice(1)});
+      {fix: farFixes[0], alts: farFixes.slice(1)});
   }
   const sext = [Math.max(-bounds[0], bounds[1]), Math.max(-bounds[2], bounds[3])];
-  const result = {issues, total, maxH, bounds, covered, minC, slowest, far, restricted, byType, roofNeedMax};
+  const result = {issues, total, maxH, bounds, covered, minC, slowest, far, farRef, restricted, byType, roofNeedMax};
   const screenPlans = planScreens(F, anchors, closedAt, outerTop, set, issue);
   if (DRY) return result;
 
