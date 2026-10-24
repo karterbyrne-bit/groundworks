@@ -1,10 +1,26 @@
+<div class="splash" id="splash" aria-hidden="true">
+  <div class="splash-in">
+    <svg class="splash-pitch" viewBox="0 0 120 80"><rect x="4" y="4" width="112" height="72" rx="3"/><path d="M60 4v72"/><circle cx="60" cy="40" r="11"/><path d="M4 22h16v36H4M116 22h-16v36h16"/></svg>
+    <div class="splash-name">Groundworks</div>
+    <div class="splash-msg">Laying the pitch…</div>
+  </div>
+</div>
+<div class="fatal" id="fatal" role="alertdialog" aria-modal="true" aria-labelledby="fatalTitle" hidden>
+  <div class="fatal-card">
+    <h2 id="fatalTitle">Groundworks couldn't start</h2>
+    <p></p>
+    <div class="fatal-acts"><button class="btn primary" data-reload>Reload</button><button class="btn" data-fresh>Start with a fresh design</button></div>
+  </div>
+</div>
+<noscript><div class="fatal"><div class="fatal-card"><h2>Groundworks needs JavaScript</h2><p>Switch JavaScript on in your browser settings, then reload the page.</p></div></div></noscript>
 <div class="app">
   <aside class="panel" aria-label="Stadium settings">
     <div class="topbar">
       <h1>Groundworks</h1>
       <div class="toolbar" role="toolbar" aria-label="Edit history">
-        <button class="btn small" id="undoBtn" disabled>Undo</button>
-        <button class="btn small" id="redoBtn" disabled>Redo</button>
+        <button class="btn small icon" id="undoBtn" disabled title="Undo (Ctrl+Z)" aria-label="Undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+        <button class="btn small icon" id="redoBtn" disabled title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+        <button class="btn small icon" id="helpBtn" title="Help and shortcuts (?)" aria-label="Help and shortcuts"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6"/><path d="M12 17.2v.1"/></svg></button>
       </div>
     </div>
     <nav class="panes" id="panes" role="tablist" aria-label="Sections">
@@ -17,6 +33,11 @@
     </nav>
     <div class="panebody" id="panebody">
     <p class="hint brandline" data-pane="start">Pick a starting point, then tap any stand in the 3D view to reshape it. Everything is undoable.</p>
+
+    <div class="quick" data-pane="start">
+      <button class="btn hero" id="randomBtn"><span class="dice" aria-hidden="true">🎲</span><span>Surprise me<small>a random stadium to play with</small></span></button>
+      <button class="btn hero" id="shareBtn"><span class="dice" aria-hidden="true">🔗</span><span>Share this design<small>copies a link anyone can open</small></span></button>
+    </div>
 
     <section class="group" data-pane="start">
       <h2>Start from</h2>
@@ -180,7 +201,7 @@
       <div class="row" id="seat2Row"><label for="seat2">Second colour</label><input type="color" id="seat2" value="#f2f2f2"></div>
     </section>
     <section class="readout" aria-live="polite" data-pane="results">
-      <div class="cap"><div class="big" id="cap">0</div><div class="lbl">Capacity (estimate)</div><div class="mix" id="mix"></div></div>
+      <div class="cap"><div class="big" id="cap">0</div><div class="lbl">Capacity (estimate)</div><div class="mix" id="mix"></div><div class="like" id="like"></div></div>
       <div class="metrics" id="metrics"></div>
       <div class="safety" id="safety"></div>
       <div class="breakdown" id="breakdown"></div>
@@ -217,3 +238,37 @@
     </div>
   </main>
 </div>
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+<dialog class="sheet" id="welcome" aria-labelledby="welcomeTitle">
+  <h2 id="welcomeTitle">Welcome to Groundworks</h2>
+  <p class="lede">Build the stadium you've always wanted, then see if fans could actually watch the game from it.</p>
+  <ol class="steps">
+    <li><b>Pick a starting ground</b><span>or hit Surprise me for a random one.</span></li>
+    <li><b>Tap any stand</b><span>to reshape it. Drag the blue handles in the 3D view to stretch it.</span></li>
+    <li><b>Watch the capacity</b><span>and the checks. One tap fixes most problems.</span></li>
+  </ol>
+  <p class="hint">Everything can be undone, and your work saves itself as you go.</p>
+  <form method="dialog" class="sheet-acts"><button class="btn primary" value="go">Start building</button></form>
+</dialog>
+<dialog class="sheet" id="help" aria-labelledby="helpTitle">
+  <h2 id="helpTitle">Help and shortcuts</h2>
+  <div class="helpgrid">
+    <div><h3>In the 3D view</h3><ul>
+      <li><b>Drag</b> to spin round the ground</li>
+      <li><b>Scroll or pinch</b> to zoom</li>
+      <li><b>Right-drag or two fingers</b> to slide</li>
+      <li><b>Tap a stand</b> to edit it</li>
+      <li><b>Drag the blue handles</b> to reshape it</li></ul></div>
+    <div><h3>Keyboard</h3><ul class="keys">
+      <li><kbd>Ctrl</kbd> <kbd>Z</kbd> Undo</li>
+      <li><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Z</kbd> Redo</li>
+      <li><kbd>1</kbd>–<kbd>6</kbd> Switch section</li>
+      <li><kbd>A</kbd> Aerial · <kbd>P</kbd> Plan · <kbd>F</kbd> From a seat</li>
+      <li><kbd>N</kbd> Night match</li>
+      <li><kbd>R</kbd> Surprise me</li>
+      <li><kbd>?</kbd> This help</li></ul></div>
+  </div>
+  <p class="hint">Your current design saves itself in this browser. Nothing you make is sent anywhere: Groundworks has no accounts, adverts or tracking. To move a design to another device, use Share this design.</p>
+  <p class="hint">Groundworks is a creative sandbox. Its checks are loosely based on UK guidance; passing them doesn't mean a design is safe, legal or buildable.</p>
+  <form method="dialog" class="sheet-acts"><button class="btn" value="tour" id="tourBtn">Show the welcome again</button><button class="btn primary" value="close">Close</button></form>
+</dialog>

@@ -182,11 +182,15 @@ const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 view.insertBefore(renderer.domElement, view.firstChild);
+/* Draw only when something has changed, so an idle stadium doesn't drain a phone or laptop battery. */
+let dirty = 2;
+function invalidate(){ dirty = 2; }
 const scene = new THREE.Scene();
 const persp = new THREE.PerspectiveCamera(42, 1, 0.2, 8000), ortho = new THREE.OrthographicCamera(-50, 50, 50, -50, -4000, 8000);
 let camera = persp;
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.48; controls.autoRotateSpeed = 0.6;
+controls.addEventListener("change", invalidate);
 const hemi = new THREE.HemisphereLight(0xffffff, 0x4a554c, 0.75); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 0.9);
 const fill = new THREE.DirectionalLight(0xdfe8ff, 0.25); fill.position.set(-120, 80, -140); scene.add(fill);
@@ -241,6 +245,7 @@ function setSeatColours(){
   M.seated.color.set(S.seat); M.seatBack.color.set(S.seat).multiplyScalar(0.8); M.rail.color.set(S.seat);
   M.exec.color.set(S.seat).multiplyScalar(0.5); M.lattice.color.set(S.seat);
   const alt = S.seat2 || "#f2f2f2"; M.seatAlt.color.set(alt); M.seatAltBack.color.set(alt).multiplyScalar(0.85);
+  invalidate();
 }
 setSeatColours();
 let group = new THREE.Group(); scene.add(group);

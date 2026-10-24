@@ -1,33 +1,70 @@
 // Builds index.html (one self-contained, minified page) from the files in src/.
+// three.js and the fonts are packed into the page too, so it never depends on another website being up.
 // Run: npm install   (once)   then   npm run build
 import { readFileSync, writeFileSync } from "node:fs";
 import { transformSync } from "esbuild";
 
-const src = f => readFileSync(new URL("./src/" + f, import.meta.url), "utf8");
+const read = p => readFileSync(new URL(p, import.meta.url), "utf8");
+const src = f => read("./src/" + f);
 const dev = process.argv.includes("--dev"); // unminified, easier to debug
 
 const js = "(function(){\n" + ["data.js", "core.js", "build.js", "ui.js"].map(src).join("\n") + "\n})();\n";
 const css = src("styles.css");
 const body = src("body.html");
+const boot = src("boot.js");
 
-const outJs = dev ? js : transformSync(js, { minify: true, target: "es2019" }).code;
-const outCss = dev ? css : transformSync(css, { loader: "css", minify: true }).code;
+const three = read("./node_modules/three/build/three.min.js");
+const orbit = transformSync(read("./node_modules/three/examples/js/controls/OrbitControls.js"), { minify: true, target: "es2019" }).code;
+
+// Latin subsets only: the page is in English. font-display:swap shows text straight away in a fallback font.
+const FONTS = [
+  ["Big Shoulders Display", "big-shoulders-display", [600, 800]],
+  ["IBM Plex Sans", "ibm-plex-sans", [400, 500, 600]],
+  ["IBM Plex Mono", "ibm-plex-mono", [400, 500]],
+];
+const fontCss = FONTS.flatMap(([family, pkg, weights]) => weights.map(w => {
+  const data = readFileSync(new URL(`./node_modules/@fontsource/${pkg}/files/${pkg}-latin-${w}-normal.woff2`, import.meta.url)).toString("base64");
+  return `@font-face{font-family:"${family}";font-style:normal;font-weight:${w};font-display:swap;src:url(data:font/woff2;base64,${data}) format("woff2")}`;
+})).join("\n");
+
+const min = (code, loader) => dev ? code : transformSync(code, { minify: true, target: "es2019", loader }).code;
+const outJs = min(js, "js");
+const outBoot = min(boot, "js");
+const outCss = min(css, "css");
 const outBody = dev ? body : body.replace(/\n\s+/g, "\n");
+
+const SITE = "https://karterbyrne-bit.github.io/groundworks/";
+const DESC = "Design your own 3D football stadium in the browser. Build stands tier by tier, add roofs and floodlights, and see capacity, sightlines and safety checks update live.";
 
 const html = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Groundworks</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<style>${outCss}</style>
+<title>Groundworks: build your own stadium</title>
+<meta name="description" content="${DESC}">
+<meta name="theme-color" content="#eef1ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111714" media="(prefers-color-scheme: dark)">
+<link rel="canonical" href="${SITE}">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Groundworks: build your own stadium">
+<meta property="og:description" content="${DESC}">
+<meta property="og:url" content="${SITE}">
+<meta property="og:image" content="${SITE}og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<style>${fontCss}
+${outCss}</style>
 </head>
 <body>
 ${outBody}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>${outBoot}</script>
+<script>${three}</script>
+<script>${orbit}</script>
 <script>${outJs}</script>
 </body>
 </html>

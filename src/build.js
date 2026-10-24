@@ -343,7 +343,7 @@ function build(){
   const poly = S.plot.on && S.plot.pts ? S.plot.pts : null;
   if (!DRY){
     scene.remove(group);
-    group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material.map) o.material.map.dispose(); });
+    group.traverse(o => { if (o.geometry) o.geometry.dispose(); for (const m of [].concat(o.material || [])) if (m.map && m.map.dispose) m.map.dispose(); });
     group = new THREE.Group(); scene.add(group);
   }
   const Bf = {}; const buf = k => (Bf[k] = Bf[k] || []);
@@ -839,7 +839,7 @@ function build(){
   sc.left=-half; sc.right=half; sc.top=half; sc.bottom=-half; sc.near=10; sc.far=1400; sc.updateProjectionMatrix();
   LAST = Object.assign(result, {closedAt, focusIn, F, farName, ext, sext, parts, set, steepInfo, poly, lay, standInfo, handles});
   LAST_REGIONS = regions;
-  renderStats(); refreshOutputs();
+  renderStats(); refreshOutputs(); invalidate();
   return result;
 }
 /* Fixing a flag: try candidate values with a quick behind-the-scenes rebuild until that flag clears. */
