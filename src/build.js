@@ -602,7 +602,7 @@ function defaultFocusIn(F){ return F.custom ? Math.min(4, Math.min(F.W, F.H)*0.3
 /* Shown set up for its second sport? Then the second sport's field, and the outline the lower tier has to clear. */
 function convertView(){
   const C = Object.assign({}, CONVERT, S.convert || {}); if (!C.on || C.show !== "second" || C.to === S.sport || !CONVERT_TO[C.to]) return null;
-  const F2 = field(C.to), clear = F2.custom ? (KINDS[C.to].set || 2) : 1.5;
+  const F2 = field(C.to), clear = F2.custom ? (KINDS[C.to].set || 2) : C.to === "football" ? Math.max(1.5, S.runoff == null ? 3 : S.runoff) : 1.5;
   return {F2, sp:C.to, how:C.how, pull:C.pull !== false, poly2:closedPathS(F2, F2.r || 0, clear, "curved")};
 }
 let PRE = false;
@@ -615,8 +615,8 @@ function build(){
   const floorRows = F.custom ? Math.max(0, Math.round(S.custom.floor || 0)) : 0;
   const floorStart = 1.2, floorT = 0.85;
   const floorNeed = floorRows ? floorStart + floorRows*floorT + 0.9 : 1;
-  const set = Math.max(S.setback, floorNeed);
-  const standSet = cfg => Math.max(floorNeed, cfg && cfg.dist != null ? cfg.dist : S.setback);
+  const hard = hardStop(), set = Math.max(S.setback, floorNeed, hard);
+  const standSet = cfg => Math.max(floorNeed, hard, cfg && cfg.dist != null ? cfg.dist : S.setback);
   const CV = convertView();
   const radius = (F.custom || F.noStands) ? (F.r > 0 ? F.r : S.corner) : S.corner;
   const poly = S.plot.on && S.plot.pts ? S.plot.pts : null;

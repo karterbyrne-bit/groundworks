@@ -22,6 +22,8 @@ function layoutOf(){
 const isBowl = () => layoutOf() === "bowl";
 const isHybrid = () => layoutOf() === "hybrid";
 const isRing = () => layoutOf() === "ring";
+/* Football's hard stop: nothing may be built on the pitch or the run-off strip round it. */
+const hardStop = () => S.sport === "football" ? Math.max(0, S.runoff == null ? 3 : S.runoff) : 0;
 const ringOf = () => (S.ring = Object.assign({turn:0, gap:6, stands:[]}, S.ring || {}));
 
 /* ================= geometry helpers =================

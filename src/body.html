@@ -42,6 +42,7 @@
     <section class="group" data-pane="start">
       <h2>Start from</h2>
       <div class="presets" id="presets">
+        <button class="btn" data-p="blank">Blank pitch<small>nothing built · start from scratch</small></button>
         <button class="btn" data-p="ot">Old Trafford, 2003-ish<small>bowl + stands above</small></button>
         <button class="btn" data-p="monument">Monumental end<small>double-deck overhang</small></button>
         <button class="btn" data-p="mixed">Mixed-era ground<small>four eras, four stands</small></button>
@@ -119,6 +120,9 @@
       <div class="row"><label for="focusIn">Sightlines aimed at</label><output id="o-focusIn"></output>
         <input type="range" id="focusIn" min="0" max="10" step="0.5"></div>
       <p class="hint">Aiming a few metres into the floor (as arenas do) lets steep stands sit right on top of the action. Aiming at the edge of play is the stricter football rule.</p>
+      <div class="row" id="runoffRow"><label for="runoff">Minimum run-off round the pitch</label><output id="o-runoff"></output>
+        <input type="range" id="runoff" min="1" max="10" step="0.5"></div>
+      <p class="hint" id="runoffNote">Nothing can be built on the pitch or this strip round it: stands, pull-out seats, roads, buildings and the plot boundary all stop at it.</p>
       <div class="row" id="cornerRow"><label for="corner">Corner curve size</label><output id="o-corner"></output>
         <input type="range" id="corner" min="0" max="40" step="1"></div>
     </section>

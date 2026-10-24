@@ -300,7 +300,7 @@ renderer.domElement.addEventListener("pointermove", e => {
       if (h.side) h.ref.sideRows = Object.assign({}, h.ref.sideRows, {[h.side]:rows}); else h.ref.rows = rows; }
     if (h.kind === "over"){ h.ref.over = clamp(r05(h.lowerBack - d), -15, 40); h.ref.gap = clamp(r05(p.y - h.lowerBackH), 1.5, 40); }
     if (h.kind === "roof"){ h.cfg.roof.reach = clamp(r05(h.front - d), -40, 40); h.cfg.roof.lift = clamp(r05(p.y - h.top), 1.5, 40); }
-    if (h.kind === "dist") h.cfg.dist = clamp(r05(d), 1, 80);
+    if (h.kind === "dist") h.cfg.dist = clamp(r05(d), Math.max(1, hardStop()), 80);
     changed(false, true); return;
   }
   if (drag){
@@ -580,7 +580,7 @@ function renderEditor(){
       ${ring ? "" : `<div class="scales"><span>Quick size:</span>${Object.entries(SCALES).map(([k,v]) => `<button class="btn small" data-act="scale" data-scale="${k}">${v.label}</button>`).join("")}</div>`}
       ${side && layoutOf() === "stands" ? `<details class="sub" open><summary>Position and length</summary><div class="inner">
         ${check("Same distance from the play as the other stands", "distSame", cfg.dist == null)}
-        ${cfg.dist == null ? "" : pair("Distance from the play", "dist", cfg.dist, 1, 80, 0.5, "m")}
+        ${cfg.dist == null ? "" : pair("Distance from the play", "dist", cfg.dist, Math.max(1, hardStop()), 80, 0.5, "m")}
         ${pair("Extra length at each end", "extend", cfg.extend || 0, -40, 60, 1, "m", "Only where the corner next to it is open.")}</div></details>` : ""}
       ${isRing() ? `<details class="sub" open><summary>Place in the ring</summary><div class="inner">
         <div class="row"><label for="ringName">Name</label><input type="text" id="ringName" data-p="name" maxlength="30" value="${esc(cfg.name || "")}" aria-label="Stand name"></div>
@@ -919,6 +919,7 @@ bindRadio("layout", v => { S.layout = v; if (v === "hybrid") tab = "B"; if (v ==
 bindRadio("cshape", v => { S.cornerShape = v; changed(); });
 const bindRange = (id, fn, cam) => $(id).addEventListener("input", e => { fn(+e.target.value); changed(cam, true); });
 bindRange("setback", v => S.setback = v);
+bindRange("runoff", v => S.runoff = v);
 for (const [id, key] of [["ckL","L"],["ckW","W"]]) bindRange(id, v => { S.cricket = Object.assign({}, CRICKET, S.cricket, {[key]: v}); }, true);
 for (const [id, key] of [["bpLF","lf"],["bpCF","cf"],["bpRF","rf"],["bpWall","wall"],["bpLFW","lfWall"]]) bindRange(id, v => { S.ballpark = Object.assign({}, BALLPARK, S.ballpark, {[key]: v}); }, true);
 bindRange("corner", v => S.corner = v);
@@ -979,7 +980,7 @@ function openState(st, sideTab, tweak){
 }
 document.querySelectorAll("#presets button").forEach(b => b.addEventListener("click", () => {
   const P = clone(PRESETS[b.dataset.p]); openState(P, b.dataset.p === "monument" ? "E" : "N");
-  toast(`<b>${esc(b.firstChild.textContent.trim())}</b> loaded. Tap any stand to make it yours.`, UNDO);
+  toast(b.dataset.p === "blank" ? "<b>Blank pitch.</b> Open Stands, pick a side and press + Tier to start building." : `<b>${esc(b.firstChild.textContent.trim())}</b> loaded. Tap any stand to make it yours.`, UNDO);
 }));
 
 /* ================= saved designs ================= */
@@ -1120,6 +1121,8 @@ function syncUI(){
   const so = (id, v, txt) => { $(id).value = v; if ($("o-"+id) && txt !== undefined) $("o-"+id).textContent = txt; };
   so("floorRows", S.custom.floor || 0, (S.custom.floor || 0) ? S.custom.floor + " rows" : "none");
   const effSet = LAST ? LAST.set : S.setback;
+  const hs = hardStop(); $("runoffRow").hidden = $("runoffNote").hidden = S.sport !== "football"; $("setback").min = Math.max(1, hs);
+  so("runoff", S.runoff == null ? 3 : S.runoff, (S.runoff == null ? 3 : S.runoff) + " m");
   so("setback", S.setback, S.setback + " m" + (effSet > S.setback + 0.01 ? ` (${+effSet.toFixed(1)} m to fit floor seats)` : ""));
   so("corner", S.corner, S.corner + " m");
   const fIn = LAST && LAST.focusIn != null ? LAST.focusIn : (S.focusIn || 0);
@@ -1152,8 +1155,31 @@ function syncUI(){
   syncSizes(); syncLimits();
 }
 let pending = false, recam = false;
+/* Football's hard stop: push anything that has crept onto the pitch or its run-off back off it. */
+function keepPitchClear(){
+  const hard = hardStop(); if (!hard) return;
+  const F = field(), hx = F.W/2 + hard, hz = F.H/2 + hard, zone = [[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz]];
+  if (S.setback < hard) S.setback = hard;
+  for (const s2 of SIDES) if (S.stands[s2].dist != null && S.stands[s2].dist < hard) S.stands[s2].dist = hard;
+  for (const r of (S.ring && S.ring.stands) || []) if (r.dist != null && r.dist < hard) r.dist = hard;
+  // surroundings: slide each one straight out from the middle until it's clear
+  const overlaps = f => { const P = featurePoly(f, 0); return P.some(q => inPoly(q, zone)) || zone.some(q => inPoly(q, P)) ||
+    P.some((a, i) => { const b = P[(i+1)%4]; return zone.some((c, j) => { const d = zone[(j+1)%4], den = cross([b[0]-a[0], b[1]-a[1]], [d[0]-c[0], d[1]-c[1]]); if (Math.abs(den) < 1e-9) return false;
+      const t = cross([c[0]-a[0], c[1]-a[1]], [d[0]-c[0], d[1]-c[1]])/den, u = cross([c[0]-a[0], c[1]-a[1]], [b[0]-a[0], b[1]-a[1]])/den; return t > 0 && t < 1 && u > 0 && u < 1; }); }); };
+  for (const f of (Array.isArray(S.site) ? S.site : [])){ let n = 0; const l = Math.hypot(f.x, f.z) || 1; let ux = f.x/l, uz = f.z/l; if (!ux && !uz) uz = 1;
+    while (overlaps(f) && n++ < 400){ f.x = Math.round((f.x + ux) * 10)/10; f.z = Math.round((f.z + uz) * 10)/10; } }
+  // the plot: corners can't be inside the zone, and the zone's corners must be inside the plot
+  if (S.plot.on && S.plot.pts){ const pts = S.plot.pts;
+    for (const q of pts) if (Math.abs(q[0]) < hx && Math.abs(q[1]) < hz){ if (hx - Math.abs(q[0]) < hz - Math.abs(q[1])) q[0] = Math.sign(q[0] || 1)*Math.ceil(hx + .5); else q[1] = Math.sign(q[1] || 1)*Math.ceil(hz + .5); }
+    for (let n=0;n<40;n++){ const out = zone.find(c => !inPoly(c, pts)); if (!out) break;
+      let bi = 0, bd = Infinity; pts.forEach((a, i) => { const b = pts[(i+1)%pts.length], ex = b[0]-a[0], ez = b[1]-a[1], L = Math.hypot(ex, ez) || 1, d = Math.abs(cross([out[0]-a[0], out[1]-a[1]], [ex, ez]))/L; if (d < bd){ bd = d; bi = i; } });
+      const a = pts[bi], b = pts[(bi+1)%pts.length], L = Math.hypot(b[0]-a[0], b[1]-a[1]) || 1; let nx = -(b[1]-a[1])/L, nz = (b[0]-a[0])/L;
+      if (nx*(a[0]+b[0]) + nz*(a[1]+b[1]) < 0){ nx = -nx; nz = -nz; } // push away from the middle
+      const step = bd + 1; for (const q of [a, b]){ q[0] = Math.round(q[0] + nx*step); q[1] = Math.round(q[1] + nz*step); } } }
+}
 function changed(moveCam, coalesce){
   if (moveCam) recam = true;
+  keepPitchClear();
   syncUI(); renderTabs(); save(coalesce);
   if (pending) return; pending = true;
   requestAnimationFrame(() => { pending = false; build(); if (wire) applyWire(); syncUI(); renderSummary(); if (recam){ recam = false; if (camMode !== "seat") goCam(camMode); } });

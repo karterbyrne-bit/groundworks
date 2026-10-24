@@ -203,11 +203,15 @@ const BASE = {
   crowd:true, night:false, seeThrough:false, keepClose:true, roofAlign:false,
   arch:{skin:"none", skinShape:"round", arch:false, ramps:false, towers:false, plaza:false, pylons:false}, seatPattern:"solid", seat2:"#f2f2f2", focusIn:null,
   outer:{shape:"follow", fit:"ring", size:0}, groundRoof:Object.assign({}, GROUND_ROOF),
-  ring:{turn:0, gap:6, stands:[0,1,2,3,4,5].map(ringStand)}
+  ring:{turn:0, gap:6, stands:[0,1,2,3,4,5].map(ringStand)}, runoff:3
 };
 const Pz = o => Object.assign(clone(BASE), o);
 const fac = (cfg, f) => Object.assign(cfg, {facade:Object.assign({}, cfg.facade, f)}); // a stand with its own walls
 const PRESETS = {
+  /* Just the pitch: nothing built yet. */
+  blank:Pz({sport:"football",layout:"stands",cornerShape:"curved",setback:6,
+    stands:{N:mk("regular",[],{shape:"none"}),S:mk("regular",[],{shape:"none"}),E:mk("regular",[],{shape:"none"}),W:mk("regular",[],{shape:"none"})},
+    corners:allCorners("open"),lights:false,boards:false,crowd:true}),
   /* Old Trafford around 2003: the lower tier wraps three sides as a bowl; above it the three-tier North Stand, the two-tier
      Stretford End and Scoreboard End, and the low single-tier South Stand under its own roof. The north quadrants were
      still open (they were filled in 2006). */

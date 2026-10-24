@@ -126,6 +126,12 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.click('label[for="cvs-base"]'); await page.waitForTimeout(400);
   check((await cap()) === footy, "switching back to football restores the ground");
   await page.uncheck("#cvOn"); await page.waitForTimeout(300);
+  // a blank pitch, and football's hard stop at the pitch and its run-off
+  await page.click('#panes [data-pane="start"]'); await page.click('[data-p="blank"]'); await page.waitForTimeout(300);
+  check((await cap()) === 0 && !(await last()).issues, "the blank pitch has nothing built");
+  await page.click('#panes [data-pane="ground"]');
+  await page.evaluate(() => { const el = document.getElementById("setback"); el.min = 0; el.value = "1"; el.dispatchEvent(new Event("input", {bubbles:true})); }); await page.waitForTimeout(300);
+  check((await page.evaluate(() => window.__gw.state().setback)) >= 3, "stands can't come onto the run-off round a football pitch");
   // surroundings: a road beside the ground, and a building that the east end is cut back to clear
   await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300);
   const unboxed = await cap();
