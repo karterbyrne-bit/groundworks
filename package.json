@@ -1,0 +1,14 @@
+{
+  "name": "groundworks",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A 3D stadium-building sandbox that runs in the browser.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:dev": "node build.mjs --dev"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

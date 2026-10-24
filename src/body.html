@@ -1,0 +1,219 @@
+<div class="app">
+  <aside class="panel" aria-label="Stadium settings">
+    <div class="topbar">
+      <h1>Groundworks</h1>
+      <div class="toolbar" role="toolbar" aria-label="Edit history">
+        <button class="btn small" id="undoBtn" disabled>Undo</button>
+        <button class="btn small" id="redoBtn" disabled>Redo</button>
+      </div>
+    </div>
+    <nav class="panes" id="panes" role="tablist" aria-label="Sections">
+      <button role="tab" data-pane="start">Start</button>
+      <button role="tab" data-pane="ground">Ground</button>
+      <button role="tab" data-pane="stands">Stands</button>
+      <button role="tab" data-pane="look">Look</button>
+      <button role="tab" data-pane="results">Results <span class="badge" id="paneBadge" hidden></span></button>
+      <button role="tab" data-pane="rules">Rules</button>
+    </nav>
+    <div class="panebody" id="panebody">
+    <p class="hint brandline" data-pane="start">Pick a starting point, then tap any stand in the 3D view to reshape it. Everything is undoable.</p>
+
+    <section class="group" data-pane="start">
+      <h2>Start from</h2>
+      <div class="presets" id="presets">
+        <button class="btn" data-p="ot">Old Trafford, 2003-ish<small>bowl + stands above</small></button>
+        <button class="btn" data-p="monument">Monumental end<small>double-deck overhang</small></button>
+        <button class="btn" data-p="mixed">Mixed-era ground<small>four eras, four stands</small></button>
+        <button class="btn" data-p="urban">Squeezed urban ground<small>wedge site · tall stand</small></button>
+        <button class="btn" data-p="dell">Wedged-in ground<small>like The Dell</small></button>
+        <button class="btn" data-p="leitch">Leitch-era ground<small>historic · square corners</small></button>
+        <button class="btn" data-p="bowl">Modern bowl<small>3 tiers · cantilever</small></button>
+        <button class="btn" data-p="wall">Standing wall ground<small>rail seats · steep end</small></button>
+        <button class="btn" data-p="bullring">Bullring<small>round · pillared upper ring</small></button>
+        <button class="btn" data-p="wrestle">Wrestleball ground<small>small outdoor ground</small></button>
+        <button class="btn" data-p="fight">Fight night<small>MMA cage · floor seats</small></button>
+        <button class="btn" data-p="bearpit">Boxing bear pit<small>steep · right on the ring</small></button>
+        <button class="btn" data-p="ballpark">Ballpark<small>baseball · upper decks</small></button>
+      </div>
+    </section>
+
+    <section class="group" data-pane="ground">
+      <h2>Playing area</h2>
+      <div class="seg grid" role="radiogroup" aria-label="Sport">
+        <input type="radio" name="sport" id="sp-football" value="football"><label for="sp-football">Football</label>
+        <input type="radio" name="sport" id="sp-rugby" value="rugby"><label for="sp-rugby">Rugby</label>
+        <input type="radio" name="sport" id="sp-cricket" value="cricket"><label for="sp-cricket">Cricket</label>
+        <input type="radio" name="sport" id="sp-athletics" value="athletics"><label for="sp-athletics">Athletics</label>
+        <input type="radio" name="sport" id="sp-baseball" value="baseball"><label for="sp-baseball">Baseball</label>
+        <input type="radio" name="sport" id="sp-custom" value="custom"><label for="sp-custom">Other sports</label>
+      </div>
+      <p class="hint" id="sportNote"></p>
+      <div id="customFloor" class="group">
+        <div class="seg grid" id="kinds" role="group" aria-label="Arena floor"></div>
+        <details>
+          <summary>Exact floor size<small id="floorSummary"></small></summary>
+          <div class="inner">
+            <div class="row"><label for="nW">Length</label><span class="num"><input type="number" id="nW" min="4" max="400" step="0.1"> m</span></div>
+            <div class="row"><label for="nH">Width</label><span class="num"><input type="number" id="nH" min="4" max="300" step="0.1"> m</span></div>
+            <div class="row"><label for="nR">Rounded corners</label><span class="num"><input type="number" id="nR" min="0" max="150" step="0.1"> m</span></div>
+          </div>
+        </details>
+        <div class="row" id="floorRowsRow"><label for="floorRows">Seats on the arena floor</label><output id="o-floorRows"></output><input type="range" id="floorRows" min="0" max="24" step="1"></div>
+      </div>
+    </section>
+
+    <section class="group" data-pane="ground">
+      <h2>Layout</h2>
+      <div class="seg" role="radiogroup" aria-label="Layout">
+        <input type="radio" name="layout" id="ly-stands" value="stands"><label for="ly-stands">Separate stands</label>
+        <input type="radio" name="layout" id="ly-bowl" value="bowl"><label for="ly-bowl">Bowl</label>
+        <input type="radio" name="layout" id="ly-hybrid" value="hybrid"><label for="ly-hybrid">Bowl + stands</label>
+      </div>
+      <p class="hint" id="layoutNote"></p>
+      <div class="seg" role="radiogroup" aria-label="Corner shape">
+        <input type="radio" name="cshape" id="cs-curved" value="curved"><label for="cs-curved">Curved corners</label>
+        <input type="radio" name="cshape" id="cs-angled" value="angled"><label for="cs-angled">Angled</label>
+        <input type="radio" name="cshape" id="cs-square" value="square"><label for="cs-square">Right angle</label>
+      </div>
+      <div class="row"><label for="setback">Gap from floor to front row</label><output id="o-setback"></output>
+        <input type="range" id="setback" min="1" max="30" step="0.5"></div>
+      <div class="row"><label for="focusIn">Sightlines aimed at</label><output id="o-focusIn"></output>
+        <input type="range" id="focusIn" min="0" max="10" step="0.5"></div>
+      <p class="hint">Aiming a few metres into the floor (as arenas do) lets steep stands sit right on top of the action. Aiming at the edge of play is the stricter football rule.</p>
+      <div class="row" id="cornerRow"><label for="corner">Corner curve size</label><output id="o-corner"></output>
+        <input type="range" id="corner" min="0" max="40" step="1"></div>
+    </section>
+
+    <section class="group" id="standsGroup" data-pane="stands">
+      <h2>Stands, tiers &amp; roofs</h2>
+      <div class="tabs" id="tabs" role="tablist" aria-label="Stand to edit"></div>
+      <div class="editor" id="editor"></div>
+    </section>
+
+    <section class="group" data-pane="ground">
+      <h2>Site boundary</h2>
+      <label class="toggle"><input type="checkbox" id="plotOn"> Squeeze the ground onto a plot of land</label>
+      <div id="plotBox" class="group">
+        <p class="hint">Drag the red corners or edges in the 3D view (Plan view is easiest). Stands are cut back wherever the boundary runs, so one end can end up wedged and lopsided.</p>
+        <div class="presets">
+          <button class="btn" data-plot="snug">Snug fit<small>just round the design</small></button>
+          <button class="btn" data-plot="squeeze">Squeezed sides<small>tight on three edges</small></button>
+          <button class="btn" data-plot="wedge">Wedged end<small>one street at an angle</small></button>
+          <button class="btn" data-plot="corner">Clipped corner<small>a building in the way</small></button>
+          <button class="btn" data-plot="triangle">Triangular site<small>two streets meeting</small></button>
+        </div>
+        <label class="toggle"><input type="checkbox" id="plotClip"> Treat the boundary as a hard limit and cut stands back to fit</label>
+        <p class="hint">Untick it to use the boundary as a soft guide: stands are built in full and you get a note where they cross it.</p>
+      </div>
+    </section>
+
+    <details class="group" data-pane="rules" open>
+      <summary>Seating sizes, gangways &amp; exits</summary>
+      <div class="inner">
+        <div id="typeSizes" class="group"></div>
+        <div class="row"><label for="gangEvery">Seats between gangways</label><output id="o-gangEvery"></output><input type="range" id="gangEvery" min="10" max="50" step="1"></div>
+        <div class="row"><label for="gangWidth">Gangway width</label><output id="o-gangWidth"></output><input type="range" id="gangWidth" min="0.6" max="1.8" step="0.05"></div>
+        <div class="row"><label for="exitEvery">An exit every</label><output id="o-exitEvery"></output><input type="range" id="exitEvery" min="8" max="60" step="1"></div>
+        <div class="row"><label for="exitWidth">Exit width</label><output id="o-exitWidth"></output><input type="range" id="exitWidth" min="1" max="5" step="0.1"></div>
+        <div class="row"><label for="barrierEvery">Crush barrier every</label><output id="o-barrierEvery"></output><input type="range" id="barrierEvery" min="2" max="16" step="1"></div>
+      </div>
+    </details>
+
+    <details class="group" id="limitsBox" data-pane="rules" open>
+      <summary>Safety rules<small id="limitsSummary"></small></summary>
+      <div class="inner">
+        <div class="row"><label for="standard">Check against</label>
+          <select id="standard">
+            <option value="minimum">UK guidance, minimum</option>
+            <option value="recommended">UK guidance, recommended</option>
+            <option value="custom">My own rules</option>
+          </select></div>
+        <div class="limits" id="limits"></div>
+        <p class="hint">Starting values are based on UK sports-ground guidance (the Green Guide). Check the current edition with a safety engineer before relying on them.</p>
+      </div>
+    </details>
+
+    <section class="group" id="designs" data-pane="start">
+      <h2>Saved designs</h2>
+      <div class="saverow"><input type="text" id="saveName" placeholder="Name this design" aria-label="Design name"><button class="btn small" id="saveBtn">Save</button></div>
+      <ul class="savelist" id="saveList"></ul>
+      <details class="sub"><summary>Compare two designs</summary><div class="inner">
+        <div class="saverow"><select id="cmpA" aria-label="First design"></select><select id="cmpB" aria-label="Second design"></select><button class="btn small" id="cmpBtn">Compare</button></div>
+        <div id="cmpOut" class="cmp"></div></div></details>
+      <details class="sub"><summary>Share as a design code</summary><div class="inner">
+        <textarea id="codeBox" rows="3" aria-label="Design code" placeholder="Paste a design code here to open it"></textarea>
+        <div class="saverow"><button class="btn small" id="exportBtn">Copy this design's code</button><button class="btn small" id="importBtn">Open the pasted code</button></div></div></details>
+    </section>
+
+    <section class="group" data-pane="look">
+      <h2>Signature architecture</h2>
+      <p class="hint">Big gestures that turn a set of stands into one building. They change how it looks, not the capacity.</p>
+      <div class="row"><label for="skin">Outer skin</label><select id="skin"></select></div>
+      <div class="seg" role="radiogroup" aria-label="Skin outline" id="skinShapeRow">
+        <input type="radio" name="skinShape" id="ss-hull" value="hull"><label for="ss-hull">Follows the stands</label>
+        <input type="radio" name="skinShape" id="ss-round" value="round"><label for="ss-round">Smooth and rounded</label>
+      </div>
+      <label class="toggle"><input type="checkbox" id="a-arch"> A great arch over the main stand</label>
+      <label class="toggle"><input type="checkbox" id="a-ramps"> Spiral ramp towers round the outside</label>
+      <label class="toggle"><input type="checkbox" id="a-towers"> Twin entrance towers</label>
+      <label class="toggle"><input type="checkbox" id="a-plaza"> Raised plaza with steps</label>
+    </section>
+
+    <section class="group" data-pane="look">
+      <h2>Floodlights &amp; screens</h2>
+      <div class="row"><label for="flood">Floodlights</label><select id="flood"></select></div>
+      <div id="screens" class="screens"></div>
+      <button class="btn small" id="addScreen">Add a screen</button>
+      <p class="hint">Put screens on any stand or corner: tucked between the back row and the roof (great on tall, short ends), hung from the roof edge, on top, on legs behind, or as LED ribbons along the tier fronts.</p>
+    </section>
+
+    <section class="group" data-pane="look">
+      <h2>Finishing touches</h2>
+      <label class="toggle"><input type="checkbox" id="boards"> Advertising boards round the pitch</label>
+      <label class="toggle"><input type="checkbox" id="crowd"> Fill it with a crowd</label>
+      <label class="toggle"><input type="checkbox" id="night"> Night match under the lights</label>
+      <label class="toggle"><input type="checkbox" id="seeThrough"> See-through roofs</label>
+      <div class="row"><label>Seat colour</label></div>
+      <div class="swatches" id="swatches" role="group" aria-label="Seat colour"></div>
+      <div class="row"><label for="seatPattern">Seat pattern</label>
+        <select id="seatPattern"><option value="solid">One colour</option><option value="bands">Bands of rows</option><option value="tiers">Alternate tiers</option><option value="mosaic">Scattered mosaic</option></select></div>
+      <div class="row" id="seat2Row"><label for="seat2">Second colour</label><input type="color" id="seat2" value="#f2f2f2"></div>
+    </section>
+    <section class="readout" aria-live="polite" data-pane="results">
+      <div class="cap"><div class="big" id="cap">0</div><div class="lbl">Capacity (estimate)</div><div class="mix" id="mix"></div></div>
+      <div class="metrics" id="metrics"></div>
+      <div class="safety" id="safety"></div>
+      <div class="breakdown" id="breakdown"></div>
+      <p class="foot">Capacity allows 5% for stairs and entrances on seated tiers and 10% for gangways on terraces. Sightline uses the C-value: how far each fan's eye sits above the eye line of the person in front, aimed at the nearest edge of play (the top of a raised ring or cage), or the set distance into the floor. A seat is restricted view when a pillar sits within 12° of its line to the centre of play. Emptying time assumes every exit flows at the set rate at once.</p>
+    </section>
+    </div>
+  </aside>
+
+  <main class="stage">
+    <div class="view" id="view">
+      <div class="cams" role="group" aria-label="Camera">
+        <button data-cam="aerial" aria-pressed="true">Aerial</button>
+        <button data-cam="plan" aria-pressed="false">Plan</button>
+        <button data-cam="pitch" aria-pressed="false">Pitchside</button>
+        <button data-cam="seat" aria-pressed="false">From a seat</button>
+        <button id="seeBtn" aria-pressed="false">See inside</button>
+        <button id="nightBtn" aria-pressed="false">Night</button>
+        <button id="moreBtn" aria-expanded="false" aria-controls="moreViews">More views</button>
+      </div>
+      <div class="more" id="moreViews" hidden>
+        <button data-cam="side" aria-pressed="false">Side elevation</button>
+        <button data-cam="exterior" aria-pressed="false">Outside the stand</button>
+        <button data-cam="under" aria-pressed="false">Under the roof</button>
+        <button id="spin" aria-pressed="false">Spin</button>
+        <button id="orthoBtn" aria-pressed="false">Flat (orthographic)</button>
+        <button id="wireBtn" aria-pressed="false">Wireframe</button>
+        <button id="saveView">Save this view</button>
+        <button id="presentBtn">Presentation mode</button>
+      </div>
+      <div class="bookmarks" id="bookmarks" hidden></div>
+      <button class="exitp" id="exitPresent">Exit presentation</button>
+      <p class="tip" id="tip"></p>
+      <button class="hud" id="hud" aria-label="Open results"><b id="hudCap">0</b><span id="hudChecks"></span></button>
+    </div>
+  </main>
+</div>
