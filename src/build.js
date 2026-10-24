@@ -537,9 +537,12 @@ function dressWall(buf, look, wallKey, a, b, ya, yb, n, opt){
 /* Floodlights fixed to the leading edge of each roof (or on short poles along the top of open stands). */
 function roofLights(anchors, bf, F){
   const lamps = [];
+  /* Lights belong on the roofs. Only a ground with no roof anywhere gets them on short poles along the back of the stands;
+     otherwise a stretch without its own roof (a lower bowl under stands, an open end) simply has none. */
+  const anyRoof = anchors.some(g => g.RR && g.RR.some(Boolean));
   for (const g of anchors){
     let acc = 0, prev = null, last = null;
-    for (let i=0;i<g.m;i++){ const x = g.info[i]; if (!x) { last = null; continue; } const R = g.RR ? g.RR[i] : null;
+    for (let i=0;i<g.m;i++){ const x = g.info[i], R = x && g.RR ? g.RR[i] : null; if (!x || (anyRoof && !R)) { last = null; continue; }
       const d = R ? R.inner + 0.5 : x.back - 0.4, y = R ? R.y(0) - 0.8 : x.top + 3, p = [g.o[i][0] + d*g.v[i][0], y, g.o[i][1] + d*g.v[i][1]];
       if (last) quad(bf("steel"), [last[0], last[1] + .5, last[2]], [p[0], p[1] + .5, p[2]], [p[0], p[1] + .9, p[2]], [last[0], last[1] + .9, last[2]]);
       if (prev) acc += Math.hypot(p[0]-prev[0], p[2]-prev[2]); prev = p; last = p;
