@@ -729,6 +729,10 @@ function build(){
     }
     /* A convertible ground set up for its second sport: the lower tier slides back or has its front rows decked over so a
        bigger field fits, or pull-out seats come forward towards a smaller one. Tiers above stay where they are. */
+    /* The stand's outline as built for its own sport: the roof, outside walls and anything hung from them are sized from
+       this, so converting for a second sport moves seats but never the building. */
+    const info = profs.map(pr => { const live = pr.filter(p => !p.ghost && nRows(p) >= 1); if (!live.length) return null;
+      return {back: Math.max(...live.map(p => p.front + nRows(p)*p.T)), top: Math.max(...live.map(p => p.hs[nRows(p)-1])) + 1.2, front: Math.min(...live.map(p => p.front)), prof: pr}; });
     const decks = [];
     if (CV && st.drawFrom === 0) for (let i=0;i<m;i++){
       const p = profs[i][0]; if (!p || p.stacked || p.ghost || nRows(p) < 1) continue;
@@ -970,8 +974,7 @@ function build(){
       quad(buf(CV.sp === "athletics" ? "track" : "aisle"), V(i,a.from,.06), V(j1,b.from,.06), V(j1,b.to,.06), V(i,a.to,.06));
       if (a.h > .3 || b.h > .3) quad(buf("concrete"), V(i,a.to,0), V(j1,b.to,0), V(j1,b.to,b.h), V(i,a.to,a.h)); }
     /* ---------- roof: shape, reach, height, tilt, curve, material and visible structure ---------- */
-    const info = profs.map(pr => { const live = pr.filter(p => !p.ghost && nRows(p) >= 1); if (!live.length) return null;
-      return {back: Math.max(...live.map(p => p.front + nRows(p)*p.T)), top: Math.max(...live.map(p => p.hs[nRows(p)-1])) + 1.2, front: Math.min(...live.map(p => p.front)), prof: pr}; });
+
     let topAll = standTop, RRout = null;
     if (roofOn && info.some(Boolean)){
       const rm = buf(ROOF_MAT_KEY[rf.mat] || "roof"), clad = buf(wallKey), gable = rf.shape === "gable";
