@@ -1,18 +1,30 @@
-function field(){
-  if (S.sport === "custom"){
+/* The playing area for a sport (the design's own by default). Tennis and wrestleball can also be a ground's second sport. */
+function field(sp){
+  sp = sp || S.sport;
+  if (sp !== "custom" && KINDS[sp]){ const k = KINDS[sp]; return {W:k.W, H:k.H, r:k.r, custom:true, kind:sp, surface:k.surface, focusY:k.focusY || 0, zones:k.zones, note:k.note}; }
+  if (sp === "custom"){
     const c = S.custom, k = KINDS[c.kind] || KINDS.plain, r = Math.min(c.r, c.W/2, c.H/2);
     return {W:c.W, H:c.H, r, custom:true, kind:c.kind, surface:c.surface, focusY:k.focusY || 0, zones:k.zones, note:k.note};
   }
-  return SPORTS[S.sport];
+  if (sp === "cricket"){ const C = Object.assign({}, CRICKET, S.cricket || {}); return Object.assign({}, SPORTS.cricket, {W:C.L, H:C.W, r:Math.min(C.L, C.W)*0.46}); }
+  if (sp === "baseball"){ // the field is the square that takes in the outfield wall, with home plate in its corner
+    let mx = 0, mz = 0; for (let i=0;i<=40;i++){ const ph = i/40*Math.PI/2, r = fenceR(ph) + 3; mx = Math.max(mx, r*Math.cos(ph)); mz = Math.max(mz, r*Math.sin(ph)); }
+    const W = Math.ceil(mx), H = Math.ceil(mz); return Object.assign({}, SPORTS.baseball, {W, H, home:[-W/2, -H/2]});
+  }
+  return SPORTS[sp];
 }
 function layoutOf(){
   const F = field();
-  if (F.standsOnly) return "stands";
+  if (F.standsOnly) return S.layout === "ring" ? "ring" : "stands";
   if (F.noStands && S.layout === "stands") return "bowl";
   return S.layout;
 }
 const isBowl = () => layoutOf() === "bowl";
 const isHybrid = () => layoutOf() === "hybrid";
+const isRing = () => layoutOf() === "ring";
+/* Football's hard stop: nothing may be built on the pitch or the run-off strip round it. */
+const hardStop = () => S.sport === "football" ? Math.max(0, S.runoff == null ? 3 : S.runoff) : 0;
+const ringOf = () => (S.ring = Object.assign({turn:0, gap:6, stands:[]}, S.ring || {}));
 
 /* ================= geometry helpers =================
    Every stand is a strip of slices. Slice i sits at o[i] + d·v[i], where d is the distance out from the edge of play,
@@ -106,14 +118,15 @@ function post(buf, x, z, y0, y1, w){
    and sits its gap above the lower tier's back row. Auto tiers rise row by row just enough to keep the sightline at the rule, capped at the steepness limit.
    Ghost tiers are laid out but not built: they hold an upper tier up in the air over an open space (a corner, say). */
 let focusY = 0, focusIn = 0;
-function profile(tiers, set){
+function profile(tiers, set, lift){
   const out = []; let started = false, prevBack = 0, prevBackH = 0, prevFront = 0, prevGhost = false, firstFront = set;
   const targetC = (S.limits.minC + 5)/1000;
   tiers.forEach((tr,k) => {
     const T = S.types[tr.type].row, eye = TYPES[tr.type].eye, fixedN = T*Math.tan(tr.rake*Math.PI/180);
     let front, hF, stacked;
     if (!started){ front = set; hF = (tr.type === "terrace" ? 0.4 : 1.1) + focusY*0.6; stacked = false; }
-    else { front = Math.max(firstFront + 1, prevBack - (tr.over == null ? 0 : tr.over)); hF = prevBackH + Math.max(1.2, tr.gap == null ? 3 : tr.gap); stacked = true; }
+    else { front = Math.max(firstFront + 1, prevBack - (tr.over == null ? 0 : tr.over)); hF = prevBackH + Math.max(1.2, tr.gap == null ? 3 : tr.gap); stacked = true;
+      if (lift && lift[k] > hF) hF = lift[k]; } // held up to a level height along the stand
     const rows = Math.max(0, tr.rows), back = front + rows*T, n = Math.ceil(rows - 1e-6);
     const hs = []; let maxN = 0;
     for (let j=0;j<n;j++){
@@ -161,6 +174,30 @@ function inPoly(p, poly){
     if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < (b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1]) + a[0]) ins = !ins;
   }
   return ins;
+}
+/* How far out a slice can go before it runs into an obstacle (a road, a building...). */
+function enterDist(poly, o, v, d0){
+  if (inPoly([o[0]+d0*v[0], o[1]+d0*v[1]], poly)) return d0 - 0.01;
+  let best = Infinity;
+  for (let i=0;i<poly.length;i++){
+    const A = poly[i], B = poly[(i+1)%poly.length], E = [B[0]-A[0], B[1]-A[1]], den = cross(v, E);
+    if (Math.abs(den) < 1e-12) continue;
+    const w = [A[0]-o[0], A[1]-o[1]], d = cross(w, E)/den, s = cross(w, v)/den;
+    if (s >= -1e-9 && s <= 1+1e-9 && d > d0 + 1e-9) best = Math.min(best, d);
+  }
+  return best;
+}
+/* Where a slice's line (o + d·v, d may be negative) last crosses an outline: the far edge of it, seen from inside. */
+function lineHit(poly, o, v){
+  let best = null;
+  for (let k=0;k<poly.length;k++){ const A = poly[k], B = poly[(k+1)%poly.length], E = [B[0]-A[0], B[1]-A[1]], den = cross(v, E); if (Math.abs(den) < 1e-12) continue;
+    const w = [A[0]-o[0], A[1]-o[1]], d = cross(w, E)/den, s = cross(w, v)/den; if (s >= -1e-9 && s <= 1+1e-9 && (best == null || d > best)) best = d; }
+  return best;
+}
+/* A site feature's footprint, grown by a margin. */
+function featurePoly(f, margin){
+  const a = (f.angle || 0)*Math.PI/180, u = [Math.cos(a), Math.sin(a)], n = [-u[1], u[0]], L = f.length/2 + (margin || 0), W = f.width/2 + (margin || 0);
+  return [[-L,-W],[L,-W],[L,W],[-L,W]].map(([s, t]) => [f.x + u[0]*s + n[0]*t, f.z + u[1]*s + n[1]*t]);
 }
 /* How far out a slice can go before it hits the boundary. */
 function exitDist(poly, o, v, d0){
@@ -235,11 +272,12 @@ const M = {
   window: std({color:0x1d262c, roughness:.25, metalness:.3}), trim: std({color:0xd9d2c2, roughness:.85}),
   canvas: new THREE.MeshStandardMaterial({color:0x2e5fa8, roughness:.8}),
   rope: new THREE.MeshStandardMaterial({color:0xf2f2f2, roughness:.5}),
-  cageNet: new THREE.MeshStandardMaterial({color:0x111111, roughness:.6, transparent:true, opacity:.35, side:DS}),
   dark: new THREE.MeshStandardMaterial({color:0x1d2124, roughness:.6}),
   mast: new THREE.MeshStandardMaterial({color:0x9aa1a5, roughness:.5, metalness:.5}),
   lamp: new THREE.MeshStandardMaterial({color:0xfffbe8, emissive:0xfff3c4, emissiveIntensity:.9}),
-  screen: new THREE.MeshStandardMaterial({color:0x0b1a2b, emissive:0x2a5fa8, emissiveIntensity:.7})
+  screen: new THREE.MeshStandardMaterial({color:0x0b1a2b, emissive:0x2a5fa8, emissiveIntensity:.7}),
+  road: std({color:0x3a3d40, roughness:.95}), pavement: std({color:0xbdbcb4, roughness:.95}), water: std({color:0x3f6f8c, roughness:.12, metalness:.15}),
+  ballast: std({color:0x857d72, roughness:1}), slate: std({color:0x3c4248, roughness:.75}), outfield: std({color:0x23452c, roughness:.85}), track: std({color:0xb4513a, roughness:.9})
 };
 for (const st in STYLES) M["clad_"+st] = std({color:STYLES[st].clad, roughness: [0x8b4636,0x9a4a3a,0x7d3b2c].includes(STYLES[st].clad) ? .95 : .6, metalness: st === "showpiece" ? .3 : .15});
 function setSeatColours(){
@@ -250,9 +288,21 @@ function setSeatColours(){
 }
 setSeatColours();
 let group = new THREE.Group(); scene.add(group);
+/* Texture coordinates in metres for a textured wall: along the wall and up it on walls, flat on floors. */
+function wallUV(arr){
+  const uv = new Float32Array(arr.length/3*2);
+  for (let t=0;t<arr.length;t+=9){
+    const ux = arr[t+3]-arr[t], uy = arr[t+4]-arr[t+1], uz = arr[t+5]-arr[t+2], vx = arr[t+6]-arr[t], vy = arr[t+7]-arr[t+1], vz = arr[t+8]-arr[t+2];
+    const nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx, nl = Math.hypot(nx, ny, nz) || 1, wall = Math.abs(ny/nl) < 0.6, hl = Math.hypot(nx, nz) || 1;
+    for (let k=0;k<3;k++){ const x = arr[t+3*k], y = arr[t+3*k+1], z = arr[t+3*k+2], o = (t/3 + k)*2;
+      if (wall){ uv[o] = (x*-nz + z*nx)/hl; uv[o+1] = y; } else { uv[o] = x; uv[o+1] = z; } }
+  }
+  return uv;
+}
 function meshFrom(arr, mat, shadow){
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(arr,3)); g.computeVertexNormals();
+  if (mat && mat.map && mat.map.repeat.x < 1) g.setAttribute("uv", new THREE.Float32BufferAttribute(wallUV(arr), 2));
   const m = new THREE.Mesh(g, mat); m.castShadow = shadow !== false; m.receiveShadow = true; return m;
 }
 
@@ -275,7 +325,14 @@ function drawFootball(ctx){
     ctx.beginPath(); ctx.arc(gx-11*s,0,9.15, s>0?Math.PI-a:-a, s>0?Math.PI+a:a); ctx.stroke();
   }
 }
-const fenceR = phi => 100 + 22*Math.sin(2*phi);
+/* Distance from home plate to the outfield wall at angle phi: 0 runs down the left-field line, pi/2 down the right-field
+   line, and the wall curves smoothly through centre field between them. */
+function fenceR(phi){
+  const B = Object.assign({}, BALLPARK, S.ballpark || {}), t = Math.max(0, Math.min(1, phi/(Math.PI/2)));
+  const k = t < .5 ? t/.5 : (t - .5)/.5, e = (1 - Math.cos(Math.PI*k))/2;
+  return t < .5 ? B.lf + (B.cf - B.lf)*e : B.cf + (B.rf - B.cf)*e;
+}
+const wallH = phi => { const B = Object.assign({}, BALLPARK, S.ballpark || {}); return phi < 0.5 ? Math.max(B.wall, B.lfWall) : B.wall; };
 function drawBaseball(ctx, F, Wt, Ht){
   const H = F.home, dirt = "#b9875a";
   ctx.fillStyle = "#2f6430"; ctx.fillRect(-Wt/2,-Ht/2,Wt,Ht);
@@ -316,37 +373,11 @@ function drawKind(ctx, F, Wt, Ht, lw){
     return;
   }
   if (k === "bullring"){ ctx.fillStyle = "#c9a86c"; ctx.fillRect(-Wt/2,-Ht/2,Wt,Ht); ctx.beginPath(); ctx.arc(0,0,W/2,0,Math.PI*2); ctx.fillStyle = "#dcc08a"; ctx.fill(); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = .2; ctx.beginPath(); ctx.arc(0,0,W/2*0.6,0,Math.PI*2); ctx.stroke(); return; }
-  if (k === "boxing" || k === "cage" || k === "concert"){ ctx.fillStyle = "#26292c"; rr(ctx, W+1.2, H+1.2, F.r); ctx.fill(); return; }
-  if (k === "basketball"){
-    ctx.fillStyle = "#c99a5e"; ctx.fillRect(-W/2,-H/2,W,H);
-    ctx.strokeStyle = "rgba(0,0,0,.07)"; ctx.lineWidth = .04; for (let z=-H/2;z<H/2;z+=0.2) line(-W/2,z,W/2,z);
-    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = .05; ctx.strokeRect(-W/2,-H/2,W,H); line(0,-H/2,0,H/2);
-    ctx.beginPath(); ctx.arc(0,0,1.8,0,Math.PI*2); ctx.stroke();
-    for (const s of [-1,1]){
-      const bx = s*W/2, hx = bx - s*1.575;
-      ctx.fillStyle = "rgba(160,40,40,.55)"; ctx.fillRect(s>0?bx-5.8:bx,-2.45,5.8,4.9); ctx.strokeRect(s>0?bx-5.8:bx,-2.45,5.8,4.9);
-      ctx.beginPath(); ctx.arc(bx-s*5.8,0,1.8,0,Math.PI*2); ctx.stroke();
-      const a = Math.asin(Math.min(1,(H/2-0.9)/6.75));
-      ctx.beginPath(); ctx.arc(hx,0,6.75, s>0?Math.PI-a:-a, s>0?Math.PI+a:a); ctx.stroke();
-      line(bx,-(H/2-0.9),hx-s*Math.cos(a)*6.75,-(H/2-0.9)); line(bx,(H/2-0.9),hx-s*Math.cos(a)*6.75,(H/2-0.9));
-    }
-    return;
-  }
   if (k === "tennis"){
     ctx.fillStyle = "#3d6fb0"; ctx.fillRect(-11.885,-5.485,23.77,10.97);
     ctx.strokeStyle = "#ffffff"; ctx.lineWidth = .05;
     ctx.strokeRect(-11.885,-5.485,23.77,10.97); line(-11.885,-4.115,11.885,-4.115); line(-11.885,4.115,11.885,4.115);
     line(-6.4,-4.115,-6.4,4.115); line(6.4,-4.115,6.4,4.115); line(-6.4,0,6.4,0);
-    return;
-  }
-  if (k === "hockey"){
-    rr(ctx,W,H,F.r); ctx.fillStyle = "#eef5f8"; ctx.fill();
-    ctx.lineWidth = .3; ctx.strokeStyle = "#c2272d"; line(0,-H/2,0,H/2);
-    for (const s of [-1,1]) line(s*(W/2-3.4),-H/2+2,s*(W/2-3.4),H/2-2);
-    ctx.strokeStyle = "#2453a6"; for (const s of [-1,1]) line(s*W/8,-H/2,s*W/8,H/2);
-    ctx.strokeStyle = "#c2272d"; ctx.lineWidth = .05;
-    for (const s of [-1,1]) for (const z of [-6.7,6.7]){ ctx.beginPath(); ctx.arc(s*(W/2-9.4),z,4.57,0,Math.PI*2); ctx.stroke(); }
-    ctx.strokeStyle = "#2453a6"; ctx.beginPath(); ctx.arc(0,0,4.57,0,Math.PI*2); ctx.stroke();
     return;
   }
   const SURF = {grass:["#3d7a38","#468a40"],court:["#c4945a","#b98a52"],ice:["#e9f2f6","#e3edf2"],sand:["#dcc48f","#d6bd87"],arena:["#3a3e42","#3a3e42"],tennis:["#3d6fb0","#3d6fb0"],mat:["#2d6cb5","#2d6cb5"]};
@@ -358,14 +389,14 @@ function drawKind(ctx, F, Wt, Ht, lw){
   rr(ctx,W,H,F.r); ctx.stroke(); line(0,-H/2,0,H/2);
   ctx.beginPath(); ctx.arc(0,0,Math.min(W,H)*0.15,0,Math.PI*2); ctx.stroke();
 }
-function floorTexture(F, set){
+function floorTexture(F, set, sp){
   const Wt = F.W + 2*set, Ht = F.H + 2*set;
   const k = Math.min(48, 2048/Math.max(Wt,Ht));
   const c = document.createElement("canvas"); c.width = Math.max(2,Math.round(Wt*k)); c.height = Math.max(2,Math.round(Ht*k));
   const ctx = c.getContext("2d"); ctx.translate(c.width/2, c.height/2); ctx.scale(k,k);
   const lw = Math.max(0.05, 1.6/k);
   ctx.lineWidth = lw; ctx.strokeStyle = "rgba(255,255,255,.92)"; ctx.fillStyle = "rgba(255,255,255,.92)";
-  const sport = S.sport;
+  const sport = sp || S.sport;
   if (F.custom) drawKind(ctx, F, Wt, Ht, lw);
   else if (sport === "baseball") drawBaseball(ctx, F, Wt, Ht);
   else if (sport === "cricket"){
@@ -373,7 +404,7 @@ function floorTexture(F, set){
     for (let r=80;r>0;r-=6){ ctx.fillStyle = (r/6)%2<1 ? "#43873d" : "#3e7e38"; ctx.beginPath(); ctx.ellipse(0,0,r*F.W/F.H,r,0,0,Math.PI*2); ctx.fill(); }
     rr(ctx,F.W,F.H,F.r); ctx.lineWidth=.35; ctx.strokeStyle="#f4f4f0"; ctx.stroke();
     ctx.beginPath(); ctx.ellipse(0,0,30,27.4,0,0,Math.PI*2); ctx.setLineDash([1.2,1.2]); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = "#cdb98a"; ctx.fillRect(-10.06,-1.6,20.12,3.2);
+    for (let k=-4;k<=4;k++){ ctx.fillStyle = k === 0 ? "#cdb98a" : k % 2 ? "#5d8f4a" : "#6b9a52"; ctx.fillRect(-12, -1.525 + k*3.05, 24, 3.05); } // the square: a row of pitches, today's in the middle
     ctx.fillStyle = "#ffffff"; for (const s of [-1,1]) ctx.fillRect(s*8.84-0.05,-1.32,0.1,2.64);
   } else {
     ctx.fillStyle = "#3d7a38"; ctx.fillRect(-Wt/2,-Ht/2,Wt,Ht);
@@ -403,58 +434,47 @@ function floorTexture(F, set){
   const tex = new THREE.CanvasTexture(c); tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
   return {tex, Wt, Ht};
 }
-function addProps(g, F, buf){
+function addProps(g, F, buf, sp){
+  sp = sp || S.sport;
   const cyl = (r,h,s) => new THREE.CylinderGeometry(r,r,h,s||8);
   const add = (geo, mat, x, y, z, ry) => { const m = new THREE.Mesh(geo, mat); m.position.set(x,y,z); if (ry) m.rotation.y = ry; m.castShadow = true; m.receiveShadow = true; g.add(m); return m; };
-  if (S.sport === "football" || S.sport === "athletics") for (const s of [-1,1]){
+  if (sp === "football" || sp === "athletics") for (const s of [-1,1]){
     for (const z of [-3.66,3.66]) add(cyl(.07,2.44), M.white, 52.5*s,1.22,z);
     const bar = add(cyl(.07,7.32), M.white, 52.5*s,2.44,0); bar.rotation.x = Math.PI/2;
   }
-  if (S.sport === "rugby") for (const s of [-1,1]){
+  if (sp === "rugby") for (const s of [-1,1]){
     for (const z of [-2.8,2.8]) add(cyl(.1,14), M.white, 50*s,7,z);
     const bar = add(cyl(.08,5.6), M.white, 50*s,3,0); bar.rotation.x = Math.PI/2;
   }
-  if (S.sport === "baseball"){
-    const H = SPORTS.baseball.home;
-    for (const ph of [0, Math.PI/2]){ const r = fenceR(ph); add(cyl(.25,20), M.barrier, H[0]+r*Math.cos(ph), 10, H[1]+r*Math.sin(ph)); }
+  if (sp === "baseball"){
+    const H = F.home, P = (ph, r) => [H[0] + r*Math.cos(ph), H[1] + r*Math.sin(ph)];
+    for (const ph of [0, Math.PI/2]){ const r = fenceR(ph), q = P(ph, r); add(cyl(.25, 20), M.barrier, q[0], 10, q[1]); } // foul poles
+    // the padded outfield wall, taller down the left-field line if set, with a yellow line along the top
+    for (let i=0;i<60;i++){ const a0 = i/60*Math.PI/2, a1 = (i+1)/60*Math.PI/2, p0 = P(a0, fenceR(a0)), p1 = P(a1, fenceR(a1)), h0 = wallH(a0), h1 = wallH(a1);
+      quad(buf("outfield"), [p0[0],0,p0[1]], [p1[0],0,p1[1]], [p1[0],h1,p1[1]], [p0[0],h0,p0[1]]);
+      quad(buf("barrier"), [p0[0],h0,p0[1]], [p1[0],h1,p1[1]], [p1[0],h1+.15,p1[1]], [p0[0],h0+.15,p0[1]]); }
+    // the batter's eye: a dark screen beyond centre field
+    const cf = Math.PI/4, c0 = P(cf - .09, fenceR(cf) + 4), c1 = P(cf + .09, fenceR(cf) + 4);
+    quad(buf("outfield"), [c0[0],0,c0[1]], [c1[0],0,c1[1]], [c1[0],12,c1[1]], [c0[0],12,c0[1]]);
+    // dugouts along both foul lines, sunk into the strip in front of the stands, with a roof over each
+    for (const [dx, dz] of [[1, 0], [0, 1]]){ const cx = H[0] + dx*28 - dz*4.5, cz = H[1] + dz*28 - dx*4.5, w = dx ? 20 : 3.2, d = dx ? 3.2 : 20;
+      add(new THREE.BoxGeometry(w, 1.1, d), M.dark, cx, .55, cz);
+      add(new THREE.BoxGeometry(w + .4, .2, d + .4), M.roofSolid, cx, 1.2, cz); }
+  }
+  if (sp === "cricket"){
+    // the boundary rope just inside the edge of the outfield, and a sightscreen behind each end of the pitch
+    const rope = closedPathS(F, F.r, -2.5, "curved"); ribbon(buf("white"), rope, rope, 0, .16, true);
+    for (const s of [-1, 1]){ const x = s*(F.W/2 + 2.5);
+      add(new THREE.BoxGeometry(.6, 7, 22), M.white, x, 4.4, 0);
+      add(new THREE.BoxGeometry(1.4, .9, 22), M.dark, x, .45, 0); }
   }
   if (!F.custom) return;
   const W = F.W, H = F.H;
-  if (F.kind === "boxing"){
-    add(new THREE.BoxGeometry(W+1.2,1.2,H+1.2), M.canvas, 0,0.6,0);
-    const colours = [0xc3322b,0xf2f2f2,0x1f3f8f,0xf2f2f2];
-    [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx,sz],i) => add(cyl(.09,1.5), new THREE.MeshStandardMaterial({color:colours[i]}), sx*W/2*0.84, 1.95, sz*H/2*0.84));
-    for (const y of [1.65,2.0,2.35,2.65]){
-      add(new THREE.BoxGeometry(W*0.84,.05,.05), M.rope, 0,y,-H/2*0.84); add(new THREE.BoxGeometry(W*0.84,.05,.05), M.rope, 0,y,H/2*0.84);
-      add(new THREE.BoxGeometry(.05,.05,H*0.84), M.rope, -W/2*0.84,y,0); add(new THREE.BoxGeometry(.05,.05,H*0.84), M.rope, W/2*0.84,y,0);
-    }
-  }
-  if (F.kind === "cage"){
-    const R = W/2/Math.cos(Math.PI/8);
-    add(cyl(R+0.6,0.9,8), M.dark, 0,0.45,0, Math.PI/8);
-    add(cyl(R-0.05,0.02,8), M.canvas, 0,0.91,0, Math.PI/8);
-    const net = add(new THREE.CylinderGeometry(R,R,1.8,8,1,true), M.cageNet, 0,1.8,0, Math.PI/8); net.castShadow = false;
-    for (let i=0;i<8;i++){ const a = i*Math.PI/4; add(cyl(.07,1.9), M.dark, Math.cos(a)*R, 1.85, Math.sin(a)*R); }
-  }
   if (F.kind === "bullring"){ const P0 = closedPathS(F, F.r, 0, "curved"); ribbon(buf("barrierWood"), P0, P0, 0, 1.6, true); }
   if (F.kind === "wrestleball") for (const s of [-1,1]) add(new THREE.BoxGeometry(.3,.5,H), M.white, s*(W/2+0.4),.25,0);
-  if (F.kind === "basketball") for (const s of [-1,1]){
-    add(new THREE.BoxGeometry(.4,3.4,.4), M.dark, s*(W/2+1.3),1.7,0);
-    add(new THREE.BoxGeometry(.05,1.07,1.83), new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:.6}), s*(W/2-1.2),3.4,0);
-    const rim = add(new THREE.TorusGeometry(.23,.02,6,16), M.barrier, s*(W/2-1.575),3.05,0); rim.rotation.x = Math.PI/2;
-  }
   if (F.kind === "tennis"){
     add(new THREE.BoxGeometry(.03,.95,12.8), new THREE.MeshStandardMaterial({color:0x222222,transparent:true,opacity:.7}), 0,.475,0);
     for (const z of [-6.4,6.4]) add(cyl(.05,1.07), M.dark, 0,.535,z);
-  }
-  if (F.kind === "hockey"){
-    const P0 = closedPathS(F, F.r, 0, "curved");
-    ribbon(buf("white"), P0, P0, 0, 1.07, true); ribbon(buf("glass"), P0, P0, 1.07, 2.9, true);
-  }
-  if (F.kind === "concert"){
-    add(new THREE.BoxGeometry(14,2,Math.min(H*0.7,30)), M.dark, -W/2+7,1,0);
-    add(new THREE.BoxGeometry(1,14,Math.min(H*0.7,30)+2), M.column, -W/2-0.5,7,0);
-    add(new THREE.BoxGeometry(14,0.8,Math.min(H*0.7,30)+2), M.column, -W/2+7,14,0);
   }
 }
 

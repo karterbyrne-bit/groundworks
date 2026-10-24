@@ -37,7 +37,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   const cap = () => page.evaluate(() => window.__gw.last().total);
   check((await cap()) > 1000, "default stadium has a capacity");
 
-  for (const p of ["bowl", "leitch", "fight"]) {
+  for (const p of ["bowl", "leitch", "bullring"]) {
     await page.click(`[data-p="${p}"]`); await page.waitForTimeout(300);
     check((await cap()) > 0, `preset "${p}" builds`);
   }
@@ -82,6 +82,65 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.waitForFunction(() => window.__gw.last().parts.some(p => p.label === "West end"));
   const rr = await last();
   check(rr.total > 15000 && rr.covered / rr.total > 0.9 && !rr.issues, 'preset "ringroof" builds under one roof with no warnings');
+  await page.click('#panes [data-pane="start"]');
+
+  // Ibrox: a deck on towers over an old stand; per-tier looks and lettering; typed plot sizes
+  await page.click('[data-p="ibrox"]');
+  await page.waitForFunction(() => window.__gw.last().parts.some(p => p.label === "Main stand") && window.__gw.state().stands.N.tiers.length === 3);
+  const ib = await last();
+  check(ib.total > 20000 && !ib.issues, 'preset "ibrox" builds with no warnings');
+  await page.click('[data-p="ot"]'); await page.waitForTimeout(300);
+  check(!(await last()).issues, 'preset "ot" builds with no warnings');
+  await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="N"]'); await page.waitForTimeout(300);
+  await page.locator('.tier[data-k="2"] details[data-more] summary').click();
+  await page.selectOption('.tier[data-k="2"] select[data-p="tiers.2.support"]', "towers"); await page.waitForTimeout(300);
+  check((await page.evaluate(() => window.__gw.state().stands.N.tiers[2].hold)) === "towers", "a tier can be held up by towers at each end");
+  await page.fill('input[type=number][data-p="tiers.2.trim0"]', "12"); await page.waitForTimeout(300);
+  check((await page.evaluate(() => window.__gw.state().stands.N.tiers[2].trim0)) === 12 && (await cap()) > 0, "a tier can stop short of the end of its stand");
+  await page.fill("#facSign", "GROUNDWORKS"); await page.waitForTimeout(300);
+  check((await page.evaluate(() => window.__gw.state().stands.N.facade.sign)) === "GROUNDWORKS", "lettering can go on the outside wall");
+  // corners: each tier's reach from each stand
+  await page.click('[data-tab="C"]'); await page.selectOption('select[data-corner="NE"][data-cf="mode"]', "blend"); await page.waitForTimeout(300);
+  await page.locator('[data-reach^="NE:"]').first().evaluate(el => { el.value = "40"; el.dispatchEvent(new Event("input", {bubbles:true})); }); await page.waitForTimeout(300);
+  check((await page.evaluate(() => (window.__gw.state().corners.NE.reach || []).some(r => r && (r.a === 0.4 || r.b === 0.4)))) && (await cap()) > 0, "a corner tier can be set to come part way round");
+  await page.click('#panes [data-pane="ground"]'); await page.check("#plotOn"); await page.waitForTimeout(300);
+  await page.locator("#plotExact summary").click(); await page.fill("#plotW", "260"); await page.press("#plotW", "Enter"); await page.waitForTimeout(300);
+  check((await page.evaluate(() => { const xs = window.__gw.state().plot.pts.map(p => p[0]); return Math.max(...xs) - Math.min(...xs); })) === 260, "the plot can be set to an exact width");
+  // cricket and baseball: rings of stands
+  await page.click('#panes [data-pane="start"]');
+  for (const p of ["lords", "classicpark", "ballpark"]){ await page.click(`[data-p="${p}"]`);
+    await page.waitForFunction(() => window.__gw.state().layout === "ring" && window.__gw.last().parts.length > 2); await page.waitForTimeout(200);
+    const r = await last(); check(r.total > 10000 && !r.issues, `preset "${p}" builds with no warnings`); }
+  await page.click('#panes [data-pane="stands"]'); const nStands = await page.locator("#tabs button").count();
+  await page.click('[data-ring="+"]'); await page.waitForTimeout(300);
+  check((await page.locator("#tabs button").count()) === nStands + 1, "a ring can have another stand added");
+  // a convertible ground: football and athletics
+  await page.click('#panes [data-pane="start"]'); await page.click('[data-p="bowl"]'); await page.waitForTimeout(300);
+  const footy = await cap();
+  await page.click('#panes [data-pane="ground"]'); await page.check("#cvOn"); await page.waitForTimeout(300);
+  await page.click('label[for="cvs-second"]'); await page.waitForTimeout(400);
+  const athletics = await cap();
+  check(athletics > footy*0.9 && athletics < footy*1.05 && !(await last()).issues, "the lower tier slides back to fit an athletics track");
+  await page.selectOption("#cvHow", "cover"); await page.waitForTimeout(400);
+  check((await cap()) < athletics, "decking over the front rows costs seats");
+  await page.click('label[for="cvs-base"]'); await page.waitForTimeout(400);
+  check((await cap()) === footy, "switching back to football restores the ground");
+  await page.uncheck("#cvOn"); await page.waitForTimeout(300);
+  // a blank pitch, and football's hard stop at the pitch and its run-off
+  await page.click('#panes [data-pane="start"]'); await page.click('[data-p="blank"]'); await page.waitForTimeout(300);
+  check((await cap()) === 0 && !(await last()).issues, "the blank pitch has nothing built");
+  await page.click('#panes [data-pane="ground"]');
+  await page.evaluate(() => { const el = document.getElementById("setback"); el.min = 0; el.value = "1"; el.dispatchEvent(new Event("input", {bubbles:true})); }); await page.waitForTimeout(300);
+  check((await page.evaluate(() => window.__gw.state().setback)) >= 3, "stands can't come onto the run-off round a football pitch");
+  // surroundings: a road beside the ground, and a building that the east end is cut back to clear
+  await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300);
+  const unboxed = await cap();
+  await page.click('#panes [data-pane="ground"]'); await page.click('[data-site="road"]'); await page.waitForTimeout(300);
+  check((await cap()) === unboxed && (await page.evaluate(() => window.__gw.state().site.length)) === 1, "a road can be added beside the ground");
+  await page.click('[data-site="building"]'); await page.waitForTimeout(300);
+  await page.evaluate(() => { for (const [k, v] of [["x", "75"], ["z", "0"]]){ const el = document.querySelector(`input[type=number][data-sf2="${k}"][data-i="1"]`); el.value = v; el.dispatchEvent(new Event("input", {bubbles:true})); } });
+  await page.waitForTimeout(400);
+  check((await cap()) < unboxed, "a stand is cut back to clear a building");
   await page.click('#panes [data-pane="start"]');
 
   const beforeRandom = await page.evaluate(() => JSON.stringify(window.__gw.state()));

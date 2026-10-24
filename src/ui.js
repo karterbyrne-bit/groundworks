@@ -193,10 +193,11 @@ function camTarget(mode){
   }
   if (mode === "screen"){
     const sp = D.screenSpots && D.screenSpots[screenFocus]; if (!sp) return camTarget("aerial");
+    // orbit round the screen from out over the play, so dragging and zooming still work normally
     const t = new THREE.Vector3(...sp), flat = Math.hypot(sp[0], sp[2]);
     const p = flat < 5 ? new THREE.Vector3(D.F.W*0.3, Math.max(4, sp[1]*0.45), D.F.H*0.3) // hanging over the centre: look up at it from the play
       : new THREE.Vector3(-sp[0]*0.3, Math.max(5, sp[1]*0.55), -sp[2]*0.3);
-    return {p, t:p.clone().add(t.sub(p).normalize().multiplyScalar(0.5)), look:true};
+    return {p, t};
   }
   if (mode === "exterior" || mode === "under"){
     const r = regionFor(tab === "B" || tab === "C" || tab === "F" ? "N" : tab); if (!r) return camTarget("aerial");
@@ -288,7 +289,7 @@ renderer.domElement.addEventListener("pointerdown", e => {
   if (h){ const vl = Math.hypot(h.v[0], h.v[1]) || 1, n = new THREE.Vector3(-h.v[1]/vl, 0, h.v[0]/vl);
     drag = {type:"h", h, plane:new THREE.Plane().setFromNormalAndCoplanarPoint(n, new THREE.Vector3(h.x, h.y, h.z))};
     controls.enabled = false; try { renderer.domElement.setPointerCapture(e.pointerId); } catch(err) {} return; }
-  const p = groundAt(e), ph = plotHandleNear(p);
+  const p = groundAt(e), ph = plotHandleNear(p) || siteHandleNear(p);
   if (ph){ drag = Object.assign(ph, {start:[p.x, p.z], pts:clone(S.plot.pts)}); controls.enabled = false; try { renderer.domElement.setPointerCapture(e.pointerId); } catch(err) {} }
 });
 renderer.domElement.addEventListener("pointermove", e => {
@@ -299,11 +300,15 @@ renderer.domElement.addEventListener("pointermove", e => {
       if (h.side) h.ref.sideRows = Object.assign({}, h.ref.sideRows, {[h.side]:rows}); else h.ref.rows = rows; }
     if (h.kind === "over"){ h.ref.over = clamp(r05(h.lowerBack - d), -15, 40); h.ref.gap = clamp(r05(p.y - h.lowerBackH), 1.5, 40); }
     if (h.kind === "roof"){ h.cfg.roof.reach = clamp(r05(h.front - d), -40, 40); h.cfg.roof.lift = clamp(r05(p.y - h.top), 1.5, 40); }
-    if (h.kind === "dist") h.cfg.dist = clamp(r05(d), 1, 80);
+    if (h.kind === "dist") h.cfg.dist = clamp(r05(d), Math.max(1, hardStop()), 80);
     changed(false, true); return;
   }
   if (drag){
     const p = groundAt(e); if (!p) return;
+    if (drag.type === "site"){ const f = S.site[drag.i]; if (!f) return;
+      if (drag.end){ f.angle = Math.round(((Math.atan2(p.z - f.z, p.x - f.x)*180/Math.PI) + 360) % 180); f.length = Math.max(5, Math.round(2*Math.hypot(p.x - f.x, p.z - f.z))); }
+      else { f.x = Math.round(p.x); f.z = Math.round(p.z); }
+      changed(false, true); return; }
     const dx = p.x - drag.start[0], dz = p.z - drag.start[1], pts = clone(drag.pts);
     if (drag.type === "v"){ pts[drag.i] = [Math.round(drag.pts[drag.i][0] + dx), Math.round(drag.pts[drag.i][1] + dz)]; }
     else { const a = pts[drag.i], b = pts[(drag.i+1)%pts.length], l = Math.hypot(b[0]-a[0], b[1]-a[1]) || 1, n = [-(b[1]-a[1])/l, (b[0]-a[0])/l], s = dx*n[0] + dz*n[1];
@@ -311,7 +316,7 @@ renderer.domElement.addEventListener("pointermove", e => {
     S.plot.pts = pts; changed(); return;
   }
   if (e.buttons) return;
-  view.style.cursor = handleHit(e) || plotHandleNear(groundAt(e)) ? "grab" : "";
+  view.style.cursor = handleHit(e) || plotHandleNear(groundAt(e)) || siteHandleNear(groundAt(e)) ? "grab" : "";
 });
 renderer.domElement.addEventListener("pointerup", e => {
   if (drag){ const wasH = drag.type === "h"; drag = null; controls.enabled = true; if (wasH){ renderEditor(); } return; }
@@ -352,7 +357,7 @@ function selectTab(key, fromView){
   if (key === "F") return;
   tab = key; renderEditor(); changed(false, true);
   if (fromView){
-    const name = key === "B" ? (isHybrid() ? "the lower bowl" : "the bowl") : key === "C" ? "the corners" : "the " + SIDE_NAMES[key].toLowerCase();
+    const name = key === "B" ? (isHybrid() ? "the lower bowl" : "the bowl") : key === "C" ? "the corners" : /^R/.test(key) ? tabName(key) : "the " + SIDE_NAMES[key].toLowerCase();
     tipOverride = `<b>Editing ${name}.</b> Drag the blue handles, or use the panel.`; setTip();
     showPane("stands");
     clearTimeout(selectTab.t); selectTab.t = setTimeout(() => { tipOverride = null; setTip(); }, 4500);
@@ -422,22 +427,33 @@ function save(coalesce){ try { localStorage.setItem(KEY, JSON.stringify(S)); } c
 
 /* ================= stand editor ================= */
 const $ = id => document.getElementById(id);
-const cfgForTab = () => isBowl() || (isHybrid() && tab === "B") ? S.bowl : (tab === "C" ? null : S.stands[tab]);
+const ringIdx = () => /^R\d+$/.test(tab) ? +tab.slice(1) : -1;
+const cfgForTab = () => isRing() ? ringOf().stands[Math.max(0, ringIdx())] : isBowl() || (isHybrid() && tab === "B") ? S.bowl : (tab === "C" ? null : S.stands[tab]);
+const tabName = key => /^R\d+$/.test(key) ? ((ringOf().stands[+key.slice(1)] || {}).name || "Stand " + (+key.slice(1) + 1)) : key === "B" ? (isHybrid() ? "Lower bowl" : "Bowl") : SIDE_NAMES[key] || "Corners";
 const tiersEditable = () => (!isBowl() && tab === "C") ? S.cornerCustom : cfgForTab().tiers;
 const cornerModes = () => isHybrid()
   ? [["open","Open (lower bowl only)"],["split","Stands meet halfway"],["blend","Filled, blending the stands"],["custom","Filled, its own tiers"]]
   : [["open","Open"],["blend","Filled, blending the stands"],["custom","Filled, its own tiers"]];
 let clipboard = null;
 function fixTab(){
+  if (isRing()){ if (!ringOf().stands.length) S.ring.stands.push(ringStand(0)); if (ringIdx() < 0 || ringIdx() >= S.ring.stands.length) tab = "R0"; return; }
+  if (/^R\d+$/.test(tab)) tab = "N";
   if (isBowl()) tab = "B";
   else if (tab === "B" && !isHybrid()) tab = "N";
   if (!isHybrid()) for (const c of CORNERS) if (S.corners[c.key].mode === "split") S.corners[c.key].mode = "blend";
 }
 function renderTabs(){
   const el = $("tabs");
+  $("ringBox").hidden = !isRing();
   if (isBowl()){ el.hidden = true; return; }
   el.hidden = false;
   const items = [];
+  if (isRing()){ const RG = ringOf();
+    if (!$("ringBox").contains(document.activeElement)) $("ringBox").innerHTML = `<div class="row"><label>Stands round the ground</label><span class="num"><button class="mini" data-ring="-" aria-label="One fewer stand">−</button> <b>${RG.stands.length}</b> <button class="mini" data-ring="+" aria-label="One more stand">+</button></span></div>
+      <div class="row"><label for="ringGap">Gap between stands</label><output>${RG.gap} m</output><input type="range" id="ringGap" data-rg="gap" min="0" max="40" step="1" value="${RG.gap}"></div>
+      <div class="row"><label for="ringTurn">Turn the ring</label><output>${RG.turn}°</output><input type="range" id="ringTurn" data-rg="turn" min="0" max="359" step="1" value="${RG.turn}"></div>`;
+    el.innerHTML = RG.stands.map((r, i) => `<button role="tab" aria-selected="${tab === "R" + i}" data-tab="R${i}">${esc(r.name || "Stand " + (i+1))}<span class="n">${r.tiers.length ? r.tiers.length + "T" : "gap"}</span></button>`).join("");
+    return; }
   if (isHybrid()) items.push(["B","Lower bowl", S.bowl.tiers.length + "T"]);
   SIDES.forEach(s => items.push([s, SIDE_NAMES[s], S.stands[s].tiers.length ? S.stands[s].tiers.length + "T" : "none"]));
   items.push(["C","Corners", CORNERS.filter(c => S.corners[c.key].mode !== "open").length + "/4"]);
@@ -451,21 +467,37 @@ const check = (label, p, val) => `<label class="toggle"><input type="checkbox" d
 const pick = (label, p, val, opts) => `<div class="row"><label>${label}</label><select data-p="${p}" aria-label="${label}">${Object.entries(opts).map(([k,v]) => `<option value="${k}"${k===val?" selected":""}>${v}</option>`).join("")}</select></div>`;
 const SIDE_SHORT = {N:"Main", S:"Opposite", E:"East", W:"West"};
 /* Rows for each side of a bowl, side by side, instead of one number for the whole way round. */
-const sideRowsBox = (tr, pre, isT) => `<div class="row"><label>${isT ? "Steps" : "Rows"} on each side</label></div><div class="siderows">${SIDES.map(s => { const gone = bowlGone(s);
-  return `<label><span>${SIDE_SHORT[s]}</span><input type="number" data-p="${pre}sideRows.${s}" value="${gone ? 0 : Math.round(sideRowsOf(tr, s))}" min="0" max="90" step="1"${gone ? " disabled" : ""} aria-label="${isT ? "Steps" : "Rows"} on the ${SIDE_NAMES[s].toLowerCase()}"></label>`; }).join("")}</div>`;
-function tierBlocks(arr, above, base, bySide){
+const TYPE_SHORT = {seated:"Seats", exec:"Boxes", rail:"Rail seats", bench:"Benches", terrace:"Terrace"};
+const sideRowsBox = (tr, pre) => `<div class="row"><label>Seating and rows on each side</label></div><div class="siderows">${SIDES.map(s => { const gone = bowlGone(s), ty = sideTypeOf(tr, s);
+  return `<label><span>${SIDE_SHORT[s]}</span><select data-p="${pre}sideType.${s}"${gone ? " disabled" : ""} aria-label="Seating on the ${SIDE_NAMES[s].toLowerCase()}">${Object.entries(TYPE_SHORT).map(([k,v]) => `<option value="${k}"${k === ty ? " selected" : ""}>${v}</option>`).join("")}</select>
+    <input type="number" data-p="${pre}sideRows.${s}" value="${gone ? 0 : Math.round(sideRowsOf(tr, s))}" min="0" max="120" step="1"${gone ? " disabled" : ""} aria-label="${ty === "terrace" ? "Steps" : "Rows"} on the ${SIDE_NAMES[s].toLowerCase()}"></label>`; }).join("")}</div>`;
+const TIER_FRONTS = {auto:"Stand's own style", plain:"Plain fascia", lattice:"Criss-cross lattice (Leitch)", glass:"Glass balustrade", concrete:"Concrete parapet", brick:"Brick parapet"};
+const TIER_HOLDS = {none:"Nothing visible (cantilever)", pillars:"Pillars under its front edge", towers:"Towers at each end with a truss"};
+const colourPick = (label, p, val, def) => `<div class="row colour"><label>${label}</label><span class="num"><input type="color" data-p="${p}" value="${val || def || "#888888"}" aria-label="${label}">
+  ${val ? `<button class="mini" data-act="clearColour" data-cp="${p}">Default</button>` : `<small>default</small>`}</span></div>`;
+/* The tier's own look, its length and what holds it up. */
+const openMore = new Set();
+const tierMore = (tr, pre, stacked, ends) => `<details class="sub" data-more="${tab}:${pre}"${openMore.has(tab + ":" + pre) ? " open" : ""}><summary>Look${ends ? ", length" : ""}${stacked ? " and support" : ""}</summary><div class="inner">
+  ${pick("Front", pre + "front", tr.front || "auto", TIER_FRONTS)}
+  ${colourPick("Front colour", pre + "frontColour", tr.frontColour)}
+  ${tr.type === "seated" || tr.type === "rail" ? colourPick("Seat colour", pre + "seatColour", tr.seatColour) : ""}
+  ${ends ? pair("Stops short of the left end", pre + "trim0", tr.trim0 || 0, 0, 80, 1, "m", "Left and right as seen from the play.") + pair("Stops short of the right end", pre + "trim1", tr.trim1 || 0, 0, 80, 1, "m") : ""}
+  ${stacked ? pick("Held up by", pre + "support", tr.hold === "towers" ? "towers" : tr.pillars ? "pillars" : "none", TIER_HOLDS) : ""}
+</div></details>`;
+function tierBlocks(arr, above, base, bySide, ends){
   return arr.map((tr,k) => {
     const isT = tr.type === "terrace", nm = tierName(k, arr.length, above), stacked = k > 0 || above;
     const pre = (base ? base + "." : "") + "tiers." + k + ".";
     const depth = tr.rows * S.types[tr.type].row;
     return `<div class="tier" data-k="${k}"><div class="tier-h"><span>${nm ? nm + " tier" : "Tier"}</span><button class="mini" data-act="removeTier" data-k="${k}" aria-label="Remove this tier">Remove</button></div>
-      <div class="row"><label>Type</label><select data-p="${pre}type" aria-label="Seating type">${Object.entries(TYPES).map(([v,o]) => `<option value="${v}"${v===tr.type?" selected":""}>${o.label}</option>`).join("")}</select></div>
-      ${bySide ? sideRowsBox(tr, pre, isT) : pair(isT ? "Steps" : "Rows", pre + "rows", tr.rows, 1, 90, 1, "", `${depth.toFixed(1)} m deep`)}
+      ${bySide ? "" : `<div class="row"><label>Type</label><select data-p="${pre}type" aria-label="Seating type">${Object.entries(TYPES).map(([v,o]) => `<option value="${v}"${v===tr.type?" selected":""}>${o.label}</option>`).join("")}</select></div>`}
+      ${bySide ? sideRowsBox(tr, pre) : pair(isT ? "Steps" : "Rows", pre + "rows", tr.rows, 1, 90, 1, "", `${depth.toFixed(1)} m deep`)}
       <div class="row"><label class="toggle"><input type="checkbox" data-p="${pre}auto"${tr.auto ? " checked" : ""}> Auto steepness</label><output id="o-rk-${k}"></output>
         ${tr.auto ? "" : `<input type="range" data-p="${pre}rake" min="8" max="45" step="1" value="${tr.rake}" aria-label="Steepness in degrees">`}</div>
       ${stacked ? `${pair("Projects forward over the tier below", pre + "over", tr.over || 0, -15, 40, 0.5, "m", "Negative sets it back instead.")}
       ${pair("Height above the tier below", pre + "gap", tr.gap == null ? 3 : tr.gap, 1.5, 40, 0.5, "m")}
-      ${check("Pillars under its front edge", pre + "pillars", tr.pillars)}` : ""}
+` : ""}
+      ${tierMore(tr, pre, stacked, ends)}
     </div>`;
   }).join("");
 }
@@ -496,21 +528,35 @@ function bowlShapeBlock(){
     <p class="hint">Tap a side or a corner to leave it out, for a horseshoe or a bowl that stops short. The main stand is at the top, as in Plan view.</p>
     <div class="bowlplan">${cell("NW")}${cell("N")}${cell("NE")}${cell("W")}<span class="bp-floor">${field().custom ? "Floor" : "Pitch"}</span>${cell("E")}${cell("SW")}${cell("S")}${cell("SE")}</div>
     <div class="scales"><span>Quick shape:</span>${Object.entries(BOWL_SHAPES).map(([k,[label]]) => `<button class="btn small" data-act="bowlShape" data-shape="${k}">${label}</button>`).join("")}</div>
-    ${check("Give each side its own number of rows", "bowlVary", !!S.bowl.varyRows)}
-    ${S.bowl.varyRows ? `<p class="hint">The corners blend from one side's depth to the next. Set a tier to 0 rows on a side to leave it off there.</p>` : ""}
+    ${check("Give each side its own seating and rows", "bowlVary", !!S.bowl.varyRows)}
+    ${S.bowl.varyRows ? `<p class="hint">Each side can have its own seating (a seated main stand with terraces round the rest, say) and depth; the corners blend from one side to the next. Set a tier to 0 rows on a side to leave it off there.</p>` : ""}
   </div></details>`;
+}
+/* Corner controls: how far round each tier comes from each stand, and where stands that meet halfway meet. */
+const pct = v => Math.round(v*100) + "%";
+const meetText = c => { const v = S.corners[c.key].meet == null ? .5 : S.corners[c.key].meet; return v <= 0.02 ? "at the " + SIDE_NAMES[c.a].toLowerCase() : v >= 0.98 ? "at the " + SIDE_NAMES[c.b].toLowerCase() : pct(v) + " across"; };
+function reachRows(c){
+  const A = S.stands[c.a].tiers, B = S.stands[c.b].tiers, n = Math.min(4, Math.max(A.length, B.length)), hyb = isHybrid(), out = [];
+  const slider = (k, side, v, stand) => `<div class="row"><label>From the ${SIDE_NAMES[stand].toLowerCase()}</label><output>${pct(v)}</output>
+    <input type="range" data-reach="${c.key}:${k}:${side}" min="0" max="100" step="5" value="${Math.round(v*100)}" aria-label="How far the ${SIDE_NAMES[stand].toLowerCase()}'s tier ${k+1} comes round ${c.name}"></div>`;
+  for (let k=0;k<n;k++){ const R = cornerReach(c, k, A[k], B[k]), nm = tierName(k, n, hyb);
+    out.push(`<div class="reach"><div class="tier-h"><span>${nm ? nm + " tier" : "Tier"}</span></div>${A[k] ? slider(k, "a", R.a, c.a) : ""}${B[k] ? slider(k, "b", R.b, c.b) : ""}</div>`); }
+  return out.length ? `<p class="hint">How far round the corner each tier comes from each stand. Where both reach they join up; where one stops it ends with a clean edge, and anything above stays up.</p>${out.join("")}` : "";
 }
 function renderEditor(){
   fixTab(); renderTabs();
   const ed = $("editor"), hyb = isHybrid();
   if (!isBowl() && tab === "C"){
     const anyCustom = CORNERS.some(c => S.corners[c.key].mode === "custom");
-    ed.innerHTML = `<p class="hint">Each corner can be open, filled, or connect only some tiers: <b>Lower only</b> gives a partial-height corner, <b>Upper only</b> leaves the lower corner open and carries the upper tiers across on pillars. The shape (curved, angled or right angle) is under Layout.</p>
+    ed.innerHTML = `<p class="hint">Each corner can be open, filled, or connect only some tiers: <b>Lower only</b> gives a partial-height corner, <b>Upper only</b> leaves the lower corner open and carries the upper tiers across on pillars. Then fine-tune how far round each tier comes from each stand. The shape (curved, angled or right angle) is under Layout.</p>
       ${CORNERS.map(c => { const cc = S.corners[c.key]; return `<div class="cornerbox"><div class="tier-h"><span>${c.name}</span></div>
         <div class="row"><label>Corner</label><select data-corner="${c.key}" data-cf="mode" aria-label="${c.name}">${cornerModes().map(([v,l]) => `<option value="${v}"${cc.mode===v?" selected":""}>${l}</option>`).join("")}</select></div>
         ${cc.mode === "blend" || cc.mode === "custom" ? `<div class="row"><label>Tiers it connects</label><select data-corner="${c.key}" data-cf="tiers" aria-label="Tiers ${c.name} connects">
           ${[["all","All tiers"],["lower","Lower only"],["upper","Upper only"]].map(([v,l]) => `<option value="${v}"${cc.tiers===v?" selected":""}>${l}</option>`).join("")}</select></div>
-          <label class="toggle"><input type="checkbox" data-corner="${c.key}" data-cf="roof"${cc.roof ? " checked" : ""}> Roof over this corner</label>` : ""}</div>`; }).join("")}
+          ${cc.mode === "blend" ? reachRows(c) : ""}
+          <label class="toggle"><input type="checkbox" data-corner="${c.key}" data-cf="roof"${cc.roof ? " checked" : ""}> Roof over this corner</label>` : ""}
+        ${cc.mode === "split" ? `<div class="row"><label>Where they meet</label><output>${meetText(c)}</output>
+          <input type="range" data-meet="${c.key}" min="0" max="100" step="5" value="${Math.round((cc.meet == null ? .5 : cc.meet)*100)}" aria-label="Where the stands meet in ${c.name}"></div>` : ""}</div>`; }).join("")}
       <button class="btn link" id="allCorners">Make all four corners match the first</button>
       ${anyCustom ? `<div class="tier-h" style="margin-top:4px"><span>Custom corner tiers</span></div>${tierBlocks(S.cornerCustom, hyb, "cc")}<button class="btn small" data-act="addTier">Add a tier</button>` : ""}`;
   } else {
@@ -522,7 +568,7 @@ function renderEditor(){
         <button class="btn small" data-act="addTier">+ Tier</button>
         <button class="btn small" data-act="addBoxes">+ Executive boxes</button>
         ${ring || groundRoofOn() ? "" : `<button class="btn small" data-act="toggleRoof">${cfg.roof.shape === "none" ? "+ Roof" : "Remove roof"}</button>`}
-        ${side ? `<button class="btn small" data-act="mirror">Copy to the ${SIDE_NAMES[OPPOSITE[tab]].toLowerCase()}</button>` : ""}
+        ${side && OPPOSITE[tab] ? `<button class="btn small" data-act="mirror">Copy to the ${SIDE_NAMES[OPPOSITE[tab]].toLowerCase()}</button>` : ""}
         <button class="btn small" data-act="copy">Copy settings</button>
         <button class="btn small" data-act="paste"${clipboard ? "" : " disabled"}>Paste settings</button>
         ${ring || groundRoofOn() ? "" : `<button class="btn small" data-act="altRoof">Try another roof</button>`}
@@ -534,15 +580,26 @@ function renderEditor(){
       ${ring ? "" : `<div class="scales"><span>Quick size:</span>${Object.entries(SCALES).map(([k,v]) => `<button class="btn small" data-act="scale" data-scale="${k}">${v.label}</button>`).join("")}</div>`}
       ${side && layoutOf() === "stands" ? `<details class="sub" open><summary>Position and length</summary><div class="inner">
         ${check("Same distance from the play as the other stands", "distSame", cfg.dist == null)}
-        ${cfg.dist == null ? "" : pair("Distance from the play", "dist", cfg.dist, 1, 80, 0.5, "m")}
+        ${cfg.dist == null ? "" : pair("Distance from the play", "dist", cfg.dist, Math.max(1, hardStop()), 80, 0.5, "m")}
         ${pair("Extra length at each end", "extend", cfg.extend || 0, -40, 60, 1, "m", "Only where the corner next to it is open.")}</div></details>` : ""}
+      ${isRing() ? `<details class="sub" open><summary>Place in the ring</summary><div class="inner">
+        <div class="row"><label for="ringName">Name</label><input type="text" id="ringName" data-p="name" maxlength="30" value="${esc(cfg.name || "")}" aria-label="Stand name"></div>
+        ${pair("Share of the way round", "share", cfg.share || 1, 0.2, 4, 0.1, "×", "Bigger stands take more of the ring; take all its tiers away to leave a gap.")}</div></details>` : ""}
       ${above ? `<p class="hint">These tiers sit on top of the lower bowl and follow its shape. Remove them all to leave just the bowl here, with or without a roof.${bowlGone(tab) ? " The lower bowl is left out on this side, so they start at ground level." : ""}</p>` : ""}
       ${bowl || ring ? bowlShapeBlock() : ""}
-      ${tierBlocks(cfg.tiers, above, "", (bowl || ring) && S.bowl.varyRows)}
+      ${tierBlocks(cfg.tiers, above, "", (bowl || ring) && S.bowl.varyRows, !bowl && !ring)}
       ${cfg.tiers.length < 4 ? `<button class="btn small" data-act="addTier">Add a tier</button>` : ""}
       ${ring ? "" : roofBlock(cfg, bowl)}
       ${ring ? "" : `<details class="sub" open><summary>Outside walls</summary><div class="inner">
         ${pick("Look", "facade.look", FACADE_LOOKS[fac.look] ? fac.look : sty.look || "plain", FACADE_LOOKS)}
+        ${colourPick("Wall colour", "facade.colour", fac.colour, "#" + (sty.clad || 0x888888).toString(16).padStart(6, "0"))}
+        ${colourPick("Accent colour", "facade.accent", fac.accent, "#d9d2c2")}
+        <p class="hint">The accent colours the trims, bands, ribs and fins.</p>
+        ${pair("Windows", "facade.windows", fac.windows == null ? 1 : fac.windows, 0, 2, 0.25, "×", "0 leaves the wall blank, 2 doubles them.")}
+        ${pair("Window size", "facade.winSize", fac.winSize || 1, 0.5, 1.6, 0.1, "×")}
+        ${check("Glazed concourse along the ground floor", "facade.concourse", fac.concourse)}
+        <div class="row"><label for="facSign">Lettering</label><input type="text" id="facSign" data-p="facade.sign" maxlength="30" value="${esc(fac.sign || "")}" placeholder="e.g. YOUR CLUB" aria-label="Lettering"></div>
+        ${fac.sign ? pick("Lettering goes", "facade.signAt", fac.signAt || "wall", {wall:"On the outside wall", roof:"Along the roof front"}) + colourPick("Lettering colour", "facade.signColour", fac.signColour, "#ffffff") : ""}
         ${check("Stair towers", "facade.towers", fac.towers)}${check("Entrance gates", "facade.gates", fac.gates)}
         <button class="btn link" data-act="seeOutside">See it from the street</button></div></details>`}`;
   }
@@ -550,7 +607,7 @@ function renderEditor(){
 }
 function renderSummary(){
   const el = $("standSummary"); if (!el || !LAST) return;
-  const si = LAST.standInfo[tab]; const name = tab === "B" ? (isHybrid() ? "Lower bowl" : "Bowl") : SIDE_NAMES[tab] || "Corners";
+  const si = LAST.standInfo[tab]; const name = tabName(tab);
   const mine = mergeParts(LAST.parts.filter(p => p.key === tab)), tiers = [].concat(...mine.map(p => p.tiers || []));
   el.innerHTML = si ? `<b>${name}</b>${tab === "C" ? "" : `<span>${fmt(si.width)} m long</span>`}<span>${fmt(si.depth)} m deep</span><span>${fmt(si.height)} m high</span><span>${fmt(si.seats)} places</span>` +
     (tiers.length ? `<div class="tierlist">${tiers.map(t => `<span><em>${esc(t.name)}</em> ${fmt(t.seats)} · ${t.rows} rows ${TYPES[t.type].short}</span>`).join("")}</div>` : "")
@@ -574,6 +631,9 @@ function applyStyle(cfg, key, ring){
   const roof = st.roof(); if (isBowl() && roof.shape === "gable") roof.shape = "slope"; cfg.roof = roof;
 }
 function targetObj(){ return (!isBowl() && tab === "C") ? {tiers:S.cornerCustom} : cfgForTab(); }
+const getPath = (obj, path) => path.split(".").reduce((o, k) => o == null ? o : o[k], obj);
+/* Redraw the editor without losing the typing cursor (for when lettering appears or goes and its options change). */
+function renderEditorKeepFocus(el){ const id = el.id, pos = el.selectionStart; renderEditor(); const n = id && document.getElementById(id); if (n){ n.focus(); try { n.setSelectionRange(pos, pos); } catch(e) {} } }
 function setPath(obj, path, val){
   const parts = path.split("."); if (parts[0] === "cc"){ obj = {tiers:S.cornerCustom}; parts.shift(); }
   let o = obj; for (let i=0;i<parts.length-1;i++) o = o[parts[i]] = o[parts[i]] || {};
@@ -581,14 +641,25 @@ function setPath(obj, path, val){
   if (last === "curve" || last === "opening") val = val/100;
   o[last] = val;
 }
+$("editor").addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.more){ if (d.open) openMore.add(d.dataset.more); else openMore.delete(d.dataset.more); } }, true);
+$("ringBox").addEventListener("click", e => { const b = e.target.closest("[data-ring]"); if (!b) return; const RG = ringOf();
+  if (b.dataset.ring === "+"){ if (RG.stands.length >= 16) return flash("<b>Sixteen stands is the most a ring can have.</b>"); RG.stands.push(ringStand(RG.stands.length)); tab = "R" + (RG.stands.length - 1); }
+  else { if (RG.stands.length <= 1) return; RG.stands.pop(); if (ringIdx() >= RG.stands.length) tab = "R" + (RG.stands.length - 1); }
+  $("ringBox").innerHTML = ""; renderEditor(); changed(); });
+$("ringBox").addEventListener("input", e => { const el = e.target; if (!el.dataset.rg) return; ringOf()[el.dataset.rg] = +el.value;
+  el.parentElement.querySelector("output").textContent = el.value + (el.dataset.rg === "turn" ? "°" : " m"); changed(false, true); });
 $("tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (!b) return; selectTab(b.dataset.tab, false); });
 $("editor").addEventListener("input", e => {
-  const el = e.target, p = el.dataset.p; if (!p || el.tagName === "SELECT") return;
+  const el = e.target, p = el.dataset.p;
+  if (el.dataset.reach){ const [key, k, side] = el.dataset.reach.split(":"), cc = S.corners[key]; cc.reach = (cc.reach || []).slice();
+    cc.reach[+k] = Object.assign({}, cc.reach[+k], {[side]: +el.value/100}); el.parentElement.querySelector("output").textContent = el.value + "%"; changed(false, true); return; }
+  if (el.dataset.meet){ const c = CORNERS.find(x => x.key === el.dataset.meet); S.corners[c.key].meet = +el.value/100; el.parentElement.querySelector("output").textContent = meetText(c); changed(false, true); return; }
+  if (!p || el.tagName === "SELECT") return;
   if (el.type === "checkbox"){
     if (p === "roofAlign"){ S.roofAlign = el.checked; changed(); return; }
     if (p === "roof.level"){ setPath(targetObj(), p, el.checked); renderEditor(); changed(); return; }
     if (p === "bowlVary"){ S.bowl.varyRows = el.checked;
-      if (el.checked) S.bowl.tiers.forEach(tr => { tr.sideRows = {N:tr.rows, S:tr.rows, E:tr.rows, W:tr.rows}; });
+      if (el.checked) S.bowl.tiers.forEach(tr => { tr.sideRows = {N:tr.rows, S:tr.rows, E:tr.rows, W:tr.rows}; tr.sideType = {N:tr.type, S:tr.type, E:tr.type, W:tr.type}; });
       else S.bowl.tiers.forEach(tr => { if (tr.sideRows) tr.rows = Math.max(1, ...SIDES.filter(s2 => !bowlGone(s2)).map(s2 => tr.sideRows[s2] != null ? tr.sideRows[s2] : tr.rows)); }); // keep the deepest side
       renderEditor(); changed(); return; }
     if (p === "distSame"){ cfgForTab().dist = el.checked ? null : (LAST ? LAST.set : S.setback); renderEditor(); changed(); return; }
@@ -596,16 +667,28 @@ $("editor").addEventListener("input", e => {
     if (p.endsWith(".auto")) renderEditor();
     changed(); return;
   }
+  if (el.type === "color"){ setPath(targetObj(), p, el.value); changed(false, true); return; }
+  if (el.type === "text"){ const had = !!getPath(targetObj(), p); setPath(targetObj(), p, el.value.replace(/[<>"'`\\]/g, "").slice(0, 30)); if (had !== !!el.value) renderEditorKeepFocus(el); changed(false, true); return; }
   const v = +el.value; if (!isFinite(v)) return;
-  setPath(targetObj(), p, p.includes(".sideRows.") ? clamp(Math.round(v), 0, 90) : el.type === "number" && p.endsWith("rows") ? Math.max(1, Math.round(v)) : v);
+  setPath(targetObj(), p, p.includes(".sideRows.") ? clamp(Math.round(v), 0, 120) : el.type === "number" && p.endsWith("rows") ? Math.max(1, Math.round(v)) : v);
   $("editor").querySelectorAll(`[data-p="${p}"]`).forEach(o => { if (o !== el) o.value = el.value; });
   if (p.endsWith(".rows")){ const tr = p.split(".").slice(-2)[0], tier = targetObj().tiers[+tr]; const note = el.closest(".pair").querySelector(".note"); if (note) note.textContent = (tier.rows*S.types[tier.type].row).toFixed(1) + " m deep"; }
   refreshOutputs(); changed(false, el.type === "range");
 });
 $("editor").addEventListener("change", e => {
   const el = e.target;
-  if (el.dataset.corner){ const cc = S.corners[el.dataset.corner], f = el.dataset.cf; cc[f] = el.type === "checkbox" ? el.checked : el.value; renderEditor(); changed(); return; }
+  if (el.dataset.corner){ const cc = S.corners[el.dataset.corner], f = el.dataset.cf; cc[f] = el.type === "checkbox" ? el.checked : el.value; if (f !== "roof") delete cc.reach; renderEditor(); changed(); return; }
   if (el.dataset.actChange === "style"){ applyStyle(cfgForTab(), el.value, isHybrid() && tab === "B"); renderEditor(); changed(); return; }
+  if (el.tagName === "SELECT" && el.dataset.p && el.dataset.p.endsWith(".support")){ // pillars, towers or nothing
+    const tr = el.dataset.p.split(".").slice(0, -1).reduce((o, k) => o[k], el.dataset.p.startsWith("cc.") ? {cc:{tiers:S.cornerCustom}} : targetObj());
+    tr.pillars = el.value === "pillars"; if (el.value === "towers") tr.hold = "towers"; else delete tr.hold; renderEditor(); changed(); return; }
+  if (el.type === "color") return;
+  if (el.tagName === "SELECT" && el.dataset.p && el.dataset.p.includes(".sideType.")){ // keep the side as deep as it was
+    const parts = el.dataset.p.split("."), side = parts.pop(), tr = parts.slice(0, -1).reduce((o, k) => o[k], targetObj());
+    const from = sideTypeOf(tr, side), rows = sideRowsOf(tr, side);
+    tr.sideType = Object.assign({}, tr.sideType, {[side]: el.value});
+    tr.sideRows = Object.assign({}, tr.sideRows, {[side]: Math.max(1, Math.round(rows*S.types[from].row/S.types[el.value].row))});
+    renderEditor(); changed(); return; }
   if (el.tagName === "SELECT" && el.dataset.p){ setPath(targetObj(), el.dataset.p, el.value); renderEditor(); changed(); }
 });
 $("editor").addEventListener("click", e => {
@@ -627,6 +710,7 @@ $("editor").addEventListener("click", e => {
   if (act === "addBoxes"){ if (arr.length >= 4) return say("<b>Four tiers is the most a stand can have.</b> Remove one first.");
     const at = Math.min(1, arr.length); arr.splice(at, 0, t("exec", 4, 22, true, at || isHybrid() ? {over:2, gap:3.6} : {})); }
   if (act === "toggleRoof"){ cfg.roof = cfg.roof.shape === "none" ? STYLES[cfg.style].roof() : Object.assign({}, cfg.roof, {shape:"none"}); if (cfg.roof.shape === "none" && STYLES[cfg.style].roof().shape === "none" && b.textContent.includes("+")) cfg.roof = R("slope"); }
+  if (act === "clearColour"){ const parts = b.dataset.cp.split("."), tr = parts.slice(0, -1).reduce((o, k) => o[k], b.dataset.cp.startsWith("cc.") ? {cc:{tiers:S.cornerCustom}} : targetObj()); delete tr[parts[parts.length-1]]; }
   if (act === "bowlShape"){ const [label, gone] = BOWL_SHAPES[b.dataset.shape]; S.bowl.removed = {}; for (const k of gone) S.bowl.removed[k] = true;
     flash(`<b>${label}.</b> Tap the plan to fine-tune it.`, UNDO); }
   if (act === "mirror"){ S.stands[OPPOSITE[tab]] = clone(cfg); flash(`<b>Copied</b> to the ${SIDE_NAMES[OPPOSITE[tab]].toLowerCase()}.`, UNDO); }
@@ -737,6 +821,93 @@ function plotShape(kind, silent){
 document.querySelectorAll("[data-plot]").forEach(b => b.addEventListener("click", () => plotShape(b.dataset.plot)));
 $("plotOn").addEventListener("change", e => { if (e.target.checked && !S.plot.pts) plotShape("snug"); else { S.plot.on = e.target.checked; changed(true); } setTip(); });
 $("plotClip").addEventListener("change", e => { S.plot.clip = e.target.checked; changed(); });
+/* Convertible grounds: a second sport, how room is made, and which set-up is shown. */
+const convOf = () => (S.convert = Object.assign({}, CONVERT, S.convert || {}));
+const sportName = sp => CONVERT_TO[sp] || (sp === "custom" ? (KINDS[S.custom.kind] || KINDS.plain).label : cap1(sp));
+$("cvOn").addEventListener("change", e => { const C = convOf(); C.on = e.target.checked; if (C.to === S.sport) C.to = Object.keys(CONVERT_TO).find(k => k !== S.sport); if (!C.on) C.show = "base"; changed(true); });
+$("cvTo").addEventListener("change", e => { convOf().to = e.target.value; changed(true); });
+$("cvHow").addEventListener("change", e => { convOf().how = e.target.value; changed(); });
+$("cvPull").addEventListener("change", e => { convOf().pull = e.target.checked; changed(); });
+bindRadio("cvShow", v => { convOf().show = v; changed(); });
+let capsFor = null;
+function syncConvert(){
+  const C = Object.assign({}, CONVERT, S.convert || {});
+  $("cvOn").checked = !!C.on; $("cvMore").hidden = !C.on;
+  $("cvTo").innerHTML = Object.entries(CONVERT_TO).filter(([k]) => k !== S.sport).map(([k, v]) => `<option value="${k}"${k === C.to ? " selected" : ""}>${v}</option>`).join("");
+  $("cvHow").value = C.how; $("cvPull").checked = C.pull !== false;
+  $("cvBaseLabel").textContent = sportName(S.sport); $("cvSecondLabel").textContent = sportName(C.to);
+  document.querySelector(`input[name=cvShow][value=${C.show === "second" ? "second" : "base"}]`).checked = true;
+  if (!C.on){ $("cvCaps").textContent = ""; return; }
+  // the capacity both ways round, worked out once per design
+  const key = JSON.stringify(S); if (capsFor === key) return; capsFor = key;
+  clearTimeout(syncConvert.t); syncConvert.t = setTimeout(() => {
+    const both = ["base", "second"].map(show => statsOf(Object.assign(clone(S), {convert:Object.assign({}, C, {show})})).total);
+    $("cvCaps").textContent = `${sportName(S.sport)}: ${fmt(both[0])} places · ${sportName(C.to)}: ${fmt(both[1])} places.`; }, 50);
+}
+/* Surroundings: add, edit and remove roads, water, railways and buildings. */
+$("siteAdd").innerHTML = Object.entries(SITE_KINDS).map(([k, v]) => `<button class="btn" data-site="${k}">${v.label}<small>${v.note}</small></button>`).join("");
+const siteOf = () => (S.site = Array.isArray(S.site) ? S.site : []);
+let siteDrawn = null;
+function renderSite(){
+  const list = siteOf(); siteDrawn = JSON.stringify(list);
+  if ($("siteList").contains(document.activeElement)) return;
+  const num = (i, k, label, v, min, max, step, unit) => `<div class="row pair"><label>${label}</label><span class="num"><input type="number" data-sf2="${k}" data-i="${i}" value="${Math.round(v*10)/10}" min="${min}" max="${max}" step="${step}" aria-label="${label}"> ${unit}</span>
+    <input type="range" data-sf2="${k}" data-i="${i}" min="${min}" max="${max}" step="${step}" value="${v}" aria-label="${label}"></div>`;
+  $("siteList").innerHTML = list.map((f, i) => { const K = SITE_KINDS[f.kind] || {label:f.kind};
+    return `<div class="screen"><div class="tier-h"><span>${K.label}</span><span class="acts-row"><button class="mini" data-sdel="${i}">Remove</button></span></div>
+      ${num(i, "x", "East–west position", f.x, -600, 600, 1, "m")}${num(i, "z", "North–south position", f.z, -600, 600, 1, "m")}
+      ${num(i, "angle", "Angle", f.angle || 0, 0, 180, 1, "°")}${num(i, "length", "Length", f.length, 5, 1000, 1, "m")}${num(i, "width", "Width", f.width, 3, 200, 0.5, "m")}
+      ${f.height != null ? num(i, "height", "Height", f.height, 3, 150, 0.5, "m") : ""}</div>`; }).join("") || `<p class="hint">Nothing round the ground yet.</p>`;
+}
+$("siteAdd").addEventListener("click", e => { const b = e.target.closest("[data-site]"); if (!b) return;
+  const K = SITE_KINDS[b.dataset.site], list = siteOf(), bd = LAST ? LAST.bounds : [-80, 80, -60, 60];
+  // put it just outside the ground, on the first side that's free
+  const spots = [{x:0, z:bd[2] - K.width/2 - 8, angle:0}, {x:0, z:bd[3] + K.width/2 + 8, angle:0}, {x:bd[1] + K.width/2 + 8, z:0, angle:90}, {x:bd[0] - K.width/2 - 8, z:0, angle:90}];
+  const spot = spots[list.length % 4], f = Object.assign({kind:b.dataset.site, length:K.length, width:K.width}, spot);
+  if (K.height != null) f.height = K.height;
+  if (f.kind === "houses" || f.kind === "building"){ f.length = K.length; f.x = spot.angle ? spot.x : bd[0] + K.length/2; f.z = spot.angle ? bd[2] + K.length/2 : spot.z; }
+  f.x = Math.round(f.x); f.z = Math.round(f.z); list.push(f); siteDrawn = null; changed(true);
+  toast(`<b>${K.label} added</b> beside the ground. Drag its yellow posts in the 3D view, or type where it goes.`, UNDO); });
+$("siteList").addEventListener("input", e => { const el = e.target; if (!el.dataset.sf2) return; const v = +el.value; if (!isFinite(v)) return;
+  siteOf()[+el.dataset.i][el.dataset.sf2] = v; el.closest(".row").querySelectorAll("input").forEach(o => { if (o !== el) o.value = el.value; }); changed(false, true); });
+$("siteList").addEventListener("click", e => { const b = e.target.closest("[data-sdel]"); if (!b) return; siteOf().splice(+b.dataset.sdel, 1); siteDrawn = null; renderSite(); changed(); });
+function siteHandleNear(p){
+  if (!p || look || picking || !Array.isArray(S.site)) return null;
+  const tol = Math.max(3, LAST ? Math.max(LAST.ext[0], LAST.ext[1])*0.03 : 3);
+  for (let i=0;i<S.site.length;i++){ const f = S.site[i], a = (f.angle || 0)*Math.PI/180, ex = f.x + Math.cos(a)*f.length/2, ez = f.z + Math.sin(a)*f.length/2;
+    if (Math.hypot(p.x - ex, p.z - ez) < tol) return {type:"site", i, end:true};
+    if (Math.hypot(p.x - f.x, p.z - f.z) < tol) return {type:"site", i, end:false}; }
+  return null;
+}
+/* Typed plot sizes and corners, for when dragging posts isn't precise enough. */
+const plotBox2 = pts => { const xs = pts.map(p => p[0]), zs = pts.map(p => p[1]); return {x0:Math.min(...xs), x1:Math.max(...xs), z0:Math.min(...zs), z1:Math.max(...zs)}; };
+const polyArea = pts => Math.abs(pts.reduce((a, p, i) => { const q = pts[(i+1)%pts.length]; return a + p[0]*q[1] - q[0]*p[1]; }, 0))/2;
+let plotDrawn = null;
+function renderPlot(){
+  const pts = S.plot.pts; if (!pts) return;
+  const b = plotBox2(pts), area = polyArea(pts);
+  $("plotSummary").textContent = `${b.x1-b.x0} × ${b.z1-b.z0} m · ${area >= 10000 ? (area/10000).toFixed(2) + " ha" : fmt(area) + " m²"}`;
+  for (const [id, v] of [["plotW", b.x1-b.x0], ["plotD", b.z1-b.z0]]) if (document.activeElement !== $(id)) $(id).value = v;
+  if ($("plotPts").contains(document.activeElement)) return;
+  plotDrawn = JSON.stringify(pts);
+  $("plotPts").innerHTML = pts.map((p, i) => `<div class="plotpt"><span>Corner ${i+1}</span>
+    <label>E–W <input type="number" data-pi="${i}" data-pa="0" value="${p[0]}" step="1" aria-label="Corner ${i+1}, east to west"></label>
+    <label>N–S <input type="number" data-pi="${i}" data-pa="1" value="${p[1]}" step="1" aria-label="Corner ${i+1}, main to opposite"></label>
+    <button class="mini" data-pdel="${i}"${pts.length <= 3 ? " disabled" : ""} aria-label="Remove corner ${i+1}">Remove</button></div>`).join("");
+}
+for (const [id, axis] of [["plotW", 0], ["plotD", 1]]) $(id).addEventListener("change", e => { // stretch the plot about its middle
+  const v = +e.target.value, pts = S.plot.pts; if (!pts || !(v >= 20)) return;
+  const b = plotBox2(pts), lo = axis ? b.z0 : b.x0, hi = axis ? b.z1 : b.x1, mid = (lo + hi)/2, k = v/Math.max(1, hi - lo);
+  S.plot.pts = pts.map(p => { const q = p.slice(); q[axis] = Math.round(mid + (p[axis] - mid)*k); return q; }); changed(true); });
+$("plotPts").addEventListener("change", e => { const el = e.target; if (el.dataset.pi == null) return; const v = +el.value; if (!isFinite(v)) return;
+  const pts = clone(S.plot.pts); pts[+el.dataset.pi][+el.dataset.pa] = Math.round(v); S.plot.pts = pts; changed(); });
+$("plotPts").addEventListener("click", e => { const b = e.target.closest("[data-pdel]"); if (!b || S.plot.pts.length <= 3) return;
+  const pts = clone(S.plot.pts); pts.splice(+b.dataset.pdel, 1); S.plot.pts = pts; plotDrawn = null; changed(); });
+$("plotAdd").addEventListener("click", () => { // a new corner halfway along the longest edge, ready to drag or type
+  const pts = clone(S.plot.pts); let bi = 0, bl = -1;
+  pts.forEach((p, i) => { const q = pts[(i+1)%pts.length], l = Math.hypot(q[0]-p[0], q[1]-p[1]); if (l > bl){ bl = l; bi = i; } });
+  const p = pts[bi], q = pts[(bi+1)%pts.length]; pts.splice(bi+1, 0, [Math.round((p[0]+q[0])/2), Math.round((p[1]+q[1])/2)]);
+  S.plot.pts = pts; plotDrawn = null; changed(); toast(`<b>Corner ${bi+2} added</b> halfway along the longest edge. Drag its post or type where it goes.`); });
 for (const s of SWATCHES){
   const b = document.createElement("button"); b.style.background = s[1]; b.title = s[0]; b.setAttribute("aria-label", s[0]); b.dataset.hex = s[1];
   b.addEventListener("click", () => { S.seat = s[1]; setSeatColours(); changed(); });
@@ -744,10 +915,13 @@ for (const s of SWATCHES){
 }
 function bindRadio(name, fn){ document.querySelectorAll(`input[name=${name}]`).forEach(r => r.addEventListener("change", () => fn(r.value))); }
 bindRadio("sport", v => { S.sport = v; S.setback = v === "custom" ? (KINDS[S.custom.kind] || KINDS.plain).set : SPORTS[v].set; S.plot.pts = null; S.plot.on = false; renderEditor(); changed(true); });
-bindRadio("layout", v => { S.layout = v; if (v === "hybrid") tab = "B"; renderEditor(); changed(true); });
+bindRadio("layout", v => { S.layout = v; if (v === "hybrid") tab = "B"; if (v === "ring") tab = "R0"; renderEditor(); changed(true); });
 bindRadio("cshape", v => { S.cornerShape = v; changed(); });
 const bindRange = (id, fn, cam) => $(id).addEventListener("input", e => { fn(+e.target.value); changed(cam, true); });
 bindRange("setback", v => S.setback = v);
+bindRange("runoff", v => S.runoff = v);
+for (const [id, key] of [["ckL","L"],["ckW","W"]]) bindRange(id, v => { S.cricket = Object.assign({}, CRICKET, S.cricket, {[key]: v}); }, true);
+for (const [id, key] of [["bpLF","lf"],["bpCF","cf"],["bpRF","rf"],["bpWall","wall"],["bpLFW","lfWall"]]) bindRange(id, v => { S.ballpark = Object.assign({}, BALLPARK, S.ballpark, {[key]: v}); }, true);
 bindRange("corner", v => S.corner = v);
 bindRange("floorRows", v => S.custom.floor = v, true);
 for (const [id, key, max] of [["nW","W",400],["nH","H",300],["nR","r",150]]) $(id).addEventListener("change", e => {
@@ -756,8 +930,10 @@ $("boards").addEventListener("change", e => { S.boards = e.target.checked; chang
 $("flood").innerHTML = Object.entries(FLOODS).map(([k,v]) => `<option value="${k}">${v}</option>`).join("");
 $("flood").addEventListener("change", e => { S.floodlights = e.target.value; S.lights = e.target.value !== "none"; changed(); });
 const screensOf = () => { if (!Array.isArray(S.screens)) S.screens = screenList(LAST && LAST.closedAt).map(x => Object.assign({}, x)); return S.screens; };
+let screensDrawn = null;
 function renderScreens(){
   const list = Array.isArray(S.screens) ? S.screens : screenList(LAST && LAST.closedAt);
+  screensDrawn = JSON.stringify(list);
   $("screens").innerHTML = list.length ? list.map((sc, i) => `<div class="screen" data-i="${i}">
     <div class="tier-h"><span>Screen ${i+1}</span><span class="acts-row"><button class="mini" data-sact="view" data-i="${i}">Look at it</button><button class="mini" data-sact="remove" data-i="${i}">Remove</button></span></div>
     <div class="row"><label>Where</label><select data-sf="at" data-i="${i}" aria-label="Screen ${i+1} position">${Object.entries(SCREEN_AT).map(([k,v]) => `<option value="${k}"${k===sc.at?" selected":""}>${v}</option>`).join("")}</select></div>
@@ -770,8 +946,9 @@ function renderScreens(){
 function viewScreen(i){ screenFocus = i; requestAnimationFrame(() => requestAnimationFrame(() => { if (LAST.screenSpots && LAST.screenSpots[i]) goCam("screen"); })); }
 $("addScreen").addEventListener("click", () => { const L2 = screensOf(); const used = new Set(L2.map(x => x.at)); const at = ["E","W","N","S"].find(k => !used.has(k)) || "E";
   const sc = {at, mount:"gap", size:12, pos:0}, i = L2.length; L2.push(sc);
-  // start with the first way of mounting it that fits this ground without a warning
-  const key = "screen:" + i, fits = ["gap","roof","top","back"].find(m => { sc.mount = m; return !dryIssues().some(x => x.key === key); });
+  // start with the first way of mounting it that fits this ground without a warning (checked against the stadium as built)
+  const key = "screen:" + i, C = LAST.screenCtx, fits = ["gap","roof","top","back"].find(m => { sc.mount = m; const found = [];
+    planScreens(C.F, C.anchors, C.closedAt, C.outerTop, C.set, (text, k) => found.push(k)); return !found.includes(key); });
   sc.mount = fits || "back";
   renderScreens(); changed(); viewScreen(i);
   toast(`<b>Screen added</b> ${SCREEN_MOUNTS[sc.mount].charAt(0).toLowerCase() + SCREEN_MOUNTS[sc.mount].slice(1)}, at the ${SCREEN_AT[at].toLowerCase()}. Aerial takes you back up.`, UNDO);
@@ -803,7 +980,7 @@ function openState(st, sideTab, tweak){
 }
 document.querySelectorAll("#presets button").forEach(b => b.addEventListener("click", () => {
   const P = clone(PRESETS[b.dataset.p]); openState(P, b.dataset.p === "monument" ? "E" : "N");
-  toast(`<b>${esc(b.firstChild.textContent.trim())}</b> loaded. Tap any stand to make it yours.`, UNDO);
+  toast(b.dataset.p === "blank" ? "<b>Blank pitch.</b> Open Stands, pick a side and press + Tier to start building." : `<b>${esc(b.firstChild.textContent.trim())}</b> loaded. Tap any stand to make it yours.`, UNDO);
 }));
 
 /* ================= saved designs ================= */
@@ -926,12 +1103,16 @@ document.addEventListener("keydown", e => {
 function syncUI(){
   const F = field(), lay = layoutOf();
   document.querySelector(`input[name=sport][value=${S.sport}]`).checked = true;
-  $("ly-stands").disabled = !!F.noStands; $("ly-bowl").disabled = !!F.standsOnly; $("ly-hybrid").disabled = !!F.standsOnly;
+  $("ly-stands").disabled = !!F.noStands; $("ly-bowl").disabled = !!F.standsOnly; $("ly-hybrid").disabled = !!F.standsOnly; $("ly-ring").disabled = false;
   document.querySelector(`input[name=layout][value=${lay}]`).checked = true;
   document.querySelector(`input[name=cshape][value=${S.cornerShape || "curved"}]`).checked = true;
   $("layoutNote").textContent = lay === "hybrid" ? "A continuous lower bowl, with each side free to have its own tiers and roof above it."
+    : lay === "ring" ? "Any number of separate stands round the ground, each its own design, like a cricket ground or a ballpark. Set how many under Stands."
     : lay === "bowl" ? "One continuous bowl. Under Stands you can leave out a side, for a horseshoe, or give each side its own depth." : "Four separate stands, joined by corners if you want them.";
   $("sportNote").textContent = F.note;
+  $("cricketBox").hidden = S.sport !== "cricket"; $("ballBox").hidden = S.sport !== "baseball";
+  const CK = Object.assign({}, CRICKET, S.cricket || {}), BP = Object.assign({}, BALLPARK, S.ballpark || {});
+  for (const [id, v] of [["ckL", CK.L], ["ckW", CK.W], ["bpLF", BP.lf], ["bpCF", BP.cf], ["bpRF", BP.rf], ["bpWall", BP.wall], ["bpLFW", BP.lfWall]]){ if (document.activeElement !== $(id)) $(id).value = v; $("o-" + id).textContent = v + " m"; }
   $("customFloor").hidden = !F.custom;
   $("kinds").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.kind === S.custom.kind)));
   $("cornerRow").hidden = lay === "stands" || S.cornerShape === "square" || (F.r > 0 && (F.custom || F.noStands));
@@ -940,13 +1121,15 @@ function syncUI(){
   const so = (id, v, txt) => { $(id).value = v; if ($("o-"+id) && txt !== undefined) $("o-"+id).textContent = txt; };
   so("floorRows", S.custom.floor || 0, (S.custom.floor || 0) ? S.custom.floor + " rows" : "none");
   const effSet = LAST ? LAST.set : S.setback;
+  const hs = hardStop(); $("runoffRow").hidden = $("runoffNote").hidden = S.sport !== "football"; $("setback").min = Math.max(1, hs);
+  so("runoff", S.runoff == null ? 3 : S.runoff, (S.runoff == null ? 3 : S.runoff) + " m");
   so("setback", S.setback, S.setback + " m" + (effSet > S.setback + 0.01 ? ` (${+effSet.toFixed(1)} m to fit floor seats)` : ""));
   so("corner", S.corner, S.corner + " m");
   const fIn = LAST && LAST.focusIn != null ? LAST.focusIn : (S.focusIn || 0);
   $("focusIn").max = Math.max(0.5, Math.floor(maxFocusIn(F)*2)/2);
   so("focusIn", fIn, fIn < 0.05 ? "edge of play" : `${+fIn.toFixed(1)} m into the floor` + (S.focusIn == null ? " (auto)" : ""));
   const OU = Object.assign({shape:"follow", fit:"ring", size:0}, S.outer || {}), upper = lay === "bowl" ? S.bowl.tiers.length > 1 : SIDES.some(s => S.stands[s].tiers.length);
-  $("outerBox").hidden = lay === "stands";
+  $("outerBox").hidden = lay === "stands" || lay === "ring";
   document.querySelector(`input[name=outerShape][value=${OU.shape}]`).checked = true;
   document.querySelector(`input[name=outerFit][value=${OU.fit}]`).checked = true;
   $("outerMore").hidden = OU.shape === "follow" || !upper;
@@ -956,11 +1139,14 @@ function syncUI(){
   $("outerNone").hidden = upper;
   $("grOn").checked = groundRoofOn();
   $("plotOn").checked = S.plot.on; $("plotBox").hidden = !S.plot.on; $("plotClip").checked = S.plot.clip;
+  if (S.plot.pts && plotDrawn !== JSON.stringify(S.plot.pts)) renderPlot();
+  if (siteDrawn !== JSON.stringify(S.site || [])) renderSite();
+  syncConvert();
   $("boards").checked = !!S.boards;
   const AR = Object.assign({skin:"none", skinShape:"round"}, S.arch || {});
   $("skin").value = AR.skin; document.querySelector(`input[name=skinShape][value=${AR.skinShape}]`).checked = true; $("skinShapeRow").hidden = AR.skin === "none";
   for (const k of ["arch","ramps","towers","plaza"]) $("a-"+k).checked = !!AR[k];
-  $("flood").value = floodMode(); if (document.activeElement === document.body || !$("screens").contains(document.activeElement)) renderScreens();
+  $("flood").value = floodMode(); if (!$("screens").contains(document.activeElement) && screensDrawn !== JSON.stringify(Array.isArray(S.screens) ? S.screens : screenList(LAST && LAST.closedAt))) renderScreens();
   $("crowd").checked = S.crowd !== false; $("night").checked = !!S.night; $("seeThrough").checked = !!S.seeThrough;
   $("seeBtn").setAttribute("aria-pressed", String(!!S.seeThrough)); $("nightBtn").setAttribute("aria-pressed", String(!!S.night));
   $("seatPattern").value = S.seatPattern || "solid"; $("seat2Row").hidden = (S.seatPattern || "solid") === "solid";
@@ -969,8 +1155,31 @@ function syncUI(){
   syncSizes(); syncLimits();
 }
 let pending = false, recam = false;
+/* Football's hard stop: push anything that has crept onto the pitch or its run-off back off it. */
+function keepPitchClear(){
+  const hard = hardStop(); if (!hard) return;
+  const F = field(), hx = F.W/2 + hard, hz = F.H/2 + hard, zone = [[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz]];
+  if (S.setback < hard) S.setback = hard;
+  for (const s2 of SIDES) if (S.stands[s2].dist != null && S.stands[s2].dist < hard) S.stands[s2].dist = hard;
+  for (const r of (S.ring && S.ring.stands) || []) if (r.dist != null && r.dist < hard) r.dist = hard;
+  // surroundings: slide each one straight out from the middle until it's clear
+  const overlaps = f => { const P = featurePoly(f, 0); return P.some(q => inPoly(q, zone)) || zone.some(q => inPoly(q, P)) ||
+    P.some((a, i) => { const b = P[(i+1)%4]; return zone.some((c, j) => { const d = zone[(j+1)%4], den = cross([b[0]-a[0], b[1]-a[1]], [d[0]-c[0], d[1]-c[1]]); if (Math.abs(den) < 1e-9) return false;
+      const t = cross([c[0]-a[0], c[1]-a[1]], [d[0]-c[0], d[1]-c[1]])/den, u = cross([c[0]-a[0], c[1]-a[1]], [b[0]-a[0], b[1]-a[1]])/den; return t > 0 && t < 1 && u > 0 && u < 1; }); }); };
+  for (const f of (Array.isArray(S.site) ? S.site : [])){ let n = 0; const l = Math.hypot(f.x, f.z) || 1; let ux = f.x/l, uz = f.z/l; if (!ux && !uz) uz = 1;
+    while (overlaps(f) && n++ < 400){ f.x = Math.round((f.x + ux) * 10)/10; f.z = Math.round((f.z + uz) * 10)/10; } }
+  // the plot: corners can't be inside the zone, and the zone's corners must be inside the plot
+  if (S.plot.on && S.plot.pts){ const pts = S.plot.pts;
+    for (const q of pts) if (Math.abs(q[0]) < hx && Math.abs(q[1]) < hz){ if (hx - Math.abs(q[0]) < hz - Math.abs(q[1])) q[0] = Math.sign(q[0] || 1)*Math.ceil(hx + .5); else q[1] = Math.sign(q[1] || 1)*Math.ceil(hz + .5); }
+    for (let n=0;n<40;n++){ const out = zone.find(c => !inPoly(c, pts)); if (!out) break;
+      let bi = 0, bd = Infinity; pts.forEach((a, i) => { const b = pts[(i+1)%pts.length], ex = b[0]-a[0], ez = b[1]-a[1], L = Math.hypot(ex, ez) || 1, d = Math.abs(cross([out[0]-a[0], out[1]-a[1]], [ex, ez]))/L; if (d < bd){ bd = d; bi = i; } });
+      const a = pts[bi], b = pts[(bi+1)%pts.length], L = Math.hypot(b[0]-a[0], b[1]-a[1]) || 1; let nx = -(b[1]-a[1])/L, nz = (b[0]-a[0])/L;
+      if (nx*(a[0]+b[0]) + nz*(a[1]+b[1]) < 0){ nx = -nx; nz = -nz; } // push away from the middle
+      const step = bd + 1; for (const q of [a, b]){ q[0] = Math.round(q[0] + nx*step); q[1] = Math.round(q[1] + nz*step); } } }
+}
 function changed(moveCam, coalesce){
   if (moveCam) recam = true;
+  keepPitchClear();
   syncUI(); renderTabs(); save(coalesce);
   if (pending) return; pending = true;
   requestAnimationFrame(() => { pending = false; build(); if (wire) applyWire(); syncUI(); renderSummary(); if (recam){ recam = false; if (camMode !== "seat") goCam(camMode); } });

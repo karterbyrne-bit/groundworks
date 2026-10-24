@@ -42,21 +42,23 @@
     <section class="group" data-pane="start">
       <h2>Start from</h2>
       <div class="presets" id="presets">
+        <button class="btn" data-p="blank">Blank pitch<small>nothing built · start from scratch</small></button>
         <button class="btn" data-p="ot">Old Trafford, 2003-ish<small>bowl + stands above</small></button>
         <button class="btn" data-p="monument">Monumental end<small>double-deck overhang</small></button>
         <button class="btn" data-p="mixed">Mixed-era ground<small>four eras, four stands</small></button>
         <button class="btn" data-p="urban">Squeezed urban ground<small>wedge site · tall stand</small></button>
         <button class="btn" data-p="dell">Wedged-in ground<small>like The Dell</small></button>
         <button class="btn" data-p="leitch">Leitch-era ground<small>historic · square corners</small></button>
+        <button class="btn" data-p="ibrox">Ibrox<small>Leitch main stand · Club Deck</small></button>
         <button class="btn" data-p="bowl">Modern bowl<small>3 tiers · cantilever</small></button>
         <button class="btn" data-p="horseshoe">Horseshoe<small>open end · deeper main side</small></button>
         <button class="btn" data-p="ringroof">One roof over all<small>four stands · oval roof</small></button>
         <button class="btn" data-p="wall">Standing wall ground<small>rail seats · steep end</small></button>
         <button class="btn" data-p="bullring">Bullring<small>round · pillared upper ring</small></button>
         <button class="btn" data-p="wrestle">Wrestleball ground<small>small outdoor ground</small></button>
-        <button class="btn" data-p="fight">Fight night<small>MMA cage · floor seats</small></button>
-        <button class="btn" data-p="bearpit">Boxing bear pit<small>steep · right on the ring</small></button>
-        <button class="btn" data-p="ballpark">Ballpark<small>baseball · upper decks</small></button>
+        <button class="btn" data-p="lords">Lord's-style cricket ground<small>a ring of nine stands · the Pavilion</small></button>
+        <button class="btn" data-p="classicpark">Classic ballpark<small>brick grandstand · Green Monster</small></button>
+        <button class="btn" data-p="ballpark">Modern ballpark<small>three tiers wrapping home plate</small></button>
         <button class="btn" data-p="oval">Great oval<small>like El Monumental · oval upper rings</small></button>
         <button class="btn" data-p="cartuja">Oval over a track<small>like La Cartuja · floating upper tier</small></button>
       </div>
@@ -73,6 +75,18 @@
         <input type="radio" name="sport" id="sp-custom" value="custom"><label for="sp-custom">Other sports</label>
       </div>
       <p class="hint" id="sportNote"></p>
+      <div id="cricketBox" class="group" hidden>
+        <div class="row"><label for="ckL">Boundary, end to end</label><output id="o-ckL"></output><input type="range" id="ckL" min="120" max="190" step="1"></div>
+        <div class="row"><label for="ckW">Boundary, side to side</label><output id="o-ckW"></output><input type="range" id="ckW" min="110" max="180" step="1"></div>
+      </div>
+      <div id="ballBox" class="group" hidden>
+        <div class="row"><label for="bpLF">Left-field wall from home</label><output id="o-bpLF"></output><input type="range" id="bpLF" min="85" max="125" step="1"></div>
+        <div class="row"><label for="bpCF">Centre-field wall from home</label><output id="o-bpCF"></output><input type="range" id="bpCF" min="105" max="145" step="1"></div>
+        <div class="row"><label for="bpRF">Right-field wall from home</label><output id="o-bpRF"></output><input type="range" id="bpRF" min="85" max="125" step="1"></div>
+        <div class="row"><label for="bpWall">Outfield wall height</label><output id="o-bpWall"></output><input type="range" id="bpWall" min="1" max="6" step="0.5"></div>
+        <div class="row"><label for="bpLFW">Left-field wall height</label><output id="o-bpLFW"></output><input type="range" id="bpLFW" min="1" max="12" step="0.5"></div>
+        <p class="hint">A tall left-field wall makes up for a short left field, like Fenway Park's Green Monster.</p>
+      </div>
       <div id="customFloor" class="group">
         <div class="seg grid" id="kinds" role="group" aria-label="Arena floor"></div>
         <details>
@@ -83,7 +97,7 @@
             <div class="row"><label for="nR">Rounded corners</label><span class="num"><input type="number" id="nR" min="0" max="150" step="0.1"> m</span></div>
           </div>
         </details>
-        <div class="row" id="floorRowsRow"><label for="floorRows">Seats on the arena floor</label><output id="o-floorRows"></output><input type="range" id="floorRows" min="0" max="24" step="1"></div>
+        <div class="row" id="floorRowsRow"><label for="floorRows">Courtside seats on the floor</label><output id="o-floorRows"></output><input type="range" id="floorRows" min="0" max="24" step="1"></div>
       </div>
     </section>
 
@@ -93,6 +107,7 @@
         <input type="radio" name="layout" id="ly-stands" value="stands"><label for="ly-stands">Separate stands</label>
         <input type="radio" name="layout" id="ly-bowl" value="bowl"><label for="ly-bowl">Bowl</label>
         <input type="radio" name="layout" id="ly-hybrid" value="hybrid"><label for="ly-hybrid">Bowl + stands</label>
+        <input type="radio" name="layout" id="ly-ring" value="ring"><label for="ly-ring">Ring of stands</label>
       </div>
       <p class="hint" id="layoutNote"></p>
       <div class="seg" role="radiogroup" aria-label="Corner shape">
@@ -105,6 +120,9 @@
       <div class="row"><label for="focusIn">Sightlines aimed at</label><output id="o-focusIn"></output>
         <input type="range" id="focusIn" min="0" max="10" step="0.5"></div>
       <p class="hint">Aiming a few metres into the floor (as arenas do) lets steep stands sit right on top of the action. Aiming at the edge of play is the stricter football rule.</p>
+      <div class="row" id="runoffRow"><label for="runoff">Minimum run-off round the pitch</label><output id="o-runoff"></output>
+        <input type="range" id="runoff" min="1" max="10" step="0.5"></div>
+      <p class="hint" id="runoffNote">Nothing can be built on the pitch or this strip round it: stands, pull-out seats, roads, buildings and the plot boundary all stop at it.</p>
       <div class="row" id="cornerRow"><label for="corner">Corner curve size</label><output id="o-corner"></output>
         <input type="range" id="corner" min="0" max="40" step="1"></div>
     </section>
@@ -131,6 +149,7 @@
 
     <section class="group" id="standsGroup" data-pane="stands">
       <h2>Stands, tiers &amp; roofs</h2>
+      <div class="ringbox" id="ringBox" hidden></div>
       <div class="tabs" id="tabs" role="tablist" aria-label="Stand to edit"></div>
       <div class="editor" id="editor"></div>
     </section>
@@ -154,9 +173,39 @@
           <button class="btn" data-plot="corner">Clipped corner<small>a building in the way</small></button>
           <button class="btn" data-plot="triangle">Triangular site<small>two streets meeting</small></button>
         </div>
+        <details class="sub" id="plotExact"><summary>Exact size and corners<small id="plotSummary"></small></summary><div class="inner">
+          <div class="row"><label for="plotW">Width (east to west)</label><span class="num"><input type="number" id="plotW" min="20" max="1000" step="1"> m</span></div>
+          <div class="row"><label for="plotD">Depth (main to opposite)</label><span class="num"><input type="number" id="plotD" min="20" max="1000" step="1"> m</span></div>
+          <p class="hint">Corners are in metres from the centre spot: east is +, west is −, the opposite side is +, the main stand side is −.</p>
+          <div id="plotPts" class="plotpts"></div>
+          <button class="btn small" id="plotAdd">Add a corner</button>
+        </div></details>
         <label class="toggle"><input type="checkbox" id="plotClip"> Treat the boundary as a hard limit and cut stands back to fit</label>
         <p class="hint">Untick it to use the boundary as a soft guide: stands are built in full and you get a note where they cross it.</p>
       </div>
+    </section>
+
+    <section class="group" id="convertBox" data-pane="ground">
+      <h2>Convertible</h2>
+      <p class="hint">Let the ground switch to a second sport. A bigger field gets room as the lower tier slides back under the one above (like the Stade de France) or has its front rows decked over; a smaller one brings pull-out seats forward to sit fans close.</p>
+      <label class="toggle"><input type="checkbox" id="cvOn"> It converts for a second sport</label>
+      <div id="cvMore" class="group">
+        <div class="row"><label for="cvTo">Second sport</label><select id="cvTo"></select></div>
+        <div class="row"><label for="cvHow">Making room for a bigger field</label><select id="cvHow"><option value="slide">The lower tier slides back</option><option value="cover">The front rows are decked over</option></select></div>
+        <label class="toggle"><input type="checkbox" id="cvPull"> Pull-out seats come forward for a smaller field</label>
+        <div class="seg" role="radiogroup" aria-label="Show it set up for">
+          <input type="radio" name="cvShow" id="cvs-base" value="base"><label for="cvs-base" id="cvBaseLabel">Football</label>
+          <input type="radio" name="cvShow" id="cvs-second" value="second"><label for="cvs-second" id="cvSecondLabel">Athletics</label>
+        </div>
+        <p class="hint" id="cvCaps"></p>
+      </div>
+    </section>
+
+    <section class="group" id="siteBox" data-pane="ground">
+      <h2>Surroundings</h2>
+      <p class="hint">Roads, rivers, canals, railways and buildings round the ground, at real sizes. Stands are cut back to clear them (untick the hard boundary under Site boundary to get warnings instead). In the 3D view, drag a yellow post's middle one to move it and its end one to turn and stretch it.</p>
+      <div class="presets" id="siteAdd"></div>
+      <div id="siteList" class="screens"></div>
     </section>
 
     <details class="group" data-pane="rules" open>

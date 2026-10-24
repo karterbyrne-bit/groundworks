@@ -1,23 +1,54 @@
 /* ================= build ================= */
 let LAST = null, LAST_REGIONS = [], tab = "N";
-/* Tiers for a corner at fraction f between its two stands (or its own custom tiers), then filtered to the tiers the corner connects. */
+/* How far round a corner (0 to 1) tier k reaches from each of its two stands. The corner's own settings can change any of it. */
+function cornerReach(c, k, ta, tb){
+  const cc = S.corners[c.key], r = cc.reach && cc.reach[k];
+  // stands with matching stacks blend all the way round; otherwise each brings its whole stack halfway and they meet
+  const A = S.stands[c.a].tiers, B = S.stands[c.b].tiers, kind = t => t.type === "exec" ? "exec" : "seat";
+  const match = A.length === B.length && A.every((t, i) => kind(t) === kind(B[i]));
+  let a = ta ? (match ? 1 : 0.5) : 0, b = tb ? (match ? 1 : 0.5) : 0;
+  if (cc.tiers === "lower" && k > 0) a = b = 0;
+  if (cc.tiers === "upper" && k === 0) a = b = 0;
+  if (r){ if (ta && r.a != null) a = r.a; if (tb && r.b != null) b = r.b; }
+  return {a: ta ? Math.max(0, Math.min(1, a)) : 0, b: tb ? Math.max(0, Math.min(1, b)) : 0};
+}
+/* A stand's tier as it carries on into a corner: same kind, rows and rake, but none of the stand's own end trims or towers. */
+const intoCorner = tr => { const o = Object.assign({}, tr, {pillars:false}); delete o.trim0; delete o.trim1; delete o.hold; delete o.sideRows; return o; };
+/* Tiers for a corner at fraction f between its two stands (or its own custom tiers). Each tier is the first stand's while
+   that stand's reach lasts, the second's while its reach lasts, a blend where both reach, and a ghost where neither does:
+   laid out but not built, so any tier above it stays up rather than dropping. */
 function cornerTiers(c, f){
   const cc = S.corners[c.key];
-  let out;
-  if (cc.mode === "custom") out = S.cornerCustom.map(x => Object.assign({}, x));
-  else {
-    const A = S.stands[c.a].tiers, B = S.stands[c.b].tiers; out = [];
-    for (let k=0;k<4;k++){
-      const a = A[k], b = B[k]; if (!a && !b) break;
-      const type = a && b && a.type !== b.type ? (a.type === "terrace" ? b.type : a.type) : (a || b).type, T = S.types[type].row; // mixed corners take the seated type
-      const dA = a ? a.rows*S.types[a.type].row : 0, dB = b ? b.rows*S.types[b.type].row : 0;
-      const L = (x, def) => { const va = a && a[x] != null ? a[x] : (b && b[x] != null ? b[x] : def), vb = b && b[x] != null ? b[x] : va; return va*(1-f) + vb*f; };
-      out.push({type, rows:(dA*(1-f) + dB*f)/T, rake:L("rake",22), over:L("over",0), gap:L("gap",3), auto: !!((a && a.auto) || (b && b.auto)), pillars:false});
-    }
+  if (cc.mode === "custom"){
+    let out = S.cornerCustom.map(x => Object.assign({}, x));
+    if (cc.tiers === "lower") out = out.slice(0, 1);
+    else if (cc.tiers === "upper" && out.length > 1) out[0] = Object.assign({}, out[0], {ghost:true});
+    return out;
   }
-  if (cc.tiers === "lower") out = out.slice(0, 1);
-  else if (cc.tiers === "upper" && out.length > 1) out[0] = Object.assign({}, out[0], {ghost:true});
+  const A = S.stands[c.a].tiers, B = S.stands[c.b].tiers, out = [];
+  for (let k=0;k<4;k++){
+    const a = A[k], b = B[k]; if (!a && !b) break;
+    // where two reaches just touch, the slice belongs to the first stand, so a stack of tiers never mixes the two stands
+    const R = cornerReach(c, k, a, b), inA = a && R.a > 0 && f <= R.a + 1e-6, inB = b && R.b > 0 && (1 - f < R.b - 1e-6 || R.b >= 1);
+    if (inA && inB){
+      const lo = 1 - R.b, hi = R.a, t0 = hi - lo > 1e-6 ? (f - lo)/(hi - lo) : (f < 0.5 ? 0 : 1), t = t0*t0*(3 - 2*t0);
+      const type = a.type === b.type ? a.type : t < 0.5 ? a.type : b.type, T = S.types[type].row; // mixed corners take the nearer stand's kind
+      const dA = a.rows*S.types[a.type].row, dB = b.rows*S.types[b.type].row;
+      const L = (x, def) => { const va = a[x] != null ? a[x] : (b[x] != null ? b[x] : def), vb = b[x] != null ? b[x] : va; return va*(1-t) + vb*t; };
+      out.push({type, rows:(dA*(1-t) + dB*t)/T, rake:L("rake",22), over:L("over",0), gap:L("gap",3), auto: !!(a.auto || b.auto), pillars:false});
+    }
+    else if (inA) out.push(intoCorner(a));
+    else if (inB) out.push(intoCorner(b));
+    else out.push(Object.assign(intoCorner(f < 0.5 ? (a || b) : (b || a)), {ghost:true}));
+  }
   return out;
+}
+/* A material in a colour picked in the editor: a copy of a shared one, made once and kept with them. */
+function tint(base, hex){
+  if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) return base;
+  const k = base + "_" + hex.slice(1).toLowerCase();
+  if (!M[k]){ M[k] = M[base].clone(); M[k].color.set(hex); if (base === "seatBack") M[k].color.multiplyScalar(0.8); }
+  return k;
 }
 const fmt = n => Math.round(n).toLocaleString("en-GB");
 const lerp = (a,b,f) => a + (b-a)*f;
@@ -35,17 +66,23 @@ function bowlPiece(tag, nc){
     : {key:CORNER_AFTER[g], corner:false};
 }
 const sideRowsOf = (tr, s) => S.bowl.varyRows && tr.sideRows && tr.sideRows[s] != null ? Math.max(0, tr.sideRows[s]) : tr.rows;
+const sideTypeOf = (tr, s) => S.bowl.varyRows && tr.sideType && TYPES[tr.sideType[s]] ? tr.sideType[s] : tr.type;
 const withRows = (tiers, f) => tiers.map((tr,k) => Object.assign({}, tr, {rows:f(tr,k)}));
-/* The bowl's tiers at one point round the ring: that side's rows, a blend in a corner, or nothing where it's left out. */
+const onSide = (tr, s) => Object.assign({}, tr, {type:sideTypeOf(tr, s), rows:sideRowsOf(tr, s)}); // a bowl tier as built on one side
+/* The bowl's tiers at one point round the ring: that side's seating and rows, a blend in a corner, or nothing where it's
+   left out. A corner between two kinds of seating blends the depth and takes the kind of the nearer side. */
 function bowlTiersAt(tag, nc){
   const pc = bowlPiece(tag, nc), T = S.bowl.tiers;
   if (bowlGone(pc.key)) return withRows(T, () => 0);
   if (!S.bowl.varyRows) return T;
-  if (!pc.corner) return withRows(T, tr => sideRowsOf(tr, pc.key));
+  if (!pc.corner) return T.map(tr => onSide(tr, pc.key));
   const a = !bowlGone(pc.before), b = !bowlGone(pc.after), f = (1 - Math.cos(Math.PI*pc.f))/2;
-  return withRows(T, tr => a && b ? lerp(sideRowsOf(tr, pc.before), sideRowsOf(tr, pc.after), f) : a ? sideRowsOf(tr, pc.before) : b ? sideRowsOf(tr, pc.after) : tr.rows);
+  return T.map(tr => { if (!(a && b)) return a ? onSide(tr, pc.before) : b ? onSide(tr, pc.after) : tr;
+    const ta = onSide(tr, pc.before), tb = onSide(tr, pc.after), type = f < 0.5 ? ta.type : tb.type;
+    const depth = lerp(ta.rows*S.types[ta.type].row, tb.rows*S.types[tb.type].row, f);
+    return Object.assign({}, tr, {type, rows: depth/S.types[type].row}); });
 }
-const bowlSideTiers = s => withRows(S.bowl.tiers, tr => bowlGone(s) ? 0 : sideRowsOf(tr, s));
+const bowlSideTiers = s => bowlGone(s) ? withRows(S.bowl.tiers, () => 0) : S.bowl.tiers.map(tr => onSide(tr, s));
 /* The unbroken stretches of a bowl with parts left out, as ranges round the ring; null when nothing is left out. */
 function bowlRuns(nc){
   const on = BOWL_PIECES.map(k => !bowlGone(k));
@@ -157,7 +194,7 @@ function skinTexture(kind){
     g.fillStyle = "#2a2522"; g.beginPath(); g.moveTo(88,240); g.lineTo(88,120); g.arc(128,120,40,Math.PI,0); g.lineTo(168,240); g.closePath(); g.fill();
     g.fillStyle = "#d9cfc0"; g.fillRect(0,0,256,10); }
   else { g.fillStyle = "#7fa9bf"; g.fillRect(0,0,256,256); g.fillStyle = "rgba(255,255,255,.35)"; g.fillRect(0,0,256,40); g.fillStyle = "#2f3a40"; g.fillRect(0,0,6,256); g.fillRect(0,0,256,6); g.fillRect(0,128,256,4); }
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return (skinTex[kind] = t);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.keep = true; return (skinTex[kind] = t);
 }
 function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf, ext){
   if (outline.length < 3) return 0;
@@ -291,7 +328,7 @@ function planScreens(F, anchors, closedAt, outerTop, set, issue){
     const c = cands.reduce((a,b) => Math.abs(b.lat - target) < Math.abs(a.lat - target) ? b : a), g = c.g, i = c.i, x = g.info[i], R = g.RR ? g.RR[i] : null;
     const vl = Math.hypot(g.v[i][0], g.v[i][1]) || 1, n = [-g.v[i][0]/vl, -g.v[i][1]/vl];
     const P = d => [g.o[i][0] + d*g.v[i][0], g.o[i][1] + d*g.v[i][1]];
-    const cfgRef = sc.at in S.stands && (layoutOf() !== "bowl") ? S.stands[sc.at] : (g.key === "B" ? S.bowl : null);
+    const lay2 = layoutOf(), cfgRef = g.key[0] === "R" ? ringOf().stands[+g.key.slice(1)] : sc.at in S.stands && (lay2 === "stands" || lay2 === "hybrid") ? S.stands[sc.at] : (g.key === "B" ? S.bowl : null);
     const gRoof = S.groundRoof && S.groundRoof.on, roofRef = gRoof ? S.groundRoof : cfgRef && cfgRef.roof;
     let h = w*0.42, mount = sc.mount || "gap";
     if (mount === "ribbon"){ // aim the camera at the front of the tiers, halfway along
@@ -324,17 +361,30 @@ function planScreens(F, anchors, closedAt, outerTop, set, issue){
 }
 const boardTex = {};
 function scoreboardTexture(){
-  const k = S.seat; if (boardTex[k]) return boardTex[k];
+  const k = S.seat + S.sport; if (boardTex[k]) return boardTex[k];
   const c = document.createElement("canvas"); c.width = 512; c.height = 216; const g = c.getContext("2d");
   g.fillStyle = "#06090d"; g.fillRect(0,0,512,216); g.fillStyle = S.seat; g.fillRect(0,0,512,26); g.fillRect(0,190,512,26);
   g.fillStyle = "#ffffff"; g.font = "bold 18px sans-serif"; g.textAlign = "center"; g.fillText("GROUNDWORKS", 256, 20);
+  if (S.sport === "cricket" || S.sport === "baseball"){ // a scoreboard in the sport's own language
+    g.textAlign = "left"; g.font = "bold 26px monospace"; g.fillStyle = "#ffd65a";
+    const lines = S.sport === "cricket" ? [["TOTAL", "245-3"], ["OVERS", "48.2"], ["BATTER 1", "112*"], ["BATTER 2", " 37*"], ["LAST WKT", "88"]]
+      : [["AWAY", "0 1 0 2 0 0 1 · 4"], ["HOME", "1 0 0 0 3 1 0 · 5"], ["INNING", "8   OUTS 2"], ["BALLS", "2   STRIKES 1"], ["", ""]];
+    lines.forEach(([a, b2], i) => { g.fillStyle = "#cfd8e3"; g.fillText(a, 22, 58 + i*30); g.fillStyle = "#ffd65a"; g.fillText(b2, S.sport === "cricket" ? 300 : 150, 58 + i*30); });
+    const t = new THREE.CanvasTexture(c); t.keep = true; return (boardTex[k] = t); }
   g.font = "bold 74px sans-serif"; g.fillText("2 – 1", 256, 128);
   g.font = "bold 30px sans-serif"; g.fillText("HOME", 96, 120); g.fillText("AWAY", 416, 120);
   g.fillStyle = "#ffd65a"; g.font = "bold 26px monospace"; g.fillText("63:12", 256, 172);
-  const t = new THREE.CanvasTexture(c); return (boardTex[k] = t);
+  const t = new THREE.CanvasTexture(c); t.keep = true; return (boardTex[k] = t);
+}
+/* One screen-face material per seat colour, kept between rebuilds rather than made afresh every change. */
+const faceMats = {};
+function screenFace(){
+  const k = S.seat, m = faceMats[k] || (faceMats[k] = new THREE.MeshStandardMaterial({map:scoreboardTexture(), emissive:0xffffff, emissiveMap:scoreboardTexture(), roughness:.4}));
+  m.keep = true; m.emissiveIntensity = S.night ? 1 : .55; return m;
 }
 function drawScreens(plans, bf, anchors){
-  const face = new THREE.MeshStandardMaterial({map:scoreboardTexture(), emissive:0xffffff, emissiveMap:scoreboardTexture(), emissiveIntensity: S.night ? 1 : .55, roughness:.4});
+  if (!plans.length) return;
+  const face = screenFace();
   for (const p of plans){
     if (p.kind === "ribbon"){ // LED boards along every tier front of that stand
       const g = p.g, b = bf("board");
@@ -359,8 +409,55 @@ function drawScreens(plans, bf, anchors){
    yb, facing out along n. Everything stands slightly proud of the wall so it reads from the street and from the air. */
 const FACADE_LOOKS = {brick:"Brick, with rows of windows", timber:"Painted timber", deco:"Art deco ribs", concrete:"Concrete bands",
   sheet:"Metal cladding with a club-colour stripe", fins:"Metal fins over a glazed concourse", glass:"Glass curtain wall", grid:"Windows all over", plain:"Plain wall"};
-function dressWall(buf, look, wallKey, a, b, ya, yb, n){
+/* Real-looking wall materials: brick courses, board-marked concrete, profiled metal sheet and timber boarding, drawn as
+   light patterns that the wall's own colour tints. They repeat every few metres along the wall. */
+const wallTex = {};
+function wallTexture(kind){
+  if (wallTex[kind]) return wallTex[kind];
+  const c = document.createElement("canvas"), N = 512; c.width = c.height = N; const g = c.getContext("2d");
+  let seed = 7; const rnd = () => { seed = (seed*16807) % 2147483647; return seed/2147483647; };
+  const shade = v => { const x = Math.round(255*Math.max(0, Math.min(1, v))); return `rgb(${x},${x},${x})`; };
+  let metres = 4;
+  if (kind === "brick"){ // 4 m square: 0.075 m courses of 0.225 m bricks in stretcher bond, lighter mortar
+    g.fillStyle = shade(1); g.fillRect(0,0,N,N); const ch = N/53.3, bw = N/17.8;
+    for (let r=0, y=0; y<N; r++, y+=ch) for (let x = (r%2) ? -bw/2 : 0; x<N; x+=bw){ g.fillStyle = shade(0.74 + rnd()*0.16); g.fillRect(x + 1, y + 1, bw - 2, ch - 2); } }
+  else if (kind === "concrete"){ // 4.8 m: board-marked panels with tie holes and a little staining
+    metres = 4.8; g.fillStyle = shade(0.92); g.fillRect(0,0,N,N);
+    for (let i=0;i<5000;i++){ g.fillStyle = shade(0.84 + rnd()*0.14); g.fillRect(rnd()*N, rnd()*N, 2, 2); }
+    g.fillStyle = shade(0.78); for (const y of [0, N/2]) g.fillRect(0, y, N, 3); for (const x of [0, N/2]) g.fillRect(x, 0, 3, N);
+    g.fillStyle = shade(0.7); for (const x of [N/8, 3*N/8, 5*N/8, 7*N/8]) for (const y of [N/8, 3*N/8, 5*N/8, 7*N/8]){ g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill(); } }
+  else if (kind === "cladding"){ // 2 m: profiled metal sheet with a rib every 0.25 m
+    metres = 2; for (let x=0;x<N;x++){ const f = (x % (N/8))/(N/8), v = f < .15 ? 0.7 + f*1.5 : f < .3 ? 1 : 0.88 + 0.04*Math.sin(f*6); g.fillStyle = shade(v); g.fillRect(x, 0, 1, N); }
+    g.fillStyle = shade(0.8); g.fillRect(0, N - 3, N, 3); }
+  else { // timber boarding, 0.16 m boards
+    metres = 3; for (let y=0, i=0; y<N; y+=N/18.75, i++){ g.fillStyle = shade(0.82 + rnd()*0.14); g.fillRect(0, y, N, N/18.75); g.fillStyle = shade(0.6); g.fillRect(0, y, N, 2); } }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1/metres, 1/metres);
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy(); t.keep = true; return (wallTex[kind] = t);
+}
+const LOOK_TEX = {brick:"brick", timber:"timber", sheet:"cladding", fins:"cladding", deco:"concrete", concrete:"concrete", grid:"concrete", plain:"concrete"};
+function textured(key, kind){
+  if (!kind) return key; const k = key + "~" + kind;
+  if (!M[k]){ M[k] = M[key].clone(); M[k].map = wallTexture(kind); }
+  return k;
+}
+/* Lettering for an outside wall or a roof front, in the club's own words. */
+const signTex = {};
+function signMaterial(text, colour){
+  const k = text + "|" + colour; if (signTex[k]) return signTex[k];
+  const font = "800 110px 'Big Shoulders Display', 'Arial Narrow', sans-serif", c = document.createElement("canvas"), g = c.getContext("2d");
+  g.font = font; c.width = Math.min(4096, Math.ceil(g.measureText(text).width) + 40); c.height = 140;
+  g.font = font; g.fillStyle = colour; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, c.width/2, 76);
+  const t = new THREE.CanvasTexture(c); t.keep = true;
+  const m = new THREE.MeshStandardMaterial({map:t, transparent:true, alphaTest:.25, roughness:.5, emissive:new THREE.Color(colour), emissiveMap:t, emissiveIntensity:0});
+  m.keep = true; m.aspect = c.width/c.height;
+  if (!document.fonts || document.fonts.check(font)) signTex[k] = m; // try again once the lettering font has loaded
+  return m;
+}
+const ACCENTS = new Set(["trim", "band", "steel", "white", "lattice"]);
+function dressWall(buf, look, wallKey, a, b, ya, yb, n, opt){
   const len = Math.hypot(b[0]-a[0], b[1]-a[1]); if (len < 0.5) return;
+  opt = opt || {}; const dens = opt.windows == null ? 1 : opt.windows, wsz = opt.winSize || 1, buf0 = buf;
+  buf = k => buf0(opt.accent && ACCENTS.has(k) ? tint(k, opt.accent) : k); // trims, bands and fins in the accent colour
   const tg = [(b[0]-a[0])/len, (b[1]-a[1])/len], lo = Math.min(ya, yb);
   const P = (f, out) => [a[0] + (b[0]-a[0])*f + n[0]*out, a[1] + (b[1]-a[1])*f + n[1]*out];
   const Q = (p, y) => [p[0], y, p[1]];
@@ -378,7 +475,7 @@ function dressWall(buf, look, wallKey, a, b, ya, yb, n){
     quad(buf(key), Q(r0,y0), Q(r1,y0), Q(r1,y1), Q(r0,y1)); quad(buf(key), Q(q0,y0), Q(r0,y0), Q(r0,y1), Q(q0,y1));
     quad(buf(key), Q(r1,y0), Q(q1,y0), Q(q1,y1), Q(r1,y1)); quad(buf(key), Q(r0,y1), Q(r1,y1), Q(q1,y1), Q(q0,y1)); };
   const cells = step => Math.max(1, Math.round(len/step));
-  const windows = (key, step, storey, first, w, h, sill) => { const nC = cells(step);
+  const windows = (key, step, storey, first, w, h, sill) => { if (dens <= 0) return; const nC = cells(step/dens); w *= wsz; h = Math.min(h*wsz, storey - 0.6);
     for (let c=0;c<nC;c++){ const fc = (c + .5)/nC, fw = w/2/len;
       for (let y = first; y + h < Math.min(top(fc), lo + 2) - 1.2; y += storey){ panel(key, fc - fw, fc + fw, y, y + h, .06); if (sill) panel(sill, fc - fw*1.25, fc + fw*1.25, y - .22, y, .14); } } };
   if (look === "brick"){
@@ -392,11 +489,11 @@ function dressWall(buf, look, wallKey, a, b, ya, yb, n){
     ledge("roofGreen", lo - .9, lo - .2, .3, true);
   } else if (look === "deco"){
     const nC = cells(3.2);
-    for (let c=0;c<nC;c++){ const fc = (c + .5)/nC, fw = .7/len; panel("window", fc - fw, fc + fw, 2.2, Math.max(2.4, top(fc) - 3), .05); }
+    if (dens > 0) for (let c=0;c<nC;c++){ if (dens < 1 && (c % Math.round(1/dens))) continue; const fc = (c + .5)/nC, fw = .7*wsz/len; panel("window", fc - fw, fc + fw, 2.2, Math.max(2.4, top(fc) - 3), .05); }
     for (let c=0;c<=nC;c++) rib("trim", c/nC, .6, .4, Math.max(1, top(c/nC) - .6), .9);
     ledge("trim", lo - 1.3, lo - .3, .7, true); panel("trim", 0, 1, 0, .6, .12);
   } else if (look === "concrete"){
-    for (let y = 3; y + 3.2 < lo - .5; y += 5.2){ panel("window", 0, 1, y, y + 1.6, .05); ledge("concrete", y + 1.6, y + 3.1, .8); }
+    for (let y = 3; y + 3.2 < lo - .5; y += 5.2){ if (dens > 0) panel("window", 0, 1, y, y + 1.6*wsz, .05); ledge("concrete", y + 1.6, y + 3.1, .8); }
     ledge("concrete", lo - 1.2, lo - .2, .9, true);
   } else if (look === "sheet"){
     for (let y = 2.4; y < lo - .5; y += 2.4) panel("band", 0, 1, y, y + .07, .04);
@@ -418,6 +515,11 @@ function dressWall(buf, look, wallKey, a, b, ya, yb, n){
     windows("window", 2.6, 3.3, 1.6, 1.3, 1.8, null);
     ledge("trim", lo - .8, lo - .2, .3, true);
   }
+  if (opt.concourse && lo > 6 && look !== "fins" && look !== "glass"){ // a glazed concourse along the ground floor, under a canopy
+    panel("window", 0, 1, .3, 4.4, .08); panel("glass", 0, 1, .3, 4.4, .5);
+    for (let c=0;c<=cells(2.4);c++) rib("steel", c/cells(2.4), .12, .3, 4.4, .55);
+    ledge("steel", 4.4, 4.75, 1.6);
+  }
 }
 /* Floodlights fixed to the leading edge of each roof (or on short poles along the top of open stands). */
 function roofLights(anchors, bf, F){
@@ -435,8 +537,74 @@ function roofLights(anchors, bf, F){
       if (!best || used.has(best) || bd < 0.5) continue; used.add(best);
       const sp = new THREE.SpotLight(0xfff4dc, 1.1, 0, 1.0, 0.6, 1); sp.position.set(best[0], best[1], best[2]); sp.target.position.set(-best[0]*0.2, 0, -best[2]*0.2); group.add(sp); group.add(sp.target); } }
 }
+/* The surroundings: roads, rivers, canals, railways, terraced houses and buildings, at real sizes, each with a yellow post
+   in the middle (drag to move it) and one at its end (drag to turn and stretch it). */
+function drawSite(features, bf, ext){
+  const brick = textured("clad_historic", "brick"), conc = textured("concrete", "concrete");
+  for (const f of features){
+    const a = (f.angle || 0)*Math.PI/180, u = [Math.cos(a), Math.sin(a)], n = [-u[1], u[0]], L = f.length/2, W = f.width/2;
+    const P = (s, t, y) => [f.x + u[0]*s + n[0]*t, y, f.z + u[1]*s + n[1]*t];
+    const slab = (key, s0, s1, t0, t1, y) => quad(bf(key), P(s0,t0,y), P(s1,t0,y), P(s1,t1,y), P(s0,t1,y));
+    const side = (key, s0, s1, t, y0, y1) => quad(bf(key), P(s0,t,y0), P(s1,t,y0), P(s1,t,y1), P(s0,t,y1));
+    const end = (key, s, t0, t1, y0, y1) => quad(bf(key), P(s,t0,y0), P(s,t1,y0), P(s,t1,y1), P(s,t0,y1));
+    if (f.kind === "road"){ const pv = Math.min(3, W*0.25);
+      slab("pavement", -L, L, -W, W, .03); slab("road", -L, L, -W + pv, W - pv, .05);
+      for (const t of [-W + pv, W - pv]) side("concrete", -L, L, t, .03, .17);
+      for (let s0=-L; s0<L-4; s0+=9) slab("white", s0, s0 + 4.5, -.08, .08, .06); }
+    else if (f.kind === "river" || f.kind === "canal"){ // water at ground level between walls: stone copings on a canal, embankment walls on a river
+      const tow = f.kind === "canal" ? Math.min(3.5, W*0.3) : 0, ww = W - tow, wallH = f.kind === "canal" ? .35 : .9;
+      slab("water", -L, L, -ww, ww, .02);
+      for (const t of [-ww, ww]){ side(f.kind === "canal" ? "trim" : "concrete", -L, L, t, 0, wallH); side(f.kind === "canal" ? "trim" : "concrete", -L, L, t + Math.sign(t)*.5, 0, wallH);
+        quad(bf(f.kind === "canal" ? "trim" : "concrete"), P(-L,t,wallH), P(L,t,wallH), P(L,t + Math.sign(t)*.5,wallH), P(-L,t + Math.sign(t)*.5,wallH)); }
+      if (tow) for (const sg of [-1, 1]) slab("pavement", -L, L, sg*(ww + .5), sg*W, .05); }
+    else if (f.kind === "rail"){
+      slab("ballast", -L, L, -W, W, .08);
+      for (const tc of [-W*0.3, W*0.3]){
+        for (let s0=-L; s0<L; s0+=.8) slab("dark", s0, s0 + .26, tc - 1.3, tc + 1.3, .14);
+        for (const r of [-.72, .72]) bar(bf("steel"), P(-L, tc + r, .24), P(L, tc + r, .24), .1); }
+      for (const t of [-W, W]) side("cable", -L, L, t, .08, 1.8); }
+    else if (f.kind === "houses"){ const eave = Math.max(4, (f.height || 9) - 3), ridge = f.height || 9, nU = Math.max(1, Math.round(f.length/5)), uw = f.length/nU;
+      for (const t of [-W, W]) side(brick, -L, L, t, 0, eave);
+      for (const s2 of [-L, L]){ end(brick, s2, -W, W, 0, eave); tri(bf(brick), P(s2,-W,eave), P(s2,W,eave), P(s2,0,ridge)); }
+      for (const sg of [-1, 1]) quad(bf("slate"), P(-L,sg*(W+.3),eave-.2), P(L,sg*(W+.3),eave-.2), P(L,0,ridge), P(-L,0,ridge));
+      for (let k=0;k<nU;k++){ const s0 = -L + k*uw, c = s0 + uw/2;
+        for (const sg of [-1, 1]){ const t = sg*(W + .05);
+          side("window", c - 1.8, c - .6, t, 3.6, 4.9); side("window", c + .2, c + 1.6, t, 3.6, 4.9); side("window", c + .2, c + 1.6, t, 1, 2.3);
+          side(sg < 0 ? "gate" : "window", c - 1.8, c - .8, t, 0, 2.2); }
+        if (k % 2 === 0){ const q = P(s0 + uw, 0, 0); post(bf(brick), q[0], q[2], ridge - .5, ridge + 1.3, .9); } } } // a chimney stack every other house
+    else if (f.kind === "building"){ const H = f.height || 20, floors = Math.max(1, Math.floor(H/3.5));
+      for (const t of [-W, W]) side(conc, -L, L, t, 0, H);
+      for (const s2 of [-L, L]) end(conc, s2, -W, W, 0, H);
+      slab("roofSolid", -L, L, -W, W, H); for (const t of [-W, W]) side("concrete", -L, L, t, H, H + 1);
+      for (let fl=0;fl<floors;fl++){ const y0 = 1 + fl*3.5;
+        for (const t of [-W - .05, W + .05]) side("window", -L + .8, L - .8, t, y0, y0 + 1.8);
+        for (const s2 of [-L - .05, L + .05]) end("window", s2, -W + .8, W - .8, y0, y0 + 1.8); } }
+    // posts for dragging it about
+    const c = P(0, 0, 0), e = P(L, 0, 0); post(bf("barrier"), c[0], c[2], 0, 3, 1.4); post(bf("barrier"), e[0], e[2], 0, 2.2, 1);
+    for (const q of featurePoly(f, 0)){ ext[0] = Math.max(ext[0], Math.abs(q[0])); ext[1] = Math.max(ext[1], Math.abs(q[1])); }
+  }
+}
+/* A floodlight head: a frame of separate lamps angled down at the play, with a service platform behind. */
+const lampGeo = new THREE.BoxGeometry(1.25, 1.05, .5), lampRim = new THREE.BoxGeometry(1.45, 1.25, .35); lampGeo.keep = lampRim.keep = true;
+function lampHead(x, y, z){
+  const g = new THREE.Group(); g.position.set(x, y, z);
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(12, 7.6, .35), M.column); g.add(frame);
+  for (let r=0;r<4;r++) for (let c=0;c<6;c++){ const px = -4.6 + c*1.84, py = -2.6 + r*1.75;
+    const rim = new THREE.Mesh(lampRim, M.dark); rim.position.set(px, py, .3); g.add(rim);
+    const l = new THREE.Mesh(lampGeo, M.lamp); l.position.set(px, py, .42); g.add(l); }
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(12.4, .2, 2), M.steel); deck.position.set(0, -4.2, -.9); g.add(deck);
+  const rail = new THREE.Mesh(new THREE.BoxGeometry(12.4, .08, .08), M.steel); rail.position.set(0, -3.2, -1.85); g.add(rail);
+  g.lookAt(0, 0, 0); g.traverse(o => { o.castShadow = true; o.userData.stadium = true; });
+  return g;
+}
 function maxFocusIn(F){ return Math.min(10, Math.max(Math.min(F.W, F.H)/2, Math.max(F.W, F.H)/4)); }
 function defaultFocusIn(F){ return F.custom ? Math.min(4, Math.min(F.W, F.H)*0.3) : 0; }
+/* Shown set up for its second sport? Then the second sport's field, and the outline the lower tier has to clear. */
+function convertView(){
+  const C = Object.assign({}, CONVERT, S.convert || {}); if (!C.on || C.show !== "second" || C.to === S.sport || !CONVERT_TO[C.to]) return null;
+  const F2 = field(C.to), clear = F2.custom ? (KINDS[C.to].set || 2) : C.to === "football" ? Math.max(1.5, S.runoff == null ? 3 : S.runoff) : 1.5;
+  return {F2, sp:C.to, how:C.how, pull:C.pull !== false, poly2:closedPathS(F2, F2.r || 0, clear, "curved")};
+}
 let PRE = false;
 function build(){
   let alignTop = null, roofNeedMax = 0;
@@ -445,15 +613,20 @@ function build(){
   focusY = F.focusY || 0;
   focusIn = S.focusIn != null ? Math.max(0, Math.min(S.focusIn, maxFocusIn(F))) : defaultFocusIn(F);
   const floorRows = F.custom ? Math.max(0, Math.round(S.custom.floor || 0)) : 0;
-  const floorStart = F.kind === "boxing" || F.kind === "cage" ? 1.8 : 1.2, floorT = 0.85;
+  const floorStart = 1.2, floorT = 0.85;
   const floorNeed = floorRows ? floorStart + floorRows*floorT + 0.9 : 1;
-  const set = Math.max(S.setback, floorNeed);
-  const standSet = cfg => Math.max(floorNeed, cfg && cfg.dist != null ? cfg.dist : S.setback);
+  const hard = hardStop(), set = Math.max(S.setback, floorNeed, hard);
+  const standSet = cfg => Math.max(floorNeed, hard, cfg && cfg.dist != null ? cfg.dist : S.setback);
+  const CV = convertView();
   const radius = (F.custom || F.noStands) ? (F.r > 0 ? F.r : S.corner) : S.corner;
   const poly = S.plot.on && S.plot.pts ? S.plot.pts : null;
+  const site = (Array.isArray(S.site) ? S.site : []).filter(f => SITE_KINDS[f.kind] && f.length > 0 && f.width > 0);
+  const obstacles = site.map(f => ({f, poly:featurePoly(f, 1)})); // stands keep a metre clear of roads, water and buildings
+  const roomAt = (o2, v2, d0) => { let dm = poly ? exitDist(poly, o2, v2, d0) : Infinity; for (const ob of obstacles) dm = Math.min(dm, enterDist(ob.poly, o2, v2, d0)); return dm; };
   if (!DRY){
     scene.remove(group);
-    group.traverse(o => { if (o.geometry) o.geometry.dispose(); for (const m of [].concat(o.material || [])) if (m.map && m.map.dispose) m.map.dispose(); });
+    const shared = new Set(Object.values(M)); // free what this build made, but keep the shared materials and cached textures
+    group.traverse(o => { if (o.geometry && !o.geometry.keep) o.geometry.dispose(); for (const m of [].concat(o.material || [])){ if (m.map && m.map.dispose && !m.map.keep) m.map.dispose(); if (!m.keep && !shared.has(m)) m.dispose(); } });
     group = new THREE.Group(); scene.add(group);
   }
   const Bf = {}; const buf = k => (Bf[k] = Bf[k] || []);
@@ -482,8 +655,9 @@ function build(){
   // seating types in use, then type-wide checks
   const used = new Set();
   const addUsed = arr => arr.forEach(x => used.add(x.type));
-  if (lay !== "stands") addUsed(S.bowl.tiers);
-  if (lay !== "bowl"){ SIDES.forEach(s => addUsed(S.stands[s].tiers)); if (CORNERS.some(c => S.corners[c.key].mode === "custom")) addUsed(S.cornerCustom); }
+  if (lay !== "stands"){ addUsed(S.bowl.tiers); if (S.bowl.varyRows) for (const s2 of SIDES) if (!bowlGone(s2)) addUsed(bowlSideTiers(s2)); }
+  if (lay === "ring") ringOf().stands.forEach(r => addUsed(r.tiers));
+  else if (lay !== "bowl"){ SIDES.forEach(s => addUsed(S.stands[s].tiers)); if (CORNERS.some(c => S.corners[c.key].mode === "custom")) addUsed(S.cornerCustom); }
   if (floorRows) used.add("seated");
   const typeBad = {};
   for (const ty of used){
@@ -525,21 +699,54 @@ function build(){
     const roofOn = !groundRoof && rf.shape !== "none" && st.roofOn !== false;
     const margin = roofOn ? 1.6 : 0.3;
     let overflow = 0;
-    const profs = [];
-    for (let i=0;i<m;i++){
-      let tiers = st.tiersFor(i); const s0 = setAt(i);
-      if (poly){
-        const dm = exitDist(poly, o[i], v[i], s0);
-        if (S.plot.clip) tiers = trimTiers(tiers, dm - margin, s0);
-        else { const pr = profile(tiers, s0).filter(p => nRows(p) >= 1); if (pr.length) overflow = Math.max(overflow, Math.max(...pr.map(p => p.front + nRows(p)*p.T)) + margin - dm); }
-      }
-      profs.push(profile(tiers, s0));
-    }
-    if (overflow > 0.05) issue(`The ${st.name.toLowerCase()} runs ${Math.round(overflow)} m past the plot boundary.`, "site:" + st.name, "geo",
-      {tab:st.key, fix:{label:"Cut it back to fit the plot", run:() => { S.plot.clip = true; return true; }}});
     const s0 = setAt(Math.floor(m/2));
     const cum = [0]; for (let i=1;i<m;i++){ const a = pt(i-1,s0), b = pt(i,s0); cum.push(cum[i-1] + Math.hypot(b[0]-a[0], b[1]-a[1])); }
     const lenTotal = cum[m-1] + (closed ? Math.hypot(pt(0,s0)[0]-pt(m-1,s0)[0], pt(0,s0)[1]-pt(m-1,s0)[1]) : 0);
+    /* A tier can stop short of either end of an open stand (start is the left end, seen from the play). */
+    const cut = (tiers, i) => closed || !tiers.some((tr,k) => k >= st.drawFrom && (tr.trim0 > 0 || tr.trim1 > 0)) ? tiers
+      : tiers.map((tr,k) => k >= st.drawFrom && (cum[i] < (tr.trim0 || 0) - 1e-6 || cum[i] > lenTotal - (tr.trim1 || 0) + 1e-6) ? Object.assign({}, tr, {ghost:true}) : tr); // laid out but not built, so anything above it stays up
+    const profs = [], tierList = [];
+    for (let i=0;i<m;i++){
+      let tiers = cut(st.tiersFor(i), i); const s0 = setAt(i);
+      if (poly || obstacles.length){
+        const dm = roomAt(o[i], v[i], s0); if (!isFinite(dm)){ tierList.push(tiers); profs.push(profile(tiers, s0)); continue; }
+        if (S.plot.clip) tiers = trimTiers(tiers, dm - margin, s0);
+        else { const pr = profile(tiers, s0).filter(p => nRows(p) >= 1); if (pr.length) overflow = Math.max(overflow, Math.max(...pr.map(p => p.front + nRows(p)*p.T)) + margin - dm); }
+      }
+      tierList.push(tiers); profs.push(profile(tiers, s0));
+    }
+    /* Keep each tier above the first at one height along the stand. Where the tier below is cut short (by the plot, or a bowl
+       side with fewer rows) the tier above would otherwise dip and arch with it; instead it is held level at the height its
+       tallest point needs, and its rows are raked from there. Corners are left to blend between their stands. */
+    if (st.key !== "C"){
+      const lift = [], K0 = Math.max(0, ...profs.map(p => p.length));
+      for (let k=1;k<K0;k++){
+        let top = -Infinity, uneven = false;
+        for (const pr of profs){ const p = pr[k]; if (p && p.stacked && !p.ghost && nRows(p) >= 1){ if (isFinite(top) && Math.abs(p.hF - top) > 0.01) uneven = true; top = Math.max(top, p.hF); } }
+        if (!uneven) continue;
+        lift[k] = top; for (let i=0;i<m;i++) profs[i] = profile(tierList[i], setAt(i), lift);
+      }
+    }
+    /* A convertible ground set up for its second sport: the lower tier slides back or has its front rows decked over so a
+       bigger field fits, or pull-out seats come forward towards a smaller one. Tiers above stay where they are. */
+    const decks = [];
+    if (CV && st.drawFrom === 0) for (let i=0;i<m;i++){
+      const p = profs[i][0]; if (!p || p.stacked || p.ghost || nRows(p) < 1) continue;
+      const need = lineHit(CV.poly2, o[i], v[i]); if (need == null) continue;
+      const delta = need - p.front, from = p.front;
+      if (delta > 0.2){
+        if (CV.how === "cover"){ const kc = Math.min(nRows(p), Math.ceil(delta/p.T - 1e-6)); p.front += kc*p.T; p.rows -= kc; p.hs = p.hs.slice(kc); if (p.hs.length) p.hF = p.hs[0]; }
+        else { p.front += delta; p.back += delta; p.slid = delta; }
+        decks[i] = {from, to:p.front, h: nRows(p) >= 1 ? p.hF : 0};
+      } else if (delta < -0.5 && CV.pull){
+        const k = Math.min(12, Math.floor(-delta/p.T)); if (k < 1) continue; // telescopic seating runs to about a dozen rows
+        const N0 = p.hs.length > 1 ? Math.max(.15, p.hs[1] - p.hs[0]) : .3, add = [];
+        for (let j=0;j<k;j++) add.push(Math.max(.35, p.hF - (k - j)*N0));
+        p.hs = add.concat(p.hs); p.front -= k*p.T; p.rows += k; p.hF = p.hs[0];
+      }
+    }
+    if (overflow > 0.05) issue(`The ${st.name.toLowerCase()} runs ${Math.round(overflow)} m past the plot boundary${obstacles.length ? " or into its surroundings" : ""}.`, "site:" + st.name, "geo",
+      {tab:st.key, fix:{label:"Cut it back to fit", run:() => { S.plot.clip = true; return true; }}});
     const marks = step => { const out = new Set(); if (lenTotal < step*0.6) return out; let next = step/2;
       for (let i=0;i<m;i++){ if (cum[i] >= next){ out.add(i); next += step; } } return out; };
     const tangent = i => { let a, b;
@@ -547,8 +754,9 @@ function build(){
       const tx = b[0]-a[0], tz = b[1]-a[1], l = Math.hypot(tx,tz) || 1; return [tx/l, tz/l]; };
     const above = st.drawFrom > 0, K = Math.max(0, ...profs.map(p => p.length));
     const realCount = Math.max(0, ...profs.map(p => p.filter((x,k) => k >= st.drawFrom && !x.ghost).length));
-    let standSeats = 0, standEvac = 0, standTop = 0, standBack = 0; const kinds = new Set(), segRecs = [], cols = [], tierRecs = [];
-    const wallKey = sty.wall === "concrete" ? "concrete" : sty.wall === "glassClad" ? "glassClad" : "clad_" + cfg.style;
+    let standSeats = 0, standEvac = 0, standTop = 0, standBack = 0; const kinds = new Set(), segRecs = [], cols = [], tierRecs = [], towerReqs = [];
+    const wallBase = sty.wall === "concrete" ? "concrete" : sty.wall === "glassClad" ? "glassClad" : "clad_" + cfg.style;
+    const wallKey = textured(tint(wallBase, fac.colour), wallBase === "glassClad" ? null : LOOK_TEX[look]); // the wall's colour and real material
     const pillarAt = marks(12), midI = (() => { let best = Math.floor(m/2), bd = Infinity; for (let i=0;i<m;i++){ const d = Math.abs(cum[i] - lenTotal/2); if (d < bd && profs[i].some(p => nRows(p) >= 1 && !p.ghost)){ bd = d; best = i; } } return best; })();
     const sideMids = (() => { if (!st.sideAt) return []; const by = {}; for (let i=0;i<m;i++){ const s = st.sideAt(i); if (s) (by[s] = by[s] || []).push(i); }
       return Object.entries(by).map(([s, l]) => [l[Math.floor(l.length/2)], s]); })();
@@ -558,19 +766,24 @@ function build(){
       quad(buf(wallKey), V(s,d1,y1), V(s,d2,y2), V(s,d2,p.hs[to-1]+1.2), V(s,d1,from === 0 ? p.hF : p.hs[from]));
     };
     let kDrawn = 0;
-    for (let k=st.drawFrom;k<K;k++){
+    /* Each tier position is drawn once per kind of seating found there: a corner can have boxes coming in from one stand
+       and seats from the other at the same level, and each needs its own row depth, sightline and capacity. */
+    const kindsAt = k => { const t = new Set(); for (let i=0;i<m;i++){ const p = profs[i][k]; if (p && !p.ghost && nRows(p) >= 1) t.add(p.type); } return t.size > 1 ? [...t] : [null]; };
+    for (let k=st.drawFrom;k<K;k++) for (const only of kindsAt(k)){
+      const pk = i => { const p = profs[i][k]; return p && (!only || p.type === only) ? p : undefined; };
       let best = null, tierType = null;
-      for (let i=0;i<m;i++){ const p = profs[i][k]; if (p && !p.ghost && nRows(p) >= 1){ tierType = tierType || p.type; if (!best || nRows(p) > nRows(best)) best = p; } }
+      for (let i=0;i<m;i++){ const p = pk(i); if (p && !p.ghost && nRows(p) >= 1){ tierType = tierType || p.type; if (!best || nRows(p) > nRows(best)) best = p; } }
       if (!tierType) continue;
       const T = S.types[tierType].row, eye = TYPES[tierType].eye;
-      const kk = k - st.drawFrom, ref = st.tierRef ? st.tierRef(kk) : null, where = {tab:st.key, k:kk};
-      const name = cap1((st.name + " " + tierName(kDrawn, realCount, above)).trim() + ((realCount > 1 || above) ? " tier" : ""));
-      kDrawn++;
+      const kk = k - st.drawFrom, ref = st.tierRef ? st.tierRef(kk) : null, tc = ref || {}, where = {tab:st.key, k:kk};
+      const first = !only || only === kindsAt(k)[0], idx = first ? kDrawn : kDrawn - 1;
+      const name = cap1((st.name + " " + tierName(idx, realCount, above)).trim() + ((realCount > 1 || above) ? " tier" : ""));
+      if (first) kDrawn++;
       curRef = {ref, name};
       let tierC = Infinity, firstC = Infinity, steep = 0;
       for (let j=1;j<nRows(best);j++){ const N = best.hs[j]-best.hs[j-1], D = best.front + focusIn + (j-1)*T + 0.3, R0 = best.hs[j-1] + eye - focusY;
         const cv = D*(N+R0)/(D+T) - R0; if (j === 1) firstC = cv; tierC = Math.min(tierC, cv); }
-      for (let i=0;i<m;i++){ const p = profs[i][k]; if (p && !p.ghost && nRows(p) >= 2) steep = Math.max(steep, p.steep); }
+      for (let i=0;i<m;i++){ const p = pk(i); if (p && !p.ghost && nRows(p) >= 2) steep = Math.max(steep, p.steep); }
       noteSteep(st.key, kk, steep);
       let bad = !!typeBad[tierType];
       const lim = rakeLimit(tierType);
@@ -620,34 +833,50 @@ function build(){
           Object.assign({fix: ref ? {label:"Raise it to give 2.4 m", run:() => { ref.gap = (ref.gap == null ? 3 : ref.gap) + (2.4 - head); return true; }} : null}, where));
         if (best.over > 12) issue(`${name} projects ${best.over.toFixed(0)} m over the tier below: a very long cantilever. Fine for a sandbox, ambitious in real life.`, `cant:${st.name}:${kk}`, "geo", Object.assign({fix:null}, where));
       }
-      if (best.stacked && best.gap > 14 && !best.pillars && !best.lowerGhost) issue(`${name} floats ${best.gap.toFixed(0)} m above the tier below with nothing visibly holding it up.`, `float:${st.name}:${kk}`, "geo",
+      if (best.stacked && best.gap > 14 && !best.pillars && !best.lowerGhost && tc.hold !== "towers") issue(`${name} floats ${best.gap.toFixed(0)} m above the tier below with nothing visibly holding it up.`, `float:${st.name}:${kk}`, "geo",
         Object.assign({fix: ref ? {label:"Add pillars under it", run:() => { ref.pillars = true; return true; }} : null}, where));
-      const fasc = buf(bad && S.trim ? "fasciaBad" : st.sel ? "fasciaSel" : "fascia");
+      /* the tier's own look: the style and colour of its front, and its own seat colour */
+      const front = tc.front && tc.front !== "auto" ? tc.front : (sty.lattice ? "lattice" : "plain");
+      const frontKey = front === "concrete" ? tint("concrete", tc.frontColour) : front === "brick" ? tint("clad_historic", tc.frontColour) : tint("fascia", tc.frontColour);
+      const fasc = buf(bad && S.trim ? "fasciaBad" : st.sel ? "fasciaSel" : frontKey);
+      const seatKey = (tierType === "seated" || tierType === "rail") && tc.seatColour ? tint(tierType, tc.seatColour) : tierType;
+      const backKey = seatKey !== tierType ? tint("seatBack", tc.seatColour) : "seatBack";
       const aisleAt = marks(tierType === "terrace" ? 24 : S.design.gangEvery*S.types[tierType].width + S.design.gangWidth);
       const vomAt = !best.stacked && nRows(best) >= 10 ? marks(S.design.exitEvery) : new Set();
       const rowLen = [], recs = []; let frontLen = 0;
+      const gangCut = sl => aisleAt.has(sl) ? S.design.gangWidth/2 + .05 : 0;
+      const vomRows = n => { const j0 = Math.floor(n*0.42); return [j0, Math.min(n, j0 + 4)]; };
+      const vomCut = (sl, n, j) => { if (!vomAt.has(sl) || n < 10) return 0; const [ja, jb] = vomRows(n); return j >= ja && j < jb ? S.design.exitWidth/2 + .3 : 0; };
       for (let i=0;i<segs;i++){
-        const j1 = nx(i), p0 = profs[i][k], p1 = profs[j1][k];
+        const j1 = nx(i), p0 = pk(i), p1 = pk(j1);
         const n0 = p0 && !p0.ghost ? nRows(p0) : 0, n1 = p1 && !p1.ghost ? nRows(p1) : 0, mr = Math.min(n0, n1);
         if (mr >= 1){
           for (let j=0;j<mr;j++){
             const a0 = p0.front + j*T, a1 = p1.front + j*T, h0 = p0.hs[j], h1 = p1.hs[j];
             const alt = (tierType === "seated" || tierType === "rail") && altRow(i, j, kk);
-            quad(buf(alt ? "seatAlt" : tierType), V(i,a0,h0), V(j1,a1,h1), V(j1,a1+T,h1), V(i,a0+T,h0));
-            if (j>0) quad(buf("riser"), V(i,a0,p0.hs[j-1]), V(j1,a1,p1.hs[j-1]), V(j1,a1,h1), V(i,a0,h0));
+            const m0 = pt(i, a0+T/2), m1 = pt(j1, a1+T/2), len = Math.hypot(m1[0]-m0[0], m1[1]-m0[1]) || 1e-6;
+            // seats stop at the edge of a gangway or an exit tunnel rather than running through it
+            const v0 = vomCut(i, n0, j), v1 = vomCut(j1, n1, j), f0 = Math.min(.49, Math.max(gangCut(i), v0)/len), f1 = 1 - Math.min(.49, Math.max(gangCut(j1), v1)/len);
+            const E = (d0, y0, d1, y1, f) => { const p = V(i, d0, y0), q = V(j1, d1, y1); return [lerp(p[0],q[0],f), lerp(p[1],q[1],f), lerp(p[2],q[2],f)]; };
+            const strip = (key, d0, y0, d1, y1, e0, z0, e1, z1) => quad(buf(key), E(d0,y0,d1,y1,f0), E(d0,y0,d1,y1,f1), E(e0,z0,e1,z1,f1), E(e0,z0,e1,z1,f0));
+            strip(alt ? "seatAlt" : seatKey, a0,h0,a1,h1, a0+T,h0,a1+T,h1);
+            if (j>0) strip("riser", a0,p0.hs[j-1],a1,p1.hs[j-1], a0,h0,a1,h1);
             const b0 = a0+T-.1, b1 = a1+T-.1;
-            if (tierType === "rail") quad(buf("barrier"), V(i,b0,h0+.95), V(j1,b1,h1+.95), V(j1,b1,h1+1.05), V(i,b0,h0+1.05));
-            else if (tierType === "terrace"){ if (j>0 && j % S.design.barrierEvery === 0) quad(buf("barrier"), V(i,a0+.08,h0+.95), V(j1,a1+.08,h1+.95), V(j1,a1+.08,h1+1.12), V(i,a0+.08,h0+1.12)); }
-            else if (tierType !== "bench"){ const bh = tierType === "exec" ? .55 : .42; quad(buf(tierType === "exec" ? "exec" : alt ? "seatAltBack" : "seatBack"), V(i,b0,h0), V(j1,b1,h1), V(j1,b1,h1+bh), V(i,b0,h0+bh)); }
-            const m0 = pt(i, a0+T/2), m1 = pt(j1, a1+T/2), len = Math.hypot(m1[0]-m0[0], m1[1]-m0[1]);
-            rowLen[j] = (rowLen[j]||0) + len; if (j === 0) frontLen += len;
-            recs.push({j, len, d:(a0+a1)/2, x:(m0[0]+m1[0])/2, z:(m0[1]+m1[1])/2, i, m0, m1, h0, h1, type:tierType});
+            if (tierType === "rail") strip("barrier", b0,h0+.95,b1,h1+.95, b0,h0+1.05,b1,h1+1.05);
+            else if (tierType === "terrace"){ if (j>0 && j % S.design.barrierEvery === 0) strip("barrier", a0+.08,h0+.95,a1+.08,h1+.95, a0+.08,h0+1.12,a1+.08,h1+1.12); }
+            else if (tierType !== "bench"){ const bh = tierType === "exec" ? .55 : .42; strip(tierType === "exec" ? "exec" : alt ? "seatAltBack" : backKey, b0,h0,b1,h1, b0,h0+bh,b1,h1+bh); }
+            let use = Math.max(0, len - Math.min(len*.49, v0) - Math.min(len*.49, v1)); // exit tunnels take seats out; gangways are already allowed for
+            if (p0.slid || p1.slid){ const q0 = pt(i, a0 + T/2 - (p0.slid || 0)), q1 = pt(j1, a1 + T/2 - (p1.slid || 0)); use = Math.min(use, Math.hypot(q1[0]-q0[0], q1[1]-q0[1])); } // a tier slid back keeps its own seats
+            rowLen[j] = (rowLen[j]||0) + use; if (j === 0) frontLen += len;
+            const c0 = lerp2(m0, m1, f0), c1 = lerp2(m0, m1, f1);
+            recs.push({j, len:use, d:(a0+a1)/2, x:(m0[0]+m1[0])/2, z:(m0[1]+m1[1])/2, i, m0:c0, m1:c1, h0:lerp(h0,h1,f0), h1:lerp(h0,h1,f1), type:tierType});
           }
           const y00 = p0.stacked ? p0.hF-1.5 : 0, y10 = p1.stacked ? p1.hF-1.5 : 0;
           quad(fasc, V(i,p0.front,y00), V(j1,p1.front,y10), V(j1,p1.front,p1.hF), V(i,p0.front,p0.hF));
-          if (tierType === "exec") quad(buf("glass"), V(i,p0.front,p0.hF), V(j1,p1.front,p1.hF), V(j1,p1.front,p1.hF+1.1), V(i,p0.front,p0.hF+1.1));
-          if (p0.stacked && sty.lattice){ // criss-cross balcony truss
-            const lb = buf("lattice"), yA = p0.hF-1.45, yB = p0.hF-0.05, f0 = p0.front-.06, f1 = p1.front-.06;
+          if (tierType === "exec" || front === "glass") quad(buf("glass"), V(i,p0.front,p0.hF), V(j1,p1.front,p1.hF), V(j1,p1.front,p1.hF+1.1), V(i,p0.front,p0.hF+1.1));
+          if (front === "concrete" || front === "brick") quad(fasc, V(i,p0.front,p0.hF), V(j1,p1.front,p1.hF), V(j1,p1.front,p1.hF+1), V(i,p0.front,p0.hF+1)); // a solid parapet
+          if (p0.stacked && front === "lattice"){ // criss-cross balcony truss
+            const lb = buf(tint("lattice", tc.frontColour)), yA = p0.hF-1.45, yB = p0.hF-0.05, f0 = p0.front-.06, f1 = p1.front-.06;
             quad(lb, V(i,f0,yA), V(i,f0,yA+.14), V(j1,f1,yB), V(j1,f1,yB-.14));
             quad(lb, V(i,f0,yB), V(i,f0,yB-.14), V(j1,f1,yA), V(j1,f1,yA+.14));
           }
@@ -672,7 +901,7 @@ function build(){
         if (n1 > mr) cap(j1, p1, mr, n1);
       }
       for (let s=0;s<m;s++){
-        const p = profs[s][k], n = p && !p.ghost ? nRows(p) : 0; if (n < 1) continue;
+        const p = pk(s), n = p && !p.ghost ? nRows(p) : 0; if (n < 1) continue;
         // open stand ends: close the tier, and wall in the space under a stacked tier
         if (!closed && (s === 0 || s === m-1)){
           cap(s, p, 0, n);
@@ -684,26 +913,41 @@ function build(){
           }
         }
         const tg = tangent(s);
-        if (aisleAt.has(s)){ const gw = S.design.gangWidth/2;
-          for (let j=0;j<n;j++){ const a = pt(s, p.front + j*T), b = pt(s, p.front + (j+1)*T), h = p.hs[j] + .03;
-            quad(buf("aisle"), [a[0]-tg[0]*gw,h,a[1]-tg[1]*gw], [a[0]+tg[0]*gw,h,a[1]+tg[1]*gw], [b[0]+tg[0]*gw,h,b[1]+tg[1]*gw], [b[0]-tg[0]*gw,h,b[1]-tg[1]*gw]);
-            if (tierType !== "terrace" && tierType !== "bench") quad(buf("aisle"), [b[0]-tg[0]*gw,h,b[1]-tg[1]*gw], [b[0]+tg[0]*gw,h,b[1]+tg[1]*gw], [b[0]+tg[0]*gw,h+.5,b[1]+tg[1]*gw], [b[0]-tg[0]*gw,h+.5,b[1]-tg[1]*gw]); }
+        const across = (w, d, y, side) => { const q = pt(s, d); return [q[0] + tg[0]*w*side, y, q[1] + tg[1]*w*side]; };
+        if (aisleAt.has(s)){ // a stepped gangway: two steps to each row where the rake is steep, yellow nosings, a handrail
+          const gw = S.design.gangWidth/2, at = (d, y, side) => across(gw, d, y, side), seats = tierType !== "terrace";
+          const tread = (d0, d1, y) => { quad(buf("aisle"), at(d0,y,-1), at(d0,y,1), at(d1,y,1), at(d1,y,-1)); quad(buf("barrier"), at(d0,y+.01,-1), at(d0,y+.01,1), at(d0+.07,y+.01,1), at(d0+.07,y+.01,-1)); };
+          const riser = (d, y0, y1) => { if (y1 > y0 + .01) quad(buf("riser"), at(d,y0,-1), at(d,y0,1), at(d,y1,1), at(d,y1,-1)); };
+          for (let j=0;j<n;j++){ const a = p.front + j*T, h = p.hs[j] + .02, prev = j ? p.hs[j-1] + .02 : h, rise = h - prev;
+            if (seats && rise > .3){ const mid = h - rise/2; riser(a, prev, mid); tread(a, a + T/2, mid); riser(a + T/2, mid, h); tread(a + T/2, a + T, h); }
+            else { riser(a, prev, h); tread(a, a + T, h); } }
+          if (seats && n >= 4 && p.steep > 25) for (let j=0;j<n-1;j++){ const q0 = pt(s, p.front + (j+.5)*T), q1 = pt(s, p.front + (j+1.5)*T);
+            bar(buf("steel"), [q0[0], p.hs[j]+.95, q0[1]], [q1[0], p.hs[j+1]+.95, q1[1]], .06);
+            if (j % 3 === 0) bar(buf("steel"), [q0[0], p.hs[j], q0[1]], [q0[0], p.hs[j]+.95, q0[1]], .05); }
         }
-        if (vomAt.has(s) && n >= 10){ const ew = S.design.exitWidth/2, j0 = Math.floor(n*0.42);
-          for (let j=j0;j<Math.min(n, j0+4);j++){ const a = pt(s, p.front + j*T), b = pt(s, p.front + (j+1)*T), h = p.hs[j] + .06;
-            quad(buf("void"), [a[0]-tg[0]*ew,h,a[1]-tg[1]*ew], [a[0]+tg[0]*ew,h,a[1]+tg[1]*ew], [b[0]+tg[0]*ew,h,b[1]+tg[1]*ew], [b[0]-tg[0]*ew,h,b[1]-tg[1]*ew]); }
+        if (vomAt.has(s) && n >= 10){ // an exit tunnel: a pit in the tier with walls, a railing, and the dark tunnel mouth at its back
+          const ew = S.design.exitWidth/2, [ja, jb] = vomRows(n), at = (d, y, side) => across(ew, d, y, side);
+          const fl = p.hs[ja], dF = p.front + ja*T, dB = p.front + jb*T, topB = p.hs[Math.min(n-1, jb)];
+          quad(buf("riser"), at(dF,fl,-1), at(dF,fl,1), at(dB,fl,1), at(dB,fl,-1));
+          quad(buf("void"), at(dB,fl,-1), at(dB,fl,1), at(dB,topB,1), at(dB,topB,-1));
+          for (const side of [-1, 1]){
+            for (let j=ja;j<jb;j++){ const d0 = p.front + j*T; quad(buf("concrete"), at(d0,fl,side), at(d0+T,fl,side), at(d0+T,p.hs[j]+.45,side), at(d0,p.hs[j]+.45,side)); }
+            bar(buf("steel"), at(dF, fl + 1, side), at(dB, p.hs[jb-1] + 1.4, side), .06); }
+          bar(buf("steel"), at(dF, fl + 1, -1), at(dF, fl + 1, 1), .06);
         }
         // pillars under a stacked tier's front (always when the tier below is left open)
-        if (p.stacked && (p.pillars || p.lowerGhost) && pillarAt.has(s)){
+        if (p.stacked && (p.pillars || p.lowerGhost) && tc.hold !== "towers" && pillarAt.has(s)){
           const cd = p.front + 0.4, q = pt(s, cd), base = p.lowerGhost ? 0 : heightAt(profs[s].slice(0,k), cd);
           post(buf("column"), q[0], q[1], base, p.hF - 1.5, 0.45); if (!p.lowerGhost) cols.push({x:q[0], z:q[1], d:cd});
         }
         const bp = pt(s, p.front + n*T - T/2); farFrom(bp[0], bp[1], p.hs[n-1] + eye);
         standTop = Math.max(standTop, p.hs[n-1] + 1.2); standBack = Math.max(standBack, p.front + n*T);
       }
+      if (tc.hold === "towers" && !closed && best.stacked){ const live = []; for (let s=0;s<m;s++){ const p = pk(s); if (p && !p.ghost && nRows(p) >= 1) live.push(s); }
+        if (live.length >= 2) towerReqs.push({k, live}); }
       if (st.sel && ref){ // one depth handle in the middle, or one per side when a bowl's sides have their own rows
         const spots = st.sideAt && S.bowl.varyRows ? sideMids : [[midI, null]];
-        spots.forEach(([hi, side], si) => { const p = profs[hi][k]; if (!p || p.ghost || nRows(p) < 1) return;
+        spots.forEach(([hi, side], si) => { const p = pk(hi); if (!p || p.ghost || nRows(p) < 1) return;
           const n = nRows(p), bk = p.front + n*T;
           handles.push({kind:"depth", x:pt(hi,bk)[0], y:p.hs[n-1] + 1.2, z:pt(hi,bk)[1], o:o[hi], v:v[hi], ref, front:p.front, T, side});
           if (p.stacked && si === 0) handles.push({kind:"over", x:pt(hi,p.front)[0], y:p.hF, z:pt(hi,p.front)[1], o:o[hi], v:v[hi], ref, lowerBack:p.lowerBack, lowerBackH:p.lowerBackH}); }); }
@@ -721,6 +965,10 @@ function build(){
         slowest = Math.max(slowest, mins); standEvac = Math.max(standEvac, mins); tr0.evac = mins; }
     }
 
+    // the deck over the vacated (or covered) front of the lower tier, at the second sport's level, and the wall behind it
+    for (let i=0;i<segs;i++){ const j1 = nx(i), a = decks[i], b = decks[j1]; if (!a || !b) continue;
+      quad(buf(CV.sp === "athletics" ? "track" : "aisle"), V(i,a.from,.06), V(j1,b.from,.06), V(j1,b.to,.06), V(i,a.to,.06));
+      if (a.h > .3 || b.h > .3) quad(buf("concrete"), V(i,a.to,0), V(j1,b.to,0), V(j1,b.to,b.h), V(i,a.to,a.h)); }
     /* ---------- roof: shape, reach, height, tilt, curve, material and visible structure ---------- */
     const info = profs.map(pr => { const live = pr.filter(p => !p.ghost && nRows(p) >= 1); if (!live.length) return null;
       return {back: Math.max(...live.map(p => p.front + nRows(p)*p.T)), top: Math.max(...live.map(p => p.hs[nRows(p)-1])) + 1.2, front: Math.min(...live.map(p => p.front)), prof: pr}; });
@@ -754,6 +1002,15 @@ function build(){
         roofQuads.push([pt(i,a.inner), pt(j1,b.inner), pt(j1,b.outer), pt(i,a.outer)]);
       }
       const ribAt = marks(12), colAt = marks(14), mastAt = marks(32);
+      if (rf.support === "toptruss"){ // a deep lattice truss along the top of the roof, the full length of the stand
+        const sb = buf("steel"), fT = .38, D = 5.5, live = []; for (let i=0;i<m;i++) if (RR[i]) live.push(i);
+        const P3 = (i, up) => { const a = RR[i], q = pt(i, at(a, fT)); return [q[0], a.y(fT) + .3 + up, q[1]]; };
+        for (let n=0;n<live.length;n++){ const i = live[n], j = live[n+1] != null ? live[n+1] : (closed ? live[0] : null); if (j == null || (!closed && j !== i + 1)) continue;
+          bar(sb, P3(i, 0), P3(j, 0), .5); bar(sb, P3(i, D), P3(j, D), .5); bar(sb, n % 2 ? P3(i, 0) : P3(i, D), n % 2 ? P3(j, D) : P3(j, 0), .3); bar(sb, P3(i, 0), P3(i, D), .25); }
+        if (!closed) for (const i of [live[0], live[live.length-1]]) if (i != null){ const tg = tangent(i), s2 = i === live[0] ? -1 : 1, q = P3(i, D), b0 = pt(i, at(RR[i], fT));
+          post(sb, b0[0] + tg[0]*s2*2.5, b0[1] + tg[1]*s2*2.5, 0, q[1] + .5, 1.8); } // end posts carry it to the ground
+        topAll = Math.max(topAll, ...live.map(i => P3(i, D)[1] + .5));
+      }
       for (let i=0;i<m;i++){ const a = RR[i]; if (!a) continue;
         const peak = gable ? a.y(.5) : Math.max(a.y(0), a.y(1), a.y(.5));
         outerTop = Math.max(outerTop, a.y(0), a.y(1));
@@ -792,21 +1049,71 @@ function build(){
     } else {
       for (let i=0;i<m;i++){ const x = info[i]; if (x){ const g = pt(i, x.back); grow(g[0], g[1]); } }
     }
+    /* A deck held up by a tower at each end carrying a truss over the stand, as with Ibrox's Club Deck: no pillars in front of fans. */
+    for (const tw of towerReqs){
+      const at = s => profs[s][tw.k], mid = s => { const p = at(s); return p.front + nRows(p)*p.T*0.5; };
+      let yT = Math.max(...tw.live.map(s => at(s).hs[nRows(at(s))-1])) + 5.5;
+      if (RRout) for (const s of tw.live) if (RRout[s]) yT = Math.max(yT, RRout[s].y(0) + 1.5, RRout[s].y(1) + 1.5);
+      const yB = yT - 4.5, a = tw.live[0], b = tw.live[tw.live.length-1], sb = buf("steel");
+      const tower = (s, dir) => { const tg = tangent(s), q = pt(s, mid(s)); return [q[0] + tg[0]*dir*5, q[1] + tg[1]*dir*5]; };
+      const ta = tower(a, -1), tb = tower(b, 1);
+      for (const q of [ta, tb]){ post(buf("concrete"), q[0], q[1], 0, yT + 1.5, 3.4); grow(q[0], q[1]); }
+      const line = [ta].concat(tw.live.map(s => pt(s, mid(s))), [tb]);
+      for (let i=0;i<line.length-1;i++){ const p = line[i], q = line[i+1];
+        bar(sb, [p[0],yT,p[1]], [q[0],yT,q[1]], .5); bar(sb, [p[0],yB,p[1]], [q[0],yB,q[1]], .5);
+        bar(sb, i % 2 ? [p[0],yT,p[1]] : [p[0],yB,p[1]], i % 2 ? [q[0],yB,q[1]] : [q[0],yT,q[1]], .3); }
+      const hang = marks(10); for (const s of tw.live) if (hang.has(s)){ const p = at(s), f = pt(s, p.front + .3), c = pt(s, mid(s)); bar(sb, [c[0],yB,c[1]], [f[0],p.hF,f[1]], .18); }
+      topAll = Math.max(topAll, yT + 1.5);
+    }
     // façade extras: stair towers, entrance gates and window mullions on the back wall
     const backAt = i => info[i] ? info[i].back + (roofOn ? 1.5 : 0) : null;
     if (fac.towers){ const ts = closed ? [...marks(60)] : [0, m-1];
       for (const i of ts){ const b = backAt(i); if (b == null) continue; const tg = tangent(i), side = closed ? 0 : (i ? 4 : -4), q = pt(i, b + 3.5);
         post(buf("tower"), q[0] + tg[0]*side, q[1] + tg[1]*side, 0, info[i].top + 3, 6); grow(q[0], q[1]); } }
-    if (fac.gates) for (const i of marks(14)){ const b = backAt(i); if (b == null) continue; const tg = tangent(i), q = pt(i, b + .08);
-      quad(buf("gate"), [q[0]-tg[0]*1.6, 0, q[1]-tg[1]*1.6], [q[0]+tg[0]*1.6, 0, q[1]+tg[1]*1.6], [q[0]+tg[0]*1.6, 3.4, q[1]+tg[1]*1.6], [q[0]-tg[0]*1.6, 3.4, q[1]-tg[1]*1.6]); }
+    /* Entrances: turnstile blocks standing out from the back wall, each with a row of turnstile doors, an exit gate,
+       a canopy and a band in the accent colour; plain gates in between. */
+    if (fac.gates){ const blocks = marks(36), band = fac.accent ? tint("trim", fac.accent) : "trim";
+      for (const i of marks(12)){ const b = backAt(i); if (b == null) continue; const tg = tangent(i);
+        const at = (d, w, y) => { const q = pt(i, b + d); return [q[0] + tg[0]*w, y, q[1] + tg[1]*w]; };
+        const face = (key, d, w0, w1, y0, y1) => quad(buf(key), at(d,w0,y0), at(d,w1,y0), at(d,w1,y1), at(d,w0,y1));
+        if (!blocks.has(i)){ face("gate", .08, -1.6, 1.6, 0, 3.4); continue; }
+        const W = 5.5, D = 3.2, H = 3.6; // the block itself
+        face(wallKey, D, -W, W, 0, H);
+        for (const sd of [-1, 1]) quad(buf(wallKey), at(0,sd*W,0), at(D,sd*W,0), at(D,sd*W,H), at(0,sd*W,H));
+        quad(buf("roofSolid"), at(0,-W,H), at(0,W,H), at(D,W,H), at(D,-W,H));
+        face(band, D + .03, -W, W, H - .6, H - .1);
+        for (const w of [-3.6, -1.8, 0, 1.8]) face("gate", D + .04, w - .55, w + .55, 0, 2.3);   // turnstiles
+        face("gate", D + .04, 3.1, 4.9, 0, 2.8);                                                 // exit gate
+        quad(buf("steel"), at(D,-W-.4,2.7), at(D,W+.4,2.7), at(D+1.4,W+.4,2.9), at(D+1.4,-W-.4,2.9));  // canopy
+        const g = pt(i, b + D + 1.4); grow(g[0], g[1]); } }
     /* The outside wall, dressed in the stand's look: windows, pilasters, bands, fins or glass. It runs along the roof's back
        edge where there is a roof, otherwise along the back of the top tier. */
-    if (look !== "plain") for (let i=0;i<segs;i++){
+    const wallOpt = {windows:fac.windows, winSize:fac.winSize, concourse:fac.concourse, accent:fac.accent};
+    if (look !== "plain" || fac.concourse) for (let i=0;i<segs;i++){
       const j1 = nx(i), x0 = info[i], x1 = info[j1]; if (!x0 || !x1) continue;
       const ra = RRout && RRout[i], rb = RRout && RRout[j1], roofed = roofOn && ra && rb;
       const d0 = roofed ? ra.outer : x0.back, d1 = roofed ? rb.outer : x1.back, y0 = roofed ? ra.y(1) : x0.top, y1 = roofed ? rb.y(1) : x1.top;
       const nv = [v[i][0] + v[j1][0], v[i][1] + v[j1][1]], nl = Math.hypot(nv[0], nv[1]) || 1;
-      dressWall(buf, look, wallKey, pt(i, d0), pt(j1, d1), y0, y1, [nv[0]/nl, nv[1]/nl]);
+      dressWall(buf, look, wallKey, pt(i, d0), pt(j1, d1), y0, y1, [nv[0]/nl, nv[1]/nl], wallOpt);
+    }
+    if (fac.sign && !DRY){ // lettering on the outside wall, or along the roof front facing the play
+      let si = midI;
+      if (closed){ let bd = -2; for (let i=0;i<m;i++){ if (!info[i]) continue; const d = -v[i][1]/(Math.hypot(v[i][0], v[i][1]) || 1); if (d > bd){ bd = d; si = i; } } if (bd < 0.95) si = -1; }
+      const x = si >= 0 ? info[si] : null, R2 = x && RRout ? RRout[si] : null;
+      if (x){
+        const mat = signMaterial(String(fac.sign).slice(0, 30), fac.signColour || "#ffffff"), onRoof = fac.signAt === "roof" && roofOn && R2;
+        mat.emissiveIntensity = S.night ? .9 : .35; // a little light keeps it legible in shadow
+        const vl = Math.hypot(v[si][0], v[si][1]) || 1, nOut = [v[si][0]/vl, v[si][1]/vl], tg = tangent(si);
+        const top = onRoof ? R2.y(0) : roofOn && R2 ? R2.y(1) : x.top;
+        let h = Math.max(1.4, Math.min(5, top*0.11)); if (h*mat.aspect > lenTotal*0.85) h = lenTotal*0.85/mat.aspect;
+        const w = h*mat.aspect, mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+        if (onRoof){ const p = pt(si, R2.inner - .3), yc = R2.y(0) - .3 - h/2, hw = w/2 + 1.5, q = pt(si, R2.inner - .1);
+          quad(buf("roofEdge"), [q[0]-tg[0]*hw, yc - h/2 - .4, q[1]-tg[1]*hw], [q[0]+tg[0]*hw, yc - h/2 - .4, q[1]+tg[1]*hw], [q[0]+tg[0]*hw, R2.y(0), q[1]+tg[1]*hw], [q[0]-tg[0]*hw, R2.y(0), q[1]-tg[1]*hw]);
+          mesh.position.set(p[0], yc, p[1]); mesh.lookAt(p[0] - nOut[0], yc, p[1] - nOut[1]); }
+        else { const p = pt(si, (roofOn && R2 ? R2.outer : x.back) + (look === "fins" ? 1.6 : look === "glass" ? .6 : .3)), yc = top - h*.75;
+          mesh.position.set(p[0], yc, p[1]); mesh.lookAt(p[0] + nOut[0], yc, p[1] + nOut[1]); }
+        mesh.userData.stadium = true; group.add(mesh);
+      }
     }
     if (st.sel && st.key in S.stands && lay === "stands" && info[midI]){ const q = pt(midI, info[midI].front);
       handles.push({kind:"dist", x:q[0], y:0.6, z:q[1], o:o[midI], v:v[midI], cfg}); }
@@ -829,7 +1136,7 @@ function build(){
     return st;
   }
 
-  /* ---------- floor seats round a ring, cage or court ---------- */
+  /* ---------- courtside seats on the floor ---------- */
   if (floorRows){
     let fs = 0;
     for (let j=0;j<floorRows;j++){
@@ -849,7 +1156,8 @@ function build(){
   const nc = NC(shape);
   const ringGeo = () => densify(linearize(d => closedPathS(F, radius, d, shape), true), 4, set + 6);
   const cornerCfg = (sa, sb, cc) => { const src = [sa, sb].find(x => x.tiers.length && x.roof.shape !== "none");
-    return {style:(sa.tiers.length ? sa : sb).style, roof: cc.roof && src ? Object.assign({}, src.roof, {shape: src.roof.shape === "closed" ? "slope" : src.roof.shape, support: src.roof.support === "truss" ? "none" : src.roof.support}) : R("none"), facade:{}}; };
+    return {style:(sa.tiers.length ? sa : sb).style, roof: cc.roof && src ? Object.assign({}, src.roof, {shape: src.roof.shape === "closed" ? "slope" : src.roof.shape, support: src.roof.support === "truss" || src.roof.support === "toptruss" ? "none" : src.roof.support}) : R("none"),
+      facade:Object.assign({}, (sa.tiers.length ? sa : sb).facade, {towers:false, gates:false, sign:""})}; }; // corners wear their stand's walls
   /* Upper tiers on their own outline, like La Cartuja or the Monumental: the lower tier keeps hugging the play while every
      tier above it is bent, slice by slice, onto an oval or a circle. "ring" puts the front of the upper tiers on the outline;
      "fill" grows the top tier back to it, so the outer wall and roof trace the shape. */
@@ -902,6 +1210,24 @@ function build(){
     }
     if (runs && S.bowl.roof.shape === "closed" && !groundRoof) issue("A roof closed over the floor needs the whole bowl, so with parts left out it's built open. One roof over the whole ground can still close over it.", "bowl:closed", "geo",
       {tab:"B", fix:{label:"Use one roof over the whole ground", run:() => { S.groundRoof = Object.assign({}, GROUND_ROOF, S.groundRoof, {on:true, cover:"closed", opening:0}); return true; }}});
+  } else if (lay === "ring"){
+    /* A ring of separate stands: each takes its share of the way round, with a gap either side of it. */
+    const ring = ringGeo(), n = ring.o.length, RG = ringOf(), list = RG.stands, gap = Math.max(0, RG.gap || 0);
+    const at = i => [ring.o[i][0] + set*ring.v[i][0], ring.o[i][1] + set*ring.v[i][1]], cum = [0];
+    for (let i=1;i<=n;i++){ const a = at(i-1), b = at(i % n); cum.push(cum[i-1] + Math.hypot(b[0]-a[0], b[1]-a[1])); }
+    const Lt = cum[n], tagAt = sArc => { const x = ((sArc % Lt) + Lt) % Lt; let i = 0; while (i < n - 1 && cum[i+1] <= x) i++;
+      const f = (x - cum[i])/Math.max(1e-9, cum[i+1] - cum[i]), t0 = ring.tag[i], t1 = i + 1 < n ? ring.tag[i+1] : total4; return t0 + (t1 - t0)*f; };
+    // the turn is measured from the middle of the main stand side, so 0 puts the first stand there
+    const mainMid = (() => { const minZ = Math.min(...ring.o.map((_, i) => at(i)[1])); let bi = 0, bx = Infinity;
+      for (let i=0;i<n;i++){ const p = at(i); if (p[1] <= minZ + 0.5 && Math.abs(p[0]) < bx){ bx = Math.abs(p[0]); bi = i; } } return cum[bi]; })();
+    const shares = list.map(r => Math.max(0.05, r.share || 1)), total = shares.reduce((a, b) => a + b, 0) || 1;
+    let s0 = mainMid + ((RG.turn || 0)/360)*Lt - shares[0]/total*Lt/2;
+    list.forEach((cfg, i) => {
+      const len = shares[i]/total*Lt, a = s0 + gap/2, b = s0 + len - gap/2; s0 += len;
+      if (!cfg.tiers.length || b - a < 2) return;
+      const geo = subGeo(ring, tagAt(a), tagAt(b), total4);
+      buildSliced({name:cfg.name || `Stand ${i+1}`, key:"R" + i, cfg, set: standSet(cfg), tiersFor:() => cfg.tiers, tierRef:k => cfg.tiers[k], drawFrom:0, sel: tab === "R" + i, geo});
+    });
   } else if (lay === "stands"){
     for (const s of SIDES){
       const cfg = S.stands[s]; if (!cfg.tiers.length) continue;
@@ -927,7 +1253,8 @@ function build(){
     for (const s of SIDES){
       const cfg = S.stands[s]; if (!cfg.tiers.length && cfg.roof.shape === "none") continue;
       const [gb, ga] = SIDE_GROUPS[s], kb = GROUP_KEY[gb], ka = GROUP_KEY[ga];
-      const lo = gb*(nc+1) + (split(kb) ? nc/2 : nc), hi = ga*(nc+1) + (split(ka) ? nc/2 : 0);
+      const meet = key => nc*Math.max(0, Math.min(1, S.corners[key].meet == null ? 0.5 : S.corners[key].meet)); // where the stands meet, from the first one
+      const lo = gb*(nc+1) + (split(kb) ? meet(kb) : nc), hi = ga*(nc+1) + (split(ka) ? meet(ka) : 0);
       const geo = subGeo(ring, lo, hi, total4);
       buildSliced({name:SIDE_NAMES[s], key:s, geo, cfg, set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc).concat(cfg.tiers), geo.o[i], geo.v[i]), tierRef:k => cfg.tiers[k], drawFrom:rc, sel: tab === s});
     }
@@ -966,7 +1293,7 @@ function build(){
     for (let i=0;i<n;i++){
       dIn[i] = Math.max(inMin, dIn[i] == null ? inMin : dIn[i]);
       if (dOut[i] == null) dOut[i] = exitDist(hull, ring.o[i], ring.v[i], 0) + back;
-      if (poly && S.plot.clip && inPoly(ring.o[i], poly)) dOut[i] = Math.min(dOut[i], exitDist(poly, ring.o[i], ring.v[i], 0) - 0.3);
+      if (S.plot.clip && (!poly || inPoly(ring.o[i], poly))){ const room = roomAt(ring.o[i], ring.v[i], 0); if (isFinite(room)) dOut[i] = Math.min(dOut[i], room - 0.3); }
       dOut[i] = Math.max(dOut[i], dIn[i] + 2);
     }
     if (poly && !S.plot.clip && ring.o.some((_, i) => !inPoly(P(i, dOut[i]), poly))) issue("The roof over the ground runs past the plot boundary.", "site:roof", "geo",
@@ -1036,20 +1363,21 @@ function build(){
   if (DRY) return result;
 
   // pitchside advertising boards
-  if (S.boards && (S.sport === "football" || S.sport === "rugby") && set >= 3){
+  if (S.boards && !CV && (S.sport === "football" || S.sport === "rugby") && set >= 3){
     const off = Math.min(3, set - 1.2), hx = F.W/2 + off, hz = F.H/2 + off + (S.sport === "football" ? 1 : 0);
     const Pb = [[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz]];
     ribbon(buf("board"), Pb, Pb, 0, 0.9, true);
   }
-  addProps(group, F, buf);
+  addProps(group, CV ? CV.F2 : F, buf, CV ? CV.sp : undefined);
   for (const key in Bf) if (Bf[key].length){
     const mesh = meshFrom(Bf[key], M[key], !["roof","roofGlass","glass","roofClosed","aisle","void","glassClad"].includes(key));
-    if (TYPES[key] || key === "floorSeat") mesh.userData.seat = true;
+    if (TYPES[key.split("_")[0]] || key === "floorSeat") mesh.userData.seat = true;
     mesh.userData.stadium = true;
     group.add(mesh);
   }
   if (window.__gwCheck){ let bad = 0, verts = 0; for (const k in Bf){ const arr = Bf[k]; verts += arr.length/3; for (let i=0;i<arr.length;i++) if (!isFinite(arr[i])) bad++; } result.nan = bad; result.verts = verts; }
-  const {tex, Wt, Ht} = floorTexture(F, set);
+  // set up for a second sport, the floor shows its markings, big enough to reach the stands either way
+  const {tex, Wt, Ht} = CV ? floorTexture(CV.F2, Math.max(1, (F.W + 2*set - CV.F2.W)/2, (F.H + 2*set - CV.F2.H)/2), CV.sp) : floorTexture(F, set);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(Wt, Ht), new THREE.MeshStandardMaterial({map:tex, roughness:1}));
   floor.rotation.x = -Math.PI/2; floor.position.y = 0.02; floor.receiveShadow = true; group.add(floor);
   if (S.crowd !== false) addCrowd(allRecs);
@@ -1070,6 +1398,7 @@ function build(){
     ext = [Math.max(ext[0], ...xs.map(Math.abs)), Math.max(ext[1], ...zs.map(Math.abs))];
   }
   const A = S.arch || {}, B2 = {}, buf2 = k => (B2[k] = B2[k] || []);
+  drawSite(site, buf2, ext);
   const archTop = addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, buf2, ext);
   result.maxH = Math.max(result.maxH, archTop);
   if (window.__gwCheck){ let bad = 0; for (const k in B2) for (const v of B2[k]) if (!isFinite(v)) bad++; group.traverse(o => { const a = o.geometry && o.geometry.attributes && o.geometry.attributes.position; if (a && a.array) for (const v of a.array) if (!isFinite(v)) bad++; }); result.archNan = bad; }
@@ -1082,7 +1411,7 @@ function build(){
       const x = sx*(sext[0]+8), z = sz*(sext[1]+8);
       if (fm === "pylons") pylon(buf2, x, z, mh);
       else { const mm = new THREE.Mesh(new THREE.CylinderGeometry(.6,1.1,mh,10), M.mast); mm.position.set(x,mh/2,z); mm.castShadow = true; group.add(mm); }
-      const head = new THREE.Mesh(new THREE.BoxGeometry(10,6,1), M.lamp); head.position.set(x, mh+2, z); head.lookAt(0,0,0); group.add(head);
+      group.add(lampHead(x, mh + 3, z));
       if (S.night){ const sp = new THREE.SpotLight(0xfff4dc, 1.25, 0, 0.75, 0.6, 1); sp.position.set(x, mh+2, z); sp.target.position.set(-sx*F.W*0.15, 0, -sz*F.H*0.15); group.add(sp); group.add(sp.target); }
     }
   }
@@ -1097,7 +1426,8 @@ function build(){
   const sc = sun.shadow.camera, half = Math.max(ext[0],ext[1]) + 30;
   sc.left=-half; sc.right=half; sc.top=half; sc.bottom=-half; sc.near=10; sc.far=1400; sc.updateProjectionMatrix();
   const screenSpots = []; for (const p of screenPlans) screenSpots[p.idx] = [p.x, p.y, p.z];
-  LAST = Object.assign(result, {closedAt, focusIn, F, farName, ext, sext, parts, set, steepInfo, poly, lay, standInfo, handles, screenSpots});
+  LAST = Object.assign(result, {closedAt, focusIn, F, farName, ext, sext, parts, set, steepInfo, poly, lay, standInfo, handles, screenSpots,
+    screenCtx:{F, anchors, closedAt, outerTop, set}}); // lets a new screen try its mountings without rebuilding the stadium
   LAST_REGIONS = regions;
   renderStats(); refreshOutputs(); invalidate();
   return result;
