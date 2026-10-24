@@ -1,7 +1,7 @@
 // Builds index.html (one self-contained, minified page) from the files in src/.
 // three.js and the fonts are packed into the page too, so it never depends on another website being up.
 // Run: npm install   (once)   then   npm run build
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync } from "node:fs";
 import { transformSync } from "esbuild";
 
 const read = p => readFileSync(new URL(p, import.meta.url), "utf8");
@@ -33,7 +33,8 @@ const outBoot = min(boot, "js");
 const outCss = min(css, "css");
 const outBody = dev ? body : body.replace(/\n\s+/g, "\n");
 
-const SITE = "https://karterbyrne-bit.github.io/groundworks/";
+// The address used in link previews. On Vercel it picks up the project's own address automatically.
+const SITE = process.env.SITE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}/` : "https://karterbyrne-bit.github.io/groundworks/");
 const DESC = "Design your own 3D football stadium in the browser. Build stands tier by tier, add roofs and floodlights, and see capacity, sightlines and safety checks update live.";
 
 const html = `<!doctype html>
@@ -70,4 +71,9 @@ ${outBody}
 </html>
 `;
 writeFileSync(new URL("./index.html", import.meta.url), html);
+// dist/ holds just the files a web host needs (Vercel, Netlify and similar publish this folder).
+const dist = new URL("./dist/", import.meta.url);
+rmSync(dist, { recursive: true, force: true }); mkdirSync(dist);
+writeFileSync(new URL("index.html", dist), html);
+for (const f of ["sw.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "og.png"]) copyFileSync(new URL("./" + f, import.meta.url), new URL(f, dist));
 console.log(`index.html written: ${(html.length / 1024).toFixed(0)} KB${dev ? " (dev, unminified)" : ""}`);
