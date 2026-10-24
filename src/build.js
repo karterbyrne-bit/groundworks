@@ -599,6 +599,12 @@ function lampHead(x, y, z){
 }
 function maxFocusIn(F){ return Math.min(10, Math.max(Math.min(F.W, F.H)/2, Math.max(F.W, F.H)/4)); }
 function defaultFocusIn(F){ return F.custom ? Math.min(4, Math.min(F.W, F.H)*0.3) : 0; }
+/* Shown set up for its second sport? Then the second sport's field, and the outline the lower tier has to clear. */
+function convertView(){
+  const C = Object.assign({}, CONVERT, S.convert || {}); if (!C.on || C.show !== "second" || C.to === S.sport || !CONVERT_TO[C.to]) return null;
+  const F2 = field(C.to), clear = F2.custom ? (KINDS[C.to].set || 2) : 1.5;
+  return {F2, sp:C.to, how:C.how, pull:C.pull !== false, poly2:closedPathS(F2, F2.r || 0, clear, "curved")};
+}
 let PRE = false;
 function build(){
   let alignTop = null, roofNeedMax = 0;
@@ -611,6 +617,7 @@ function build(){
   const floorNeed = floorRows ? floorStart + floorRows*floorT + 0.9 : 1;
   const set = Math.max(S.setback, floorNeed);
   const standSet = cfg => Math.max(floorNeed, cfg && cfg.dist != null ? cfg.dist : S.setback);
+  const CV = convertView();
   const radius = (F.custom || F.noStands) ? (F.r > 0 ? F.r : S.corner) : S.corner;
   const poly = S.plot.on && S.plot.pts ? S.plot.pts : null;
   const site = (Array.isArray(S.site) ? S.site : []).filter(f => SITE_KINDS[f.kind] && f.length > 0 && f.width > 0);
@@ -718,6 +725,24 @@ function build(){
         for (const pr of profs){ const p = pr[k]; if (p && p.stacked && !p.ghost && nRows(p) >= 1){ if (isFinite(top) && Math.abs(p.hF - top) > 0.01) uneven = true; top = Math.max(top, p.hF); } }
         if (!uneven) continue;
         lift[k] = top; for (let i=0;i<m;i++) profs[i] = profile(tierList[i], setAt(i), lift);
+      }
+    }
+    /* A convertible ground set up for its second sport: the lower tier slides back or has its front rows decked over so a
+       bigger field fits, or pull-out seats come forward towards a smaller one. Tiers above stay where they are. */
+    const decks = [];
+    if (CV && st.drawFrom === 0) for (let i=0;i<m;i++){
+      const p = profs[i][0]; if (!p || p.stacked || p.ghost || nRows(p) < 1) continue;
+      const need = lineHit(CV.poly2, o[i], v[i]); if (need == null) continue;
+      const delta = need - p.front, from = p.front;
+      if (delta > 0.2){
+        if (CV.how === "cover"){ const kc = Math.min(nRows(p), Math.ceil(delta/p.T - 1e-6)); p.front += kc*p.T; p.rows -= kc; p.hs = p.hs.slice(kc); if (p.hs.length) p.hF = p.hs[0]; }
+        else { p.front += delta; p.back += delta; p.slid = delta; }
+        decks[i] = {from, to:p.front, h: nRows(p) >= 1 ? p.hF : 0};
+      } else if (delta < -0.5 && CV.pull){
+        const k = Math.min(12, Math.floor(-delta/p.T)); if (k < 1) continue; // telescopic seating runs to about a dozen rows
+        const N0 = p.hs.length > 1 ? Math.max(.15, p.hs[1] - p.hs[0]) : .3, add = [];
+        for (let j=0;j<k;j++) add.push(Math.max(.35, p.hF - (k - j)*N0));
+        p.hs = add.concat(p.hs); p.front -= k*p.T; p.rows += k; p.hF = p.hs[0];
       }
     }
     if (overflow > 0.05) issue(`The ${st.name.toLowerCase()} runs ${Math.round(overflow)} m past the plot boundary${obstacles.length ? " or into its surroundings" : ""}.`, "site:" + st.name, "geo",
@@ -840,7 +865,8 @@ function build(){
             if (tierType === "rail") strip("barrier", b0,h0+.95,b1,h1+.95, b0,h0+1.05,b1,h1+1.05);
             else if (tierType === "terrace"){ if (j>0 && j % S.design.barrierEvery === 0) strip("barrier", a0+.08,h0+.95,a1+.08,h1+.95, a0+.08,h0+1.12,a1+.08,h1+1.12); }
             else if (tierType !== "bench"){ const bh = tierType === "exec" ? .55 : .42; strip(tierType === "exec" ? "exec" : alt ? "seatAltBack" : backKey, b0,h0,b1,h1, b0,h0+bh,b1,h1+bh); }
-            const use = Math.max(0, len - Math.min(len*.49, v0) - Math.min(len*.49, v1)); // exit tunnels take seats out; gangways are already allowed for
+            let use = Math.max(0, len - Math.min(len*.49, v0) - Math.min(len*.49, v1)); // exit tunnels take seats out; gangways are already allowed for
+            if (p0.slid || p1.slid){ const q0 = pt(i, a0 + T/2 - (p0.slid || 0)), q1 = pt(j1, a1 + T/2 - (p1.slid || 0)); use = Math.min(use, Math.hypot(q1[0]-q0[0], q1[1]-q0[1])); } // a tier slid back keeps its own seats
             rowLen[j] = (rowLen[j]||0) + use; if (j === 0) frontLen += len;
             const c0 = lerp2(m0, m1, f0), c1 = lerp2(m0, m1, f1);
             recs.push({j, len:use, d:(a0+a1)/2, x:(m0[0]+m1[0])/2, z:(m0[1]+m1[1])/2, i, m0:c0, m1:c1, h0:lerp(h0,h1,f0), h1:lerp(h0,h1,f1), type:tierType});
@@ -939,6 +965,10 @@ function build(){
         slowest = Math.max(slowest, mins); standEvac = Math.max(standEvac, mins); tr0.evac = mins; }
     }
 
+    // the deck over the vacated (or covered) front of the lower tier, at the second sport's level, and the wall behind it
+    for (let i=0;i<segs;i++){ const j1 = nx(i), a = decks[i], b = decks[j1]; if (!a || !b) continue;
+      quad(buf(CV.sp === "athletics" ? "track" : "aisle"), V(i,a.from,.06), V(j1,b.from,.06), V(j1,b.to,.06), V(i,a.to,.06));
+      if (a.h > .3 || b.h > .3) quad(buf("concrete"), V(i,a.to,0), V(j1,b.to,0), V(j1,b.to,b.h), V(i,a.to,a.h)); }
     /* ---------- roof: shape, reach, height, tilt, curve, material and visible structure ---------- */
     const info = profs.map(pr => { const live = pr.filter(p => !p.ghost && nRows(p) >= 1); if (!live.length) return null;
       return {back: Math.max(...live.map(p => p.front + nRows(p)*p.T)), top: Math.max(...live.map(p => p.hs[nRows(p)-1])) + 1.2, front: Math.min(...live.map(p => p.front)), prof: pr}; });
@@ -1333,12 +1363,12 @@ function build(){
   if (DRY) return result;
 
   // pitchside advertising boards
-  if (S.boards && (S.sport === "football" || S.sport === "rugby") && set >= 3){
+  if (S.boards && !CV && (S.sport === "football" || S.sport === "rugby") && set >= 3){
     const off = Math.min(3, set - 1.2), hx = F.W/2 + off, hz = F.H/2 + off + (S.sport === "football" ? 1 : 0);
     const Pb = [[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz]];
     ribbon(buf("board"), Pb, Pb, 0, 0.9, true);
   }
-  addProps(group, F, buf);
+  addProps(group, CV ? CV.F2 : F, buf, CV ? CV.sp : undefined);
   for (const key in Bf) if (Bf[key].length){
     const mesh = meshFrom(Bf[key], M[key], !["roof","roofGlass","glass","roofClosed","aisle","void","glassClad"].includes(key));
     if (TYPES[key.split("_")[0]] || key === "floorSeat") mesh.userData.seat = true;
@@ -1346,7 +1376,8 @@ function build(){
     group.add(mesh);
   }
   if (window.__gwCheck){ let bad = 0, verts = 0; for (const k in Bf){ const arr = Bf[k]; verts += arr.length/3; for (let i=0;i<arr.length;i++) if (!isFinite(arr[i])) bad++; } result.nan = bad; result.verts = verts; }
-  const {tex, Wt, Ht} = floorTexture(F, set);
+  // set up for a second sport, the floor shows its markings, big enough to reach the stands either way
+  const {tex, Wt, Ht} = CV ? floorTexture(CV.F2, Math.max(1, (F.W + 2*set - CV.F2.W)/2, (F.H + 2*set - CV.F2.H)/2), CV.sp) : floorTexture(F, set);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(Wt, Ht), new THREE.MeshStandardMaterial({map:tex, roughness:1}));
   floor.rotation.x = -Math.PI/2; floor.position.y = 0.02; floor.receiveShadow = true; group.add(floor);
   if (S.crowd !== false) addCrowd(allRecs);

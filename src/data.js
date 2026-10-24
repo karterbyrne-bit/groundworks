@@ -11,6 +11,10 @@ const SPORTS = {
    a taller left-field wall if wanted (like Fenway's Green Monster). Cricket: the boundary, end to end and side to side. */
 const BALLPARK = {lf:101, cf:122, rf:99, wall:3, lfWall:3};
 const CRICKET = {L:150, W:136};
+/* A ground that converts for a second sport: a bigger field gets room by sliding the lower tier back or decking over its
+   front rows; a smaller one gets pull-out seats coming forward. show picks which set-up is drawn. */
+const CONVERT = {on:false, to:"athletics", how:"slide", pull:true, show:"base"};
+const CONVERT_TO = {football:"Football", rugby:"Rugby", athletics:"Athletics", tennis:"Tennis", wrestleball:"Wrestleball"};
 const KINDS = {
   wrestleball:{label:"Wrestleball", W:16.5,H:4.5,r:0,surface:"grass",set:2.5,floor:0,zones:[4,8.5,4],outdoor:true,note:"An outdoor sport on grass: 16.5 × 4.5 m, with two 4 m end zones either side of an 8.5 m central playing area."},
   tennis:{label:"Tennis", W:36.6,H:18.3,r:0,surface:"tennis",set:4,floor:0,note:"Doubles court with the run-off a show court needs."},

@@ -1,14 +1,17 @@
-function field(){
-  if (S.sport === "custom"){
+/* The playing area for a sport (the design's own by default). Tennis and wrestleball can also be a ground's second sport. */
+function field(sp){
+  sp = sp || S.sport;
+  if (sp !== "custom" && KINDS[sp]){ const k = KINDS[sp]; return {W:k.W, H:k.H, r:k.r, custom:true, kind:sp, surface:k.surface, focusY:k.focusY || 0, zones:k.zones, note:k.note}; }
+  if (sp === "custom"){
     const c = S.custom, k = KINDS[c.kind] || KINDS.plain, r = Math.min(c.r, c.W/2, c.H/2);
     return {W:c.W, H:c.H, r, custom:true, kind:c.kind, surface:c.surface, focusY:k.focusY || 0, zones:k.zones, note:k.note};
   }
-  if (S.sport === "cricket"){ const C = Object.assign({}, CRICKET, S.cricket || {}); return Object.assign({}, SPORTS.cricket, {W:C.L, H:C.W, r:Math.min(C.L, C.W)*0.46}); }
-  if (S.sport === "baseball"){ // the field is the square that takes in the outfield wall, with home plate in its corner
+  if (sp === "cricket"){ const C = Object.assign({}, CRICKET, S.cricket || {}); return Object.assign({}, SPORTS.cricket, {W:C.L, H:C.W, r:Math.min(C.L, C.W)*0.46}); }
+  if (sp === "baseball"){ // the field is the square that takes in the outfield wall, with home plate in its corner
     let mx = 0, mz = 0; for (let i=0;i<=40;i++){ const ph = i/40*Math.PI/2, r = fenceR(ph) + 3; mx = Math.max(mx, r*Math.cos(ph)); mz = Math.max(mz, r*Math.sin(ph)); }
     const W = Math.ceil(mx), H = Math.ceil(mz); return Object.assign({}, SPORTS.baseball, {W, H, home:[-W/2, -H/2]});
   }
-  return SPORTS[S.sport];
+  return SPORTS[sp];
 }
 function layoutOf(){
   const F = field();
@@ -182,6 +185,13 @@ function enterDist(poly, o, v, d0){
   }
   return best;
 }
+/* Where a slice's line (o + d·v, d may be negative) last crosses an outline: the far edge of it, seen from inside. */
+function lineHit(poly, o, v){
+  let best = null;
+  for (let k=0;k<poly.length;k++){ const A = poly[k], B = poly[(k+1)%poly.length], E = [B[0]-A[0], B[1]-A[1]], den = cross(v, E); if (Math.abs(den) < 1e-12) continue;
+    const w = [A[0]-o[0], A[1]-o[1]], d = cross(w, E)/den, s = cross(w, v)/den; if (s >= -1e-9 && s <= 1+1e-9 && (best == null || d > best)) best = d; }
+  return best;
+}
 /* A site feature's footprint, grown by a margin. */
 function featurePoly(f, margin){
   const a = (f.angle || 0)*Math.PI/180, u = [Math.cos(a), Math.sin(a)], n = [-u[1], u[0]], L = f.length/2 + (margin || 0), W = f.width/2 + (margin || 0);
@@ -265,7 +275,7 @@ const M = {
   lamp: new THREE.MeshStandardMaterial({color:0xfffbe8, emissive:0xfff3c4, emissiveIntensity:.9}),
   screen: new THREE.MeshStandardMaterial({color:0x0b1a2b, emissive:0x2a5fa8, emissiveIntensity:.7}),
   road: std({color:0x3a3d40, roughness:.95}), pavement: std({color:0xbdbcb4, roughness:.95}), water: std({color:0x3f6f8c, roughness:.12, metalness:.15}),
-  ballast: std({color:0x857d72, roughness:1}), slate: std({color:0x3c4248, roughness:.75}), outfield: std({color:0x23452c, roughness:.85})
+  ballast: std({color:0x857d72, roughness:1}), slate: std({color:0x3c4248, roughness:.75}), outfield: std({color:0x23452c, roughness:.85}), track: std({color:0xb4513a, roughness:.9})
 };
 for (const st in STYLES) M["clad_"+st] = std({color:STYLES[st].clad, roughness: [0x8b4636,0x9a4a3a,0x7d3b2c].includes(STYLES[st].clad) ? .95 : .6, metalness: st === "showpiece" ? .3 : .15});
 function setSeatColours(){
@@ -377,14 +387,14 @@ function drawKind(ctx, F, Wt, Ht, lw){
   rr(ctx,W,H,F.r); ctx.stroke(); line(0,-H/2,0,H/2);
   ctx.beginPath(); ctx.arc(0,0,Math.min(W,H)*0.15,0,Math.PI*2); ctx.stroke();
 }
-function floorTexture(F, set){
+function floorTexture(F, set, sp){
   const Wt = F.W + 2*set, Ht = F.H + 2*set;
   const k = Math.min(48, 2048/Math.max(Wt,Ht));
   const c = document.createElement("canvas"); c.width = Math.max(2,Math.round(Wt*k)); c.height = Math.max(2,Math.round(Ht*k));
   const ctx = c.getContext("2d"); ctx.translate(c.width/2, c.height/2); ctx.scale(k,k);
   const lw = Math.max(0.05, 1.6/k);
   ctx.lineWidth = lw; ctx.strokeStyle = "rgba(255,255,255,.92)"; ctx.fillStyle = "rgba(255,255,255,.92)";
-  const sport = S.sport;
+  const sport = sp || S.sport;
   if (F.custom) drawKind(ctx, F, Wt, Ht, lw);
   else if (sport === "baseball") drawBaseball(ctx, F, Wt, Ht);
   else if (sport === "cricket"){
@@ -422,18 +432,19 @@ function floorTexture(F, set){
   const tex = new THREE.CanvasTexture(c); tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
   return {tex, Wt, Ht};
 }
-function addProps(g, F, buf){
+function addProps(g, F, buf, sp){
+  sp = sp || S.sport;
   const cyl = (r,h,s) => new THREE.CylinderGeometry(r,r,h,s||8);
   const add = (geo, mat, x, y, z, ry) => { const m = new THREE.Mesh(geo, mat); m.position.set(x,y,z); if (ry) m.rotation.y = ry; m.castShadow = true; m.receiveShadow = true; g.add(m); return m; };
-  if (S.sport === "football" || S.sport === "athletics") for (const s of [-1,1]){
+  if (sp === "football" || sp === "athletics") for (const s of [-1,1]){
     for (const z of [-3.66,3.66]) add(cyl(.07,2.44), M.white, 52.5*s,1.22,z);
     const bar = add(cyl(.07,7.32), M.white, 52.5*s,2.44,0); bar.rotation.x = Math.PI/2;
   }
-  if (S.sport === "rugby") for (const s of [-1,1]){
+  if (sp === "rugby") for (const s of [-1,1]){
     for (const z of [-2.8,2.8]) add(cyl(.1,14), M.white, 50*s,7,z);
     const bar = add(cyl(.08,5.6), M.white, 50*s,3,0); bar.rotation.x = Math.PI/2;
   }
-  if (S.sport === "baseball"){
+  if (sp === "baseball"){
     const H = F.home, P = (ph, r) => [H[0] + r*Math.cos(ph), H[1] + r*Math.sin(ph)];
     for (const ph of [0, Math.PI/2]){ const r = fenceR(ph), q = P(ph, r); add(cyl(.25, 20), M.barrier, q[0], 10, q[1]); } // foul poles
     // the padded outfield wall, taller down the left-field line if set, with a yellow line along the top
@@ -448,7 +459,7 @@ function addProps(g, F, buf){
       add(new THREE.BoxGeometry(w, 1.1, d), M.dark, cx, .55, cz);
       add(new THREE.BoxGeometry(w + .4, .2, d + .4), M.roofSolid, cx, 1.2, cz); }
   }
-  if (S.sport === "cricket"){
+  if (sp === "cricket"){
     // the boundary rope just inside the edge of the outfield, and a sightscreen behind each end of the pitch
     const rope = closedPathS(F, F.r, -2.5, "curved"); ribbon(buf("white"), rope, rope, 0, .16, true);
     for (const s of [-1, 1]){ const x = s*(F.W/2 + 2.5);

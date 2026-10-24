@@ -114,6 +114,18 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.click('#panes [data-pane="stands"]'); const nStands = await page.locator("#tabs button").count();
   await page.click('[data-ring="+"]'); await page.waitForTimeout(300);
   check((await page.locator("#tabs button").count()) === nStands + 1, "a ring can have another stand added");
+  // a convertible ground: football and athletics
+  await page.click('#panes [data-pane="start"]'); await page.click('[data-p="bowl"]'); await page.waitForTimeout(300);
+  const footy = await cap();
+  await page.click('#panes [data-pane="ground"]'); await page.check("#cvOn"); await page.waitForTimeout(300);
+  await page.click('label[for="cvs-second"]'); await page.waitForTimeout(400);
+  const athletics = await cap();
+  check(athletics > footy*0.9 && athletics < footy*1.05 && !(await last()).issues, "the lower tier slides back to fit an athletics track");
+  await page.selectOption("#cvHow", "cover"); await page.waitForTimeout(400);
+  check((await cap()) < athletics, "decking over the front rows costs seats");
+  await page.click('label[for="cvs-base"]'); await page.waitForTimeout(400);
+  check((await cap()) === footy, "switching back to football restores the ground");
+  await page.uncheck("#cvOn"); await page.waitForTimeout(300);
   // surroundings: a road beside the ground, and a building that the east end is cut back to clear
   await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300);
   const unboxed = await cap();

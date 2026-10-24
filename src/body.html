@@ -181,6 +181,22 @@
       </div>
     </section>
 
+    <section class="group" id="convertBox" data-pane="ground">
+      <h2>Convertible</h2>
+      <p class="hint">Let the ground switch to a second sport. A bigger field gets room as the lower tier slides back under the one above (like the Stade de France) or has its front rows decked over; a smaller one brings pull-out seats forward to sit fans close.</p>
+      <label class="toggle"><input type="checkbox" id="cvOn"> It converts for a second sport</label>
+      <div id="cvMore" class="group">
+        <div class="row"><label for="cvTo">Second sport</label><select id="cvTo"></select></div>
+        <div class="row"><label for="cvHow">Making room for a bigger field</label><select id="cvHow"><option value="slide">The lower tier slides back</option><option value="cover">The front rows are decked over</option></select></div>
+        <label class="toggle"><input type="checkbox" id="cvPull"> Pull-out seats come forward for a smaller field</label>
+        <div class="seg" role="radiogroup" aria-label="Show it set up for">
+          <input type="radio" name="cvShow" id="cvs-base" value="base"><label for="cvs-base" id="cvBaseLabel">Football</label>
+          <input type="radio" name="cvShow" id="cvs-second" value="second"><label for="cvs-second" id="cvSecondLabel">Athletics</label>
+        </div>
+        <p class="hint" id="cvCaps"></p>
+      </div>
+    </section>
+
     <section class="group" id="siteBox" data-pane="ground">
       <h2>Surroundings</h2>
       <p class="hint">Roads, rivers, canals, railways and buildings round the ground, at real sizes. Stands are cut back to clear them (untick the hard boundary under Site boundary to get warnings instead). In the 3D view, drag a yellow post's middle one to move it and its end one to turn and stretch it.</p>

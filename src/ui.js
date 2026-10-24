@@ -821,6 +821,29 @@ function plotShape(kind, silent){
 document.querySelectorAll("[data-plot]").forEach(b => b.addEventListener("click", () => plotShape(b.dataset.plot)));
 $("plotOn").addEventListener("change", e => { if (e.target.checked && !S.plot.pts) plotShape("snug"); else { S.plot.on = e.target.checked; changed(true); } setTip(); });
 $("plotClip").addEventListener("change", e => { S.plot.clip = e.target.checked; changed(); });
+/* Convertible grounds: a second sport, how room is made, and which set-up is shown. */
+const convOf = () => (S.convert = Object.assign({}, CONVERT, S.convert || {}));
+const sportName = sp => CONVERT_TO[sp] || (sp === "custom" ? (KINDS[S.custom.kind] || KINDS.plain).label : cap1(sp));
+$("cvOn").addEventListener("change", e => { const C = convOf(); C.on = e.target.checked; if (C.to === S.sport) C.to = Object.keys(CONVERT_TO).find(k => k !== S.sport); if (!C.on) C.show = "base"; changed(true); });
+$("cvTo").addEventListener("change", e => { convOf().to = e.target.value; changed(true); });
+$("cvHow").addEventListener("change", e => { convOf().how = e.target.value; changed(); });
+$("cvPull").addEventListener("change", e => { convOf().pull = e.target.checked; changed(); });
+bindRadio("cvShow", v => { convOf().show = v; changed(); });
+let capsFor = null;
+function syncConvert(){
+  const C = Object.assign({}, CONVERT, S.convert || {});
+  $("cvOn").checked = !!C.on; $("cvMore").hidden = !C.on;
+  $("cvTo").innerHTML = Object.entries(CONVERT_TO).filter(([k]) => k !== S.sport).map(([k, v]) => `<option value="${k}"${k === C.to ? " selected" : ""}>${v}</option>`).join("");
+  $("cvHow").value = C.how; $("cvPull").checked = C.pull !== false;
+  $("cvBaseLabel").textContent = sportName(S.sport); $("cvSecondLabel").textContent = sportName(C.to);
+  document.querySelector(`input[name=cvShow][value=${C.show === "second" ? "second" : "base"}]`).checked = true;
+  if (!C.on){ $("cvCaps").textContent = ""; return; }
+  // the capacity both ways round, worked out once per design
+  const key = JSON.stringify(S); if (capsFor === key) return; capsFor = key;
+  clearTimeout(syncConvert.t); syncConvert.t = setTimeout(() => {
+    const both = ["base", "second"].map(show => statsOf(Object.assign(clone(S), {convert:Object.assign({}, C, {show})})).total);
+    $("cvCaps").textContent = `${sportName(S.sport)}: ${fmt(both[0])} places · ${sportName(C.to)}: ${fmt(both[1])} places.`; }, 50);
+}
 /* Surroundings: add, edit and remove roads, water, railways and buildings. */
 $("siteAdd").innerHTML = Object.entries(SITE_KINDS).map(([k, v]) => `<button class="btn" data-site="${k}">${v.label}<small>${v.note}</small></button>`).join("");
 const siteOf = () => (S.site = Array.isArray(S.site) ? S.site : []);
@@ -1115,6 +1138,7 @@ function syncUI(){
   $("plotOn").checked = S.plot.on; $("plotBox").hidden = !S.plot.on; $("plotClip").checked = S.plot.clip;
   if (S.plot.pts && plotDrawn !== JSON.stringify(S.plot.pts)) renderPlot();
   if (siteDrawn !== JSON.stringify(S.site || [])) renderSite();
+  syncConvert();
   $("boards").checked = !!S.boards;
   const AR = Object.assign({skin:"none", skinShape:"round"}, S.arch || {});
   $("skin").value = AR.skin; document.querySelector(`input[name=skinShape][value=${AR.skinShape}]`).checked = true; $("skinShapeRow").hidden = AR.skin === "none";
