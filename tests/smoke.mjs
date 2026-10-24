@@ -78,7 +78,8 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   const roofed = await last();
   check(bare === 0 && roofed.covered > roofed.total * 0.9, "one roof over the whole ground covers the seats");
   await page.click('#panes [data-pane="start"]');
-  await page.click('[data-p="ringroof"]'); await page.waitForTimeout(300);
+  await page.click('[data-p="ringroof"]');
+  await page.waitForFunction(() => window.__gw.last().parts.some(p => p.label === "West end"));
   const rr = await last();
   check(rr.total > 20000 && rr.covered / rr.total > 0.9 && !rr.issues, 'preset "ringroof" builds under one roof with no warnings');
   await page.click('#panes [data-pane="start"]');
