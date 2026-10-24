@@ -732,13 +732,16 @@ function build(){
     /* Keep each tier above the first at one height along the stand. Where the tier below is cut short (by the plot, or a bowl
        side with fewer rows) the tier above would otherwise dip and arch with it; instead it is held level at the height its
        tallest point needs, and its rows are raked from there. Corners are left to blend between their stands. */
+    /* A bowl's sides can legitimately differ in depth, so each side is levelled on its own and the corners blend between
+       them; a separate stand is levelled along its whole length. */
     if (st.key !== "C"){
-      const lift = [], K0 = Math.max(0, ...profs.map(p => p.length));
+      const group = st.levelAt || (() => 0), lifts = {}, K0 = Math.max(0, ...profs.map(p => p.length));
       for (let k=1;k<K0;k++){
-        let top = -Infinity, uneven = false;
-        for (const pr of profs){ const p = pr[k]; if (p && p.stacked && !p.ghost && nRows(p) >= 1){ if (isFinite(top) && Math.abs(p.hF - top) > 0.01) uneven = true; top = Math.max(top, p.hF); } }
-        if (!uneven) continue;
-        lift[k] = top; for (let i=0;i<m;i++) profs[i] = profile(tierList[i], setAt(i), lift);
+        const top = {}, uneven = {};
+        profs.forEach((pr, i) => { const g = group(i), p = pr[k]; if (g == null || !p || !p.stacked || p.ghost || nRows(p) < 1) return;
+          if (top[g] != null && Math.abs(p.hF - top[g]) > 0.01) uneven[g] = true; top[g] = Math.max(top[g] == null ? -Infinity : top[g], p.hF); });
+        let any = false; for (const g in uneven){ (lifts[g] = lifts[g] || [])[k] = top[g]; any = true; }
+        if (any) for (let i=0;i<m;i++){ const g = group(i); if (g != null && lifts[g]) profs[i] = profile(tierList[i], setAt(i), lifts[g]); }
       }
     }
     /* A convertible ground set up for its second sport: the lower tier slides back or has its front rows decked over so a
@@ -1237,10 +1240,11 @@ function build(){
   /* The bowl as one closed ring, or one open strip per unbroken stretch when parts of it are left out. */
   const bowlGeos = ring => runs ? runs.map(r => subGeo(ring, r.lo, r.hi, total4)) : [ring];
   const sideAt = geo => i => { const pc = bowlPiece(geo.tag[i], nc); return pc.corner ? null : pc.key; };
+  const levelBySide = geo => S.bowl.varyRows ? sideAt(geo) : null; // only matters when the bowl's sides differ
   if (lay === "bowl"){
     const ring0 = ringGeo();
     for (const geo of bowlGeos(ring0)){
-      const st = buildSliced({name:"Bowl", key:"B", geo, cfg:S.bowl, set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc), geo.o[i], geo.v[i]), tierRef:k => S.bowl.tiers[k], drawFrom:0, sel: tab === "B", sideAt:sideAt(geo)});
+      const st = buildSliced({name:"Bowl", key:"B", geo, cfg:S.bowl, set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc), geo.o[i], geo.v[i]), tierRef:k => S.bowl.tiers[k], drawFrom:0, sel: tab === "B", sideAt:sideAt(geo), levelAt:levelBySide(geo)});
       if (st && st.closedAt) closedAt = st.closedAt;
     }
     if (runs && S.bowl.roof.shape === "closed" && !groundRoof) issue("A roof closed over the floor needs the whole bowl, so with parts left out it's built open. One roof over the whole ground can still close over it.", "bowl:closed", "geo",
@@ -1283,7 +1287,7 @@ function build(){
   } else {
     const ring = ringGeo(), rc = S.bowl.tiers.length, lowCfg = Object.assign({}, S.bowl, {roof:R("none")});
     for (const geo of bowlGeos(ring))
-      buildSliced({name:"Lower bowl", key:"B", geo, cfg:lowCfg, set, tiersFor:i => bowlTiersAt(geo.tag[i], nc), tierRef:k => S.bowl.tiers[k], drawFrom:0, sel: tab === "B", sideAt:sideAt(geo)});
+      buildSliced({name:"Lower bowl", key:"B", geo, cfg:lowCfg, set, tiersFor:i => bowlTiersAt(geo.tag[i], nc), tierRef:k => S.bowl.tiers[k], drawFrom:0, sel: tab === "B", sideAt:sideAt(geo), levelAt:levelBySide(geo)});
     const split = key => S.corners[key].mode === "split";
     for (const s of SIDES){
       const cfg = S.stands[s]; if (!cfg.tiers.length && cfg.roof.shape === "none") continue;
@@ -1291,7 +1295,7 @@ function build(){
       const meet = key => nc*Math.max(0, Math.min(1, S.corners[key].meet == null ? 0.5 : S.corners[key].meet)); // where the stands meet, from the first one
       const lo = gb*(nc+1) + (split(kb) ? meet(kb) : nc), hi = ga*(nc+1) + (split(ka) ? meet(ka) : 0);
       const geo = subGeo(ring, lo, hi, total4);
-      buildSliced({name:SIDE_NAMES[s], key:s, geo, cfg, set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc).concat(cfg.tiers), geo.o[i], geo.v[i]), tierRef:k => cfg.tiers[k], drawFrom:rc, sel: tab === s});
+      buildSliced({name:SIDE_NAMES[s], key:s, geo, cfg, set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc).concat(cfg.tiers), geo.o[i], geo.v[i]), tierRef:k => cfg.tiers[k], drawFrom:rc, sel: tab === s, levelAt:levelBySide(geo)});
     }
     for (const c of CORNERS){
       const cc = S.corners[c.key], mode = cc.mode; if (mode !== "blend" && mode !== "custom") continue;
