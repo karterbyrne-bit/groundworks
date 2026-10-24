@@ -46,7 +46,7 @@ const LIMIT_FIELDS = [
 ];
 const ROOF_SHAPES = {none:"No roof", slope:"Flat or sloping", gable:"Pitched, with a gable", closed:"Closed over the floor"};
 const ROOF_MATS = {translucent:"Translucent", metal:"Metal sheet", concrete:"Concrete", green:"Painted tin", glass:"Glass"};
-const ROOF_SUPPORTS = {none:"Hidden cantilever", ribs:"Exposed ribs", columns:"Pillars at the front", truss:"Goalpost truss", masts:"Masts and cables"};
+const ROOF_SUPPORTS = {none:"Hidden cantilever", ribs:"Exposed ribs", columns:"Pillars at the front", truss:"Goalpost truss", toptruss:"Big truss along the top", masts:"Masts and cables"};
 const ROOF_MAT_KEY = {translucent:"roof", metal:"roofSolid", concrete:"roofConcrete", green:"roofGreen", glass:"roofGlass"};
 /* One roof over the whole ground, designed on its own rather than per stand. */
 const GROUND_ROOF = {on:false, shape:"follow", cover:"ring", reach:2, back:1.5, lift:5, tilt:4, curve:0, mat:"translucent", support:"columns", opening:0.5, wall:false};

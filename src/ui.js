@@ -515,17 +515,31 @@ function bowlShapeBlock(){
     ${S.bowl.varyRows ? `<p class="hint">The corners blend from one side's depth to the next. Set a tier to 0 rows on a side to leave it off there.</p>` : ""}
   </div></details>`;
 }
+/* Corner controls: how far round each tier comes from each stand, and where stands that meet halfway meet. */
+const pct = v => Math.round(v*100) + "%";
+const meetText = c => { const v = S.corners[c.key].meet == null ? .5 : S.corners[c.key].meet; return v <= 0.02 ? "at the " + SIDE_NAMES[c.a].toLowerCase() : v >= 0.98 ? "at the " + SIDE_NAMES[c.b].toLowerCase() : pct(v) + " across"; };
+function reachRows(c){
+  const A = S.stands[c.a].tiers, B = S.stands[c.b].tiers, n = Math.min(4, Math.max(A.length, B.length)), hyb = isHybrid(), out = [];
+  const slider = (k, side, v, stand) => `<div class="row"><label>From the ${SIDE_NAMES[stand].toLowerCase()}</label><output>${pct(v)}</output>
+    <input type="range" data-reach="${c.key}:${k}:${side}" min="0" max="100" step="5" value="${Math.round(v*100)}" aria-label="How far the ${SIDE_NAMES[stand].toLowerCase()}'s tier ${k+1} comes round ${c.name}"></div>`;
+  for (let k=0;k<n;k++){ const R = cornerReach(c, k, A[k], B[k]), nm = tierName(k, n, hyb);
+    out.push(`<div class="reach"><div class="tier-h"><span>${nm ? nm + " tier" : "Tier"}</span></div>${A[k] ? slider(k, "a", R.a, c.a) : ""}${B[k] ? slider(k, "b", R.b, c.b) : ""}</div>`); }
+  return out.length ? `<p class="hint">How far round the corner each tier comes from each stand. Where both reach they join up; where one stops it ends with a clean edge, and anything above stays up.</p>${out.join("")}` : "";
+}
 function renderEditor(){
   fixTab(); renderTabs();
   const ed = $("editor"), hyb = isHybrid();
   if (!isBowl() && tab === "C"){
     const anyCustom = CORNERS.some(c => S.corners[c.key].mode === "custom");
-    ed.innerHTML = `<p class="hint">Each corner can be open, filled, or connect only some tiers: <b>Lower only</b> gives a partial-height corner, <b>Upper only</b> leaves the lower corner open and carries the upper tiers across on pillars. The shape (curved, angled or right angle) is under Layout.</p>
+    ed.innerHTML = `<p class="hint">Each corner can be open, filled, or connect only some tiers: <b>Lower only</b> gives a partial-height corner, <b>Upper only</b> leaves the lower corner open and carries the upper tiers across on pillars. Then fine-tune how far round each tier comes from each stand. The shape (curved, angled or right angle) is under Layout.</p>
       ${CORNERS.map(c => { const cc = S.corners[c.key]; return `<div class="cornerbox"><div class="tier-h"><span>${c.name}</span></div>
         <div class="row"><label>Corner</label><select data-corner="${c.key}" data-cf="mode" aria-label="${c.name}">${cornerModes().map(([v,l]) => `<option value="${v}"${cc.mode===v?" selected":""}>${l}</option>`).join("")}</select></div>
         ${cc.mode === "blend" || cc.mode === "custom" ? `<div class="row"><label>Tiers it connects</label><select data-corner="${c.key}" data-cf="tiers" aria-label="Tiers ${c.name} connects">
           ${[["all","All tiers"],["lower","Lower only"],["upper","Upper only"]].map(([v,l]) => `<option value="${v}"${cc.tiers===v?" selected":""}>${l}</option>`).join("")}</select></div>
-          <label class="toggle"><input type="checkbox" data-corner="${c.key}" data-cf="roof"${cc.roof ? " checked" : ""}> Roof over this corner</label>` : ""}</div>`; }).join("")}
+          ${cc.mode === "blend" ? reachRows(c) : ""}
+          <label class="toggle"><input type="checkbox" data-corner="${c.key}" data-cf="roof"${cc.roof ? " checked" : ""}> Roof over this corner</label>` : ""}
+        ${cc.mode === "split" ? `<div class="row"><label>Where they meet</label><output>${meetText(c)}</output>
+          <input type="range" data-meet="${c.key}" min="0" max="100" step="5" value="${Math.round((cc.meet == null ? .5 : cc.meet)*100)}" aria-label="Where the stands meet in ${c.name}"></div>` : ""}</div>`; }).join("")}
       <button class="btn link" id="allCorners">Make all four corners match the first</button>
       ${anyCustom ? `<div class="tier-h" style="margin-top:4px"><span>Custom corner tiers</span></div>${tierBlocks(S.cornerCustom, hyb, "cc")}<button class="btn small" data-act="addTier">Add a tier</button>` : ""}`;
   } else {
@@ -610,7 +624,11 @@ function setPath(obj, path, val){
 $("editor").addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.more){ if (d.open) openMore.add(d.dataset.more); else openMore.delete(d.dataset.more); } }, true);
 $("tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (!b) return; selectTab(b.dataset.tab, false); });
 $("editor").addEventListener("input", e => {
-  const el = e.target, p = el.dataset.p; if (!p || el.tagName === "SELECT") return;
+  const el = e.target, p = el.dataset.p;
+  if (el.dataset.reach){ const [key, k, side] = el.dataset.reach.split(":"), cc = S.corners[key]; cc.reach = (cc.reach || []).slice();
+    cc.reach[+k] = Object.assign({}, cc.reach[+k], {[side]: +el.value/100}); el.parentElement.querySelector("output").textContent = el.value + "%"; changed(false, true); return; }
+  if (el.dataset.meet){ const c = CORNERS.find(x => x.key === el.dataset.meet); S.corners[c.key].meet = +el.value/100; el.parentElement.querySelector("output").textContent = meetText(c); changed(false, true); return; }
+  if (!p || el.tagName === "SELECT") return;
   if (el.type === "checkbox"){
     if (p === "roofAlign"){ S.roofAlign = el.checked; changed(); return; }
     if (p === "roof.level"){ setPath(targetObj(), p, el.checked); renderEditor(); changed(); return; }
@@ -633,7 +651,7 @@ $("editor").addEventListener("input", e => {
 });
 $("editor").addEventListener("change", e => {
   const el = e.target;
-  if (el.dataset.corner){ const cc = S.corners[el.dataset.corner], f = el.dataset.cf; cc[f] = el.type === "checkbox" ? el.checked : el.value; renderEditor(); changed(); return; }
+  if (el.dataset.corner){ const cc = S.corners[el.dataset.corner], f = el.dataset.cf; cc[f] = el.type === "checkbox" ? el.checked : el.value; if (f !== "roof") delete cc.reach; renderEditor(); changed(); return; }
   if (el.dataset.actChange === "style"){ applyStyle(cfgForTab(), el.value, isHybrid() && tab === "B"); renderEditor(); changed(); return; }
   if (el.tagName === "SELECT" && el.dataset.p && el.dataset.p.endsWith(".support")){ // pillars, towers or nothing
     const tr = el.dataset.p.split(".").slice(0, -1).reduce((o, k) => o[k], el.dataset.p.startsWith("cc.") ? {cc:{tiers:S.cornerCustom}} : targetObj());

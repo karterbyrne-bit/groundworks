@@ -99,6 +99,10 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check((await page.evaluate(() => window.__gw.state().stands.N.tiers[2].trim0)) === 12 && (await cap()) > 0, "a tier can stop short of the end of its stand");
   await page.fill("#facSign", "GROUNDWORKS"); await page.waitForTimeout(300);
   check((await page.evaluate(() => window.__gw.state().stands.N.facade.sign)) === "GROUNDWORKS", "lettering can go on the outside wall");
+  // corners: each tier's reach from each stand
+  await page.click('[data-tab="C"]'); await page.selectOption('select[data-corner="NE"][data-cf="mode"]', "blend"); await page.waitForTimeout(300);
+  await page.locator('[data-reach^="NE:"]').first().evaluate(el => { el.value = "40"; el.dispatchEvent(new Event("input", {bubbles:true})); }); await page.waitForTimeout(300);
+  check((await page.evaluate(() => (window.__gw.state().corners.NE.reach || []).some(r => r && (r.a === 0.4 || r.b === 0.4)))) && (await cap()) > 0, "a corner tier can be set to come part way round");
   await page.click('#panes [data-pane="ground"]'); await page.check("#plotOn"); await page.waitForTimeout(300);
   await page.locator("#plotExact summary").click(); await page.fill("#plotW", "260"); await page.press("#plotW", "Enter"); await page.waitForTimeout(300);
   check((await page.evaluate(() => { const xs = window.__gw.state().plot.pts.map(p => p[0]); return Math.max(...xs) - Math.min(...xs); })) === 260, "the plot can be set to an exact width");

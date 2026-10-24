@@ -1,22 +1,46 @@
 /* ================= build ================= */
 let LAST = null, LAST_REGIONS = [], tab = "N";
-/* Tiers for a corner at fraction f between its two stands (or its own custom tiers), then filtered to the tiers the corner connects. */
+/* How far round a corner (0 to 1) tier k reaches from each of its two stands. The corner's own settings can change any of it. */
+function cornerReach(c, k, ta, tb){
+  const cc = S.corners[c.key], r = cc.reach && cc.reach[k];
+  // stands with matching stacks blend all the way round; otherwise each brings its whole stack halfway and they meet
+  const A = S.stands[c.a].tiers, B = S.stands[c.b].tiers, kind = t => t.type === "exec" ? "exec" : "seat";
+  const match = A.length === B.length && A.every((t, i) => kind(t) === kind(B[i]));
+  let a = ta ? (match ? 1 : 0.5) : 0, b = tb ? (match ? 1 : 0.5) : 0;
+  if (cc.tiers === "lower" && k > 0) a = b = 0;
+  if (cc.tiers === "upper" && k === 0) a = b = 0;
+  if (r){ if (ta && r.a != null) a = r.a; if (tb && r.b != null) b = r.b; }
+  return {a: ta ? Math.max(0, Math.min(1, a)) : 0, b: tb ? Math.max(0, Math.min(1, b)) : 0};
+}
+/* A stand's tier as it carries on into a corner: same kind, rows and rake, but none of the stand's own end trims or towers. */
+const intoCorner = tr => { const o = Object.assign({}, tr, {pillars:false}); delete o.trim0; delete o.trim1; delete o.hold; delete o.sideRows; return o; };
+/* Tiers for a corner at fraction f between its two stands (or its own custom tiers). Each tier is the first stand's while
+   that stand's reach lasts, the second's while its reach lasts, a blend where both reach, and a ghost where neither does:
+   laid out but not built, so any tier above it stays up rather than dropping. */
 function cornerTiers(c, f){
   const cc = S.corners[c.key];
-  let out;
-  if (cc.mode === "custom") out = S.cornerCustom.map(x => Object.assign({}, x));
-  else {
-    const A = S.stands[c.a].tiers, B = S.stands[c.b].tiers; out = [];
-    for (let k=0;k<4;k++){
-      const a = A[k], b = B[k]; if (!a && !b) break;
-      const type = a && b && a.type !== b.type ? (a.type === "terrace" ? b.type : a.type) : (a || b).type, T = S.types[type].row; // mixed corners take the seated type
-      const dA = a ? a.rows*S.types[a.type].row : 0, dB = b ? b.rows*S.types[b.type].row : 0;
-      const L = (x, def) => { const va = a && a[x] != null ? a[x] : (b && b[x] != null ? b[x] : def), vb = b && b[x] != null ? b[x] : va; return va*(1-f) + vb*f; };
-      out.push({type, rows:(dA*(1-f) + dB*f)/T, rake:L("rake",22), over:L("over",0), gap:L("gap",3), auto: !!((a && a.auto) || (b && b.auto)), pillars:false});
-    }
+  if (cc.mode === "custom"){
+    let out = S.cornerCustom.map(x => Object.assign({}, x));
+    if (cc.tiers === "lower") out = out.slice(0, 1);
+    else if (cc.tiers === "upper" && out.length > 1) out[0] = Object.assign({}, out[0], {ghost:true});
+    return out;
   }
-  if (cc.tiers === "lower") out = out.slice(0, 1);
-  else if (cc.tiers === "upper" && out.length > 1) out[0] = Object.assign({}, out[0], {ghost:true});
+  const A = S.stands[c.a].tiers, B = S.stands[c.b].tiers, out = [];
+  for (let k=0;k<4;k++){
+    const a = A[k], b = B[k]; if (!a && !b) break;
+    // where two reaches just touch, the slice belongs to the first stand, so a stack of tiers never mixes the two stands
+    const R = cornerReach(c, k, a, b), inA = a && R.a > 0 && f <= R.a + 1e-6, inB = b && R.b > 0 && (1 - f < R.b - 1e-6 || R.b >= 1);
+    if (inA && inB){
+      const lo = 1 - R.b, hi = R.a, t0 = hi - lo > 1e-6 ? (f - lo)/(hi - lo) : (f < 0.5 ? 0 : 1), t = t0*t0*(3 - 2*t0);
+      const type = a.type === b.type ? a.type : t < 0.5 ? a.type : b.type, T = S.types[type].row; // mixed corners take the nearer stand's kind
+      const dA = a.rows*S.types[a.type].row, dB = b.rows*S.types[b.type].row;
+      const L = (x, def) => { const va = a[x] != null ? a[x] : (b[x] != null ? b[x] : def), vb = b[x] != null ? b[x] : va; return va*(1-t) + vb*t; };
+      out.push({type, rows:(dA*(1-t) + dB*t)/T, rake:L("rake",22), over:L("over",0), gap:L("gap",3), auto: !!(a.auto || b.auto), pillars:false});
+    }
+    else if (inA) out.push(intoCorner(a));
+    else if (inB) out.push(intoCorner(b));
+    else out.push(Object.assign(intoCorner(f < 0.5 ? (a || b) : (b || a)), {ghost:true}));
+  }
   return out;
 }
 /* A material in a colour picked in the editor: a copy of a shared one, made once and kept with them. */
@@ -641,19 +665,24 @@ function build(){
       quad(buf(wallKey), V(s,d1,y1), V(s,d2,y2), V(s,d2,p.hs[to-1]+1.2), V(s,d1,from === 0 ? p.hF : p.hs[from]));
     };
     let kDrawn = 0;
-    for (let k=st.drawFrom;k<K;k++){
+    /* Each tier position is drawn once per kind of seating found there: a corner can have boxes coming in from one stand
+       and seats from the other at the same level, and each needs its own row depth, sightline and capacity. */
+    const kindsAt = k => { const t = new Set(); for (let i=0;i<m;i++){ const p = profs[i][k]; if (p && !p.ghost && nRows(p) >= 1) t.add(p.type); } return t.size > 1 ? [...t] : [null]; };
+    for (let k=st.drawFrom;k<K;k++) for (const only of kindsAt(k)){
+      const pk = i => { const p = profs[i][k]; return p && (!only || p.type === only) ? p : undefined; };
       let best = null, tierType = null;
-      for (let i=0;i<m;i++){ const p = profs[i][k]; if (p && !p.ghost && nRows(p) >= 1){ tierType = tierType || p.type; if (!best || nRows(p) > nRows(best)) best = p; } }
+      for (let i=0;i<m;i++){ const p = pk(i); if (p && !p.ghost && nRows(p) >= 1){ tierType = tierType || p.type; if (!best || nRows(p) > nRows(best)) best = p; } }
       if (!tierType) continue;
       const T = S.types[tierType].row, eye = TYPES[tierType].eye;
       const kk = k - st.drawFrom, ref = st.tierRef ? st.tierRef(kk) : null, tc = ref || {}, where = {tab:st.key, k:kk};
-      const name = cap1((st.name + " " + tierName(kDrawn, realCount, above)).trim() + ((realCount > 1 || above) ? " tier" : ""));
-      kDrawn++;
+      const first = !only || only === kindsAt(k)[0], idx = first ? kDrawn : kDrawn - 1;
+      const name = cap1((st.name + " " + tierName(idx, realCount, above)).trim() + ((realCount > 1 || above) ? " tier" : ""));
+      if (first) kDrawn++;
       curRef = {ref, name};
       let tierC = Infinity, firstC = Infinity, steep = 0;
       for (let j=1;j<nRows(best);j++){ const N = best.hs[j]-best.hs[j-1], D = best.front + focusIn + (j-1)*T + 0.3, R0 = best.hs[j-1] + eye - focusY;
         const cv = D*(N+R0)/(D+T) - R0; if (j === 1) firstC = cv; tierC = Math.min(tierC, cv); }
-      for (let i=0;i<m;i++){ const p = profs[i][k]; if (p && !p.ghost && nRows(p) >= 2) steep = Math.max(steep, p.steep); }
+      for (let i=0;i<m;i++){ const p = pk(i); if (p && !p.ghost && nRows(p) >= 2) steep = Math.max(steep, p.steep); }
       noteSteep(st.key, kk, steep);
       let bad = !!typeBad[tierType];
       const lim = rakeLimit(tierType);
@@ -715,7 +744,7 @@ function build(){
       const vomAt = !best.stacked && nRows(best) >= 10 ? marks(S.design.exitEvery) : new Set();
       const rowLen = [], recs = []; let frontLen = 0;
       for (let i=0;i<segs;i++){
-        const j1 = nx(i), p0 = profs[i][k], p1 = profs[j1][k];
+        const j1 = nx(i), p0 = pk(i), p1 = pk(j1);
         const n0 = p0 && !p0.ghost ? nRows(p0) : 0, n1 = p1 && !p1.ghost ? nRows(p1) : 0, mr = Math.min(n0, n1);
         if (mr >= 1){
           for (let j=0;j<mr;j++){
@@ -761,7 +790,7 @@ function build(){
         if (n1 > mr) cap(j1, p1, mr, n1);
       }
       for (let s=0;s<m;s++){
-        const p = profs[s][k], n = p && !p.ghost ? nRows(p) : 0; if (n < 1) continue;
+        const p = pk(s), n = p && !p.ghost ? nRows(p) : 0; if (n < 1) continue;
         // open stand ends: close the tier, and wall in the space under a stacked tier
         if (!closed && (s === 0 || s === m-1)){
           cap(s, p, 0, n);
@@ -790,11 +819,11 @@ function build(){
         const bp = pt(s, p.front + n*T - T/2); farFrom(bp[0], bp[1], p.hs[n-1] + eye);
         standTop = Math.max(standTop, p.hs[n-1] + 1.2); standBack = Math.max(standBack, p.front + n*T);
       }
-      if (tc.hold === "towers" && !closed && best.stacked){ const live = []; for (let s=0;s<m;s++){ const p = profs[s][k]; if (p && !p.ghost && nRows(p) >= 1) live.push(s); }
+      if (tc.hold === "towers" && !closed && best.stacked){ const live = []; for (let s=0;s<m;s++){ const p = pk(s); if (p && !p.ghost && nRows(p) >= 1) live.push(s); }
         if (live.length >= 2) towerReqs.push({k, live}); }
       if (st.sel && ref){ // one depth handle in the middle, or one per side when a bowl's sides have their own rows
         const spots = st.sideAt && S.bowl.varyRows ? sideMids : [[midI, null]];
-        spots.forEach(([hi, side], si) => { const p = profs[hi][k]; if (!p || p.ghost || nRows(p) < 1) return;
+        spots.forEach(([hi, side], si) => { const p = pk(hi); if (!p || p.ghost || nRows(p) < 1) return;
           const n = nRows(p), bk = p.front + n*T;
           handles.push({kind:"depth", x:pt(hi,bk)[0], y:p.hs[n-1] + 1.2, z:pt(hi,bk)[1], o:o[hi], v:v[hi], ref, front:p.front, T, side});
           if (p.stacked && si === 0) handles.push({kind:"over", x:pt(hi,p.front)[0], y:p.hF, z:pt(hi,p.front)[1], o:o[hi], v:v[hi], ref, lowerBack:p.lowerBack, lowerBackH:p.lowerBackH}); }); }
@@ -845,6 +874,15 @@ function build(){
         roofQuads.push([pt(i,a.inner), pt(j1,b.inner), pt(j1,b.outer), pt(i,a.outer)]);
       }
       const ribAt = marks(12), colAt = marks(14), mastAt = marks(32);
+      if (rf.support === "toptruss"){ // a deep lattice truss along the top of the roof, the full length of the stand
+        const sb = buf("steel"), fT = .38, D = 5.5, live = []; for (let i=0;i<m;i++) if (RR[i]) live.push(i);
+        const P3 = (i, up) => { const a = RR[i], q = pt(i, at(a, fT)); return [q[0], a.y(fT) + .3 + up, q[1]]; };
+        for (let n=0;n<live.length;n++){ const i = live[n], j = live[n+1] != null ? live[n+1] : (closed ? live[0] : null); if (j == null || (!closed && j !== i + 1)) continue;
+          bar(sb, P3(i, 0), P3(j, 0), .5); bar(sb, P3(i, D), P3(j, D), .5); bar(sb, n % 2 ? P3(i, 0) : P3(i, D), n % 2 ? P3(j, D) : P3(j, 0), .3); bar(sb, P3(i, 0), P3(i, D), .25); }
+        if (!closed) for (const i of [live[0], live[live.length-1]]) if (i != null){ const tg = tangent(i), s2 = i === live[0] ? -1 : 1, q = P3(i, D), b0 = pt(i, at(RR[i], fT));
+          post(sb, b0[0] + tg[0]*s2*2.5, b0[1] + tg[1]*s2*2.5, 0, q[1] + .5, 1.8); } // end posts carry it to the ground
+        topAll = Math.max(topAll, ...live.map(i => P3(i, D)[1] + .5));
+      }
       for (let i=0;i<m;i++){ const a = RR[i]; if (!a) continue;
         const peak = gable ? a.y(.5) : Math.max(a.y(0), a.y(1), a.y(.5));
         outerTop = Math.max(outerTop, a.y(0), a.y(1));
@@ -976,7 +1014,7 @@ function build(){
   const nc = NC(shape);
   const ringGeo = () => densify(linearize(d => closedPathS(F, radius, d, shape), true), 4, set + 6);
   const cornerCfg = (sa, sb, cc) => { const src = [sa, sb].find(x => x.tiers.length && x.roof.shape !== "none");
-    return {style:(sa.tiers.length ? sa : sb).style, roof: cc.roof && src ? Object.assign({}, src.roof, {shape: src.roof.shape === "closed" ? "slope" : src.roof.shape, support: src.roof.support === "truss" ? "none" : src.roof.support}) : R("none"),
+    return {style:(sa.tiers.length ? sa : sb).style, roof: cc.roof && src ? Object.assign({}, src.roof, {shape: src.roof.shape === "closed" ? "slope" : src.roof.shape, support: src.roof.support === "truss" || src.roof.support === "toptruss" ? "none" : src.roof.support}) : R("none"),
       facade:Object.assign({}, (sa.tiers.length ? sa : sb).facade, {towers:false, gates:false, sign:""})}; }; // corners wear their stand's walls
   /* Upper tiers on their own outline, like La Cartuja or the Monumental: the lower tier keeps hugging the play while every
      tier above it is bent, slice by slice, onto an oval or a circle. "ring" puts the front of the upper tiers on the outline;
@@ -1055,7 +1093,8 @@ function build(){
     for (const s of SIDES){
       const cfg = S.stands[s]; if (!cfg.tiers.length && cfg.roof.shape === "none") continue;
       const [gb, ga] = SIDE_GROUPS[s], kb = GROUP_KEY[gb], ka = GROUP_KEY[ga];
-      const lo = gb*(nc+1) + (split(kb) ? nc/2 : nc), hi = ga*(nc+1) + (split(ka) ? nc/2 : 0);
+      const meet = key => nc*Math.max(0, Math.min(1, S.corners[key].meet == null ? 0.5 : S.corners[key].meet)); // where the stands meet, from the first one
+      const lo = gb*(nc+1) + (split(kb) ? meet(kb) : nc), hi = ga*(nc+1) + (split(ka) ? meet(ka) : 0);
       const geo = subGeo(ring, lo, hi, total4);
       buildSliced({name:SIDE_NAMES[s], key:s, geo, cfg, set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc).concat(cfg.tiers), geo.o[i], geo.v[i]), tierRef:k => cfg.tiers[k], drawFrom:rc, sel: tab === s});
     }
