@@ -74,7 +74,7 @@ const sideTypeOf = (tr, s) => S.bowl.varyRows && tr.sideType && TYPES[tr.sideTyp
 const withRows = (tiers, f) => tiers.map((tr,k) => Object.assign({}, tr, {rows:f(tr,k)}));
 const onSide = (tr, s) => Object.assign({}, tr, {type:sideTypeOf(tr, s), rows:sideRowsOf(tr, s)}); // a bowl tier as built on one side
 /* The bowl's tiers at one point round the ring: that side's seating and rows, a blend in a corner, or nothing where it's
-   left out. A corner between two kinds of seating blends the depth and takes the kind of the nearer side. */
+   left out. A corner between two kinds of seating blends the depth and keeps the roomier kind (seats over terracing) all the way round. */
 function bowlTiersAt(tag, nc){
   const pc = bowlPiece(tag, nc), T = S.bowl.tiers;
   if (bowlGone(pc.key)) return withRows(T, () => 0);
@@ -82,7 +82,9 @@ function bowlTiersAt(tag, nc){
   if (!pc.corner) return T.map(tr => onSide(tr, pc.key));
   const a = !bowlGone(pc.before), b = !bowlGone(pc.after), f = (1 - Math.cos(Math.PI*pc.f))/2;
   return T.map(tr => { if (!(a && b)) return a ? onSide(tr, pc.before) : b ? onSide(tr, pc.after) : tr;
-    const ta = onSide(tr, pc.before), tb = onSide(tr, pc.after), type = f < 0.5 ? ta.type : tb.type;
+    // the corner keeps one kind of seating all the way round (the roomier kind, so seats rather than terracing), and the
+    // two kinds meet at a stairway where the corner joins the straight side, not in the middle of the curve
+    const ta = onSide(tr, pc.before), tb = onSide(tr, pc.after), type = !(ta.rows > 0) ? tb.type : !(tb.rows > 0) ? ta.type : S.types[ta.type].row >= S.types[tb.type].row ? ta.type : tb.type;
     const depth = lerp(ta.rows*S.types[ta.type].row, tb.rows*S.types[tb.type].row, f);
     return Object.assign({}, tr, {type, rows: depth/S.types[type].row}); });
 }
@@ -744,9 +746,6 @@ function build(){
       const lifts = profs.map(() => []), mid = {};
       pcs.forEach((pc, i) => { if (pc && pc.corner && (mid[pc.key] == null || Math.abs(pc.f - 0.5) < Math.abs(pcs[mid[pc.key]].f - 0.5))) mid[pc.key] = i; });
       const gapFrom = (i, k) => { gapped.add(i); tierList[i] = tierList[i].map((tr, j) => j >= k ? Object.assign({}, tr, {ghost:true}) : tr); profs[i] = profile(tierList[i], setAt(i), lifts[i]); };
-      /* a seated side meeting a terrace end: the lower tier parts there too, rather than stepping down mid-row */
-      for (const key in mid){ const i = mid[key], A = profs[(i - 1 + m) % m][0], B = profs[(i + 1) % m][0];
-        if (A && B && nRows(A) >= 1 && nRows(B) >= 1 && A.type !== B.type) gapFrom(i, 0); }
       const STEP = 0.3;
       for (let k=1;k<K0;k++){
         const L = {}, R = {};
@@ -1043,6 +1042,19 @@ function build(){
           issue(`${name}: takes ${mins.toFixed(1)} minutes to empty through ${exits} exit${exits>1?"s":""}. The limit is ${L.maxEvac} minutes.`, key, "rules",
             Object.assign({fix:{label:"Add more exits", run:() => searchFix(v2 => { S.design.exitEvery = v2; }, spacing, key) || searchFix(v2 => { S.design.exitWidth = v2; }, widths, key)}}, where)); }
         slowest = Math.max(slowest, mins); standEvac = Math.max(standEvac, mins); tr0.evac = mins; }
+    }
+
+    /* Where seats meet terracing in the same tier (a corner between a seated side and a terrace end), the two kinds can't
+       share a row, so the join between them is a concrete stairway from the front of the tier to the back. */
+    const along = (p, t) => { const n = nRows(p), x = t*(n - 1), j = Math.min(n - 2, Math.floor(x)); return [p.front + t*n*p.T, n < 2 ? p.hF : lerp(p.hs[j], p.hs[j+1], x - j)]; };
+    for (let k=st.drawFrom;k<K;k++) for (let i=0;i<segs;i++){
+      const j1 = nx(i), a = profs[i][k], b = profs[j1][k];
+      if (!a || !b || a.ghost || b.ghost || nRows(a) < 2 || nRows(b) < 2 || a.type === b.type) continue;
+      const N = Math.min(60, Math.max(nRows(a), nRows(b))), both = (key, A, B, C, D) => { quad(buf(key), A, B, C, D); quad(buf(key), A, D, C, B); };
+      both("riser", V(i,a.front,0), V(j1,b.front,0), V(j1,b.front,b.hF), V(i,a.front,a.hF)); // its front, down to the ground
+      for (let q=0;q<N;q++){ const [da0, ha0] = along(a, q/N), [da1, ha1] = along(a, (q+1)/N), [db0, hb0] = along(b, q/N), [db1, hb1] = along(b, (q+1)/N);
+        both("aisle", V(i,da0,ha0), V(j1,db0,hb0), V(j1,db1,hb0), V(i,da1,ha0)); // tread
+        both("riser", V(i,da1,ha0), V(j1,db1,hb0), V(j1,db1,hb1), V(i,da1,ha1)); }
     }
 
     // the deck over the vacated (or covered) front of the lower tier, at the second sport's level, and the wall behind it
