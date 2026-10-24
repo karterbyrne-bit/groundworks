@@ -70,14 +70,16 @@ function subGeo(ring, lo, hi, total){
   if (hi < lo || idx.length === 0) {}
   return {o:idx.map(i => ring.o[i]), v:idx.map(i => ring.v[i]), closed:false, tag:idx.map(i => ring.tag[i]), frac:idx.map(i => { const tg = ring.tag[i]; return hi >= lo ? (tg - lo)/Math.max(1e-9, hi - lo) : ((tg >= lo ? tg - lo : tg + total - lo) / (hi + total - lo)); })};
 }
-/* Corner fan between two separate stands. The shape scales each ray so rows form an arc, a chamfer or a right angle. */
-function fanGeo(C, uA, uB, shape, set){
-  const n = 14, o = [], v = [], frac = [];
+/* Corner fan between two separate stands, from fraction f0 to f1 of the way round (0 faces the first stand's way, 1 the
+   second's). The shape scales each ray so rows form an arc, a chamfer or a right angle. */
+function fanGeo(C, uA, uB, shape, set, f0, f1){
+  f0 = f0 == null ? 0 : f0; f1 = f1 == null ? 1 : f1;
+  const n = Math.max(1, Math.ceil(14*Math.abs(f1 - f0) - 1e-6)), o = [], v = [], frac = [];
   for (let i=0;i<=n;i++){
-    const q = i/n*Math.PI/2, c = Math.cos(q), s = Math.sin(q);
+    const f = f0 + (f1 - f0)*i/n, q = f*Math.PI/2, c = Math.cos(q), s = Math.sin(q);
     const k = shape === "angled" ? 1/(c + s) : shape === "square" ? 1/Math.max(c, s) : 1;
     const dir = [(c*uA[0] + s*uB[0])*k, (c*uA[1] + s*uB[1])*k];
-    v.push(dir); o.push([C[0] - set*dir[0], C[1] - set*dir[1]]); frac.push(i/n);
+    v.push(dir); o.push([C[0] - set*dir[0], C[1] - set*dir[1]]); frac.push(f);
   }
   return {o, v, closed:false, frac};
 }

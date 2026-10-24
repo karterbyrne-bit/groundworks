@@ -431,16 +431,12 @@ const ringIdx = () => /^R\d+$/.test(tab) ? +tab.slice(1) : -1;
 const cfgForTab = () => isRing() ? ringOf().stands[Math.max(0, ringIdx())] : isBowl() || (isHybrid() && tab === "B") ? S.bowl : (tab === "C" ? null : S.stands[tab]);
 const tabName = key => /^R\d+$/.test(key) ? ((ringOf().stands[+key.slice(1)] || {}).name || "Stand " + (+key.slice(1) + 1)) : key === "B" ? (isHybrid() ? "Lower bowl" : "Bowl") : SIDE_NAMES[key] || "Corners";
 const tiersEditable = () => (!isBowl() && tab === "C") ? S.cornerCustom : cfgForTab().tiers;
-const cornerModes = () => isHybrid()
-  ? [["open","Open (lower bowl only)"],["split","Stands meet halfway"],["blend","Filled, blending the stands"],["custom","Filled, its own tiers"]]
-  : [["open","Open"],["blend","Filled, blending the stands"],["custom","Filled, its own tiers"]];
 let clipboard = null;
 function fixTab(){
   if (isRing()){ if (!ringOf().stands.length) S.ring.stands.push(ringStand(0)); if (ringIdx() < 0 || ringIdx() >= S.ring.stands.length) tab = "R0"; return; }
   if (/^R\d+$/.test(tab)) tab = "N";
   if (isBowl()) tab = "B";
   else if (tab === "B" && !isHybrid()) tab = "N";
-  if (!isHybrid()) for (const c of CORNERS) if (S.corners[c.key].mode === "split") S.corners[c.key].mode = "blend";
 }
 function renderTabs(){
   const el = $("tabs");
@@ -456,7 +452,7 @@ function renderTabs(){
     return; }
   if (isHybrid()) items.push(["B","Lower bowl", S.bowl.tiers.length + "T"]);
   SIDES.forEach(s => items.push([s, SIDE_NAMES[s], S.stands[s].tiers.length ? S.stands[s].tiers.length + "T" : "none"]));
-  items.push(["C","Corners", CORNERS.filter(c => S.corners[c.key].mode !== "open").length + "/4"]);
+  items.push(["C","Corners", CORNERS.filter(c => { const P = cornerPlan(c); return P.wa || P.wb || P.ra > 0 || P.rb > 0 || P.stand; }).length + "/4"]);
   el.innerHTML = items.map(([k,label,n]) => `<button role="tab" aria-selected="${tab===k}" data-tab="${k}">${label}<span class="n">${n}</span></button>`).join("");
 }
 /* A slider paired with an exact number box, both bound to the same setting path. */
@@ -532,33 +528,49 @@ function bowlShapeBlock(){
     ${S.bowl.varyRows ? `<p class="hint">Each side can have its own seating (a seated main stand with terraces round the rest, say) and depth; the corners blend from one side to the next. Set a tier to 0 rows on a side to leave it off there.</p>` : ""}
   </div></details>`;
 }
-/* Corner controls: how far round each tier comes from each stand, and where stands that meet halfway meet. */
+/* Corner controls. A corner is what's left between two stands: each stand sets how far it runs or wraps into it, and the
+   corner says what fills any gap. */
 const pct = v => Math.round(v*100) + "%";
-const meetText = c => { const v = S.corners[c.key].meet == null ? .5 : S.corners[c.key].meet; return v <= 0.02 ? "at the " + SIDE_NAMES[c.a].toLowerCase() : v >= 0.98 ? "at the " + SIDE_NAMES[c.b].toLowerCase() : pct(v) + " across"; };
-function reachRows(c){
-  const A = S.stands[c.a].tiers, B = S.stands[c.b].tiers, n = Math.min(4, Math.max(A.length, B.length)), hyb = isHybrid(), out = [];
-  const slider = (k, side, v, stand) => `<div class="row"><label>From the ${SIDE_NAMES[stand].toLowerCase()}</label><output>${pct(v)}</output>
-    <input type="range" data-reach="${c.key}:${k}:${side}" min="0" max="100" step="5" value="${Math.round(v*100)}" aria-label="How far the ${SIDE_NAMES[stand].toLowerCase()}'s tier ${k+1} comes round ${c.name}"></div>`;
-  for (let k=0;k<n;k++){ const R = cornerReach(c, k, A[k], B[k]), nm = tierName(k, n, hyb);
-    out.push(`<div class="reach"><div class="tier-h"><span>${nm ? nm + " tier" : "Tier"}</span></div>${A[k] ? slider(k, "a", R.a, c.a) : ""}${B[k] ? slider(k, "b", R.b, c.b) : ""}</div>`); }
-  return out.length ? `<p class="hint">How far round the corner each tier comes from each stand. Where both reach they join up; where one stops it ends with a clean edge, and anything above stays up.</p>${out.join("")}` : "";
+const lower = k => SIDE_NAMES[k].toLowerCase();
+function cornerSummary(c){
+  const P = cornerPlan(c), A = S.stands[c.a], B = S.stands[c.b], bits = [];
+  if (P.ra > 0) bits.push(`The ${lower(c.a)} runs ${Math.round(P.ra)} m past the pitch into it.`);
+  if (P.rb > 0) bits.push(`The ${lower(c.b)} runs ${Math.round(P.rb)} m past the pitch into it.`);
+  if (P.wa > 0) bits.push(`The ${lower(c.a)} wraps ${pct(P.wa)} of the way round.`);
+  if (P.wb > 0) bits.push(`The ${lower(c.b)} wraps ${pct(P.wb)} of the way round.`);
+  if (P.meet) bits.push("They meet, so the corner is filled.");
+  else if (!P.gap) bits.push("Nothing else fits.");
+  else if (!bits.length) bits.push(A.tiers.length || B.tiers.length ? "Neither stand comes into it." : "There are no stands either side yet.");
+  return bits.join(" ");
+}
+/* How far a stand runs or wraps at one end, and a word on what's stopping it when another stand has the corner. */
+function endControls(cfg, s, e){
+  const ck = SIDE_ENDS[s][e], c = CORNERS.find(x => x.key === ck), other = c.a === s ? c.b : c.a, P = cornerPlan(c), mine = c.a === s ? {w:P.wa, r:P.ra} : {w:P.wb, r:P.rb};
+  const want = {w:+cfg["wrap" + e] || 0, r:+cfg["run" + e] || 0}, stands = layoutOf() === "stands";
+  let note = "";
+  if (want.w > 0.005 && mine.w < 0.005) note = `The ${lower(other)} already has this corner, so this end stops at the pitch.`;
+  else if (want.w > mine.w + 0.01) note = `It meets the ${lower(other)}, ${pct(mine.w)} of the way round.`;
+  else if (stands && !want.w && want.r > 0 && mine.r <= 0) note = `The ${lower(other)} already comes into this corner, so this end stops at the pitch.`;
+  return `<div class="tier-h"><span>Towards the ${lower(other)}</span></div>
+    <div class="row"><label>Wraps round the corner</label><output>${pct(want.w)}</output>
+      <input type="range" data-wrap="${e}" min="0" max="100" step="5" value="${Math.round(want.w*100)}" aria-label="How far the stand wraps round towards the ${lower(other)}"></div>
+    ${stands && !want.w ? pair("Runs past the pitch", "run" + e, want.r, -40, 60, 1, "m", "Negative stops it short of the pitch.") : ""}
+    ${note ? `<p class="hint">${note}</p>` : ""}`;
 }
 function renderEditor(){
   fixTab(); renderTabs();
   const ed = $("editor"), hyb = isHybrid();
   if (!isBowl() && tab === "C"){
-    const anyCustom = CORNERS.some(c => S.corners[c.key].mode === "custom");
-    ed.innerHTML = `<p class="hint">Each corner can be open, filled, or connect only some tiers: <b>Lower only</b> gives a partial-height corner, <b>Upper only</b> leaves the lower corner open and carries the upper tiers across on pillars. Then fine-tune how far round each tier comes from each stand. The shape (curved, angled or right angle) is under Layout.</p>
-      ${CORNERS.map(c => { const cc = S.corners[c.key]; return `<div class="cornerbox"><div class="tier-h"><span>${c.name}</span></div>
-        <div class="row"><label>Corner</label><select data-corner="${c.key}" data-cf="mode" aria-label="${c.name}">${cornerModes().map(([v,l]) => `<option value="${v}"${cc.mode===v?" selected":""}>${l}</option>`).join("")}</select></div>
-        ${cc.mode === "blend" || cc.mode === "custom" ? `<div class="row"><label>Tiers it connects</label><select data-corner="${c.key}" data-cf="tiers" aria-label="Tiers ${c.name} connects">
-          ${[["all","All tiers"],["lower","Lower only"],["upper","Upper only"]].map(([v,l]) => `<option value="${v}"${cc.tiers===v?" selected":""}>${l}</option>`).join("")}</select></div>
-          ${cc.mode === "blend" ? reachRows(c) : ""}
-          <label class="toggle"><input type="checkbox" data-corner="${c.key}" data-cf="roof"${cc.roof ? " checked" : ""}> Roof over this corner</label>` : ""}
-        ${cc.mode === "split" ? `<div class="row"><label>Where they meet</label><output>${meetText(c)}</output>
-          <input type="range" data-meet="${c.key}" min="0" max="100" step="5" value="${Math.round((cc.meet == null ? .5 : cc.meet)*100)}" aria-label="Where the stands meet in ${c.name}"></div>` : ""}</div>`; }).join("")}
+    const anyStand = CORNERS.some(c => cornerPlan(c).stand);
+    ed.innerHTML = `<p class="hint">A corner is whatever is left between two stands. Each stand sets how far it runs past the pitch or wraps round into the corner (under that stand's <b>Length</b>); here you choose what fills any gap. The shape (curved, angled or right angle) is under Layout.</p>
+      ${CORNERS.map(c => { const cc = S.corners[c.key], P = cornerPlan(c); return `<div class="cornerbox"><div class="tier-h"><span>${c.name}</span></div>
+        <p class="hint">${cornerSummary(c)}</p>
+        ${P.gap ? `<div class="row"><label>The gap</label><select data-corner="${c.key}" data-cf="mode" aria-label="What fills ${c.name}">
+          ${[["open","Left open"],["stand","Its own corner stand"]].map(([v,l]) => `<option value="${v}"${(cc.mode === "stand") === (v === "stand") ? " selected" : ""}>${l}</option>`).join("")}</select></div>
+          ${cc.mode === "stand" ? `<label class="toggle"><input type="checkbox" data-corner="${c.key}" data-cf="roof"${cc.roof ? " checked" : ""}> Roof over the corner stand</label>` : ""}` : ""}
+        <div class="acts-row"><button class="btn small" data-cfill="${c.key}">Fill it with the stands</button><button class="btn small" data-copen="${c.key}">Open it up</button></div></div>`; }).join("")}
       <button class="btn link" id="allCorners">Make all four corners match the first</button>
-      ${anyCustom ? `<div class="tier-h" style="margin-top:4px"><span>Custom corner tiers</span></div>${tierBlocks(S.cornerCustom, hyb, "cc")}<button class="btn small" data-act="addTier">Add a tier</button>` : ""}`;
+      ${anyStand ? `<div class="tier-h" style="margin-top:4px"><span>Corner stand tiers</span></div><p class="hint">Every corner stand uses these tiers.</p>${tierBlocks(S.cornerCustom, hyb, "cc")}<button class="btn small" data-act="addTier">Add a tier</button>` : ""}`;
   } else {
     const cfg = cfgForTab(), bowl = isBowl(), ring = hyb && tab === "B", above = hyb && !ring, side = !bowl && !ring;
     const sty = STYLES[cfg.style] || STYLES.modern, fac = cfg.facade || {};
@@ -578,10 +590,11 @@ function renderEditor(){
       <div class="row"><label for="sty">Architecture</label><select id="sty" data-act-change="style">${Object.entries(eras).map(([era, list]) => `<optgroup label="${era}">${list.map(([v,o]) => `<option value="${v}"${v===cfg.style?" selected":""}>${o.label}</option>`).join("")}</optgroup>`).join("")}</select></div>
       <p class="hint">${sty.note} Picking a style brings in its own tiers, overhangs, roof and façade; everything stays editable.</p>
       ${ring ? "" : `<div class="scales"><span>Quick size:</span>${Object.entries(SCALES).map(([k,v]) => `<button class="btn small" data-act="scale" data-scale="${k}">${v.label}</button>`).join("")}</div>`}
-      ${side && layoutOf() === "stands" ? `<details class="sub" open><summary>Position and length</summary><div class="inner">
-        ${check("Same distance from the play as the other stands", "distSame", cfg.dist == null)}
-        ${cfg.dist == null ? "" : pair("Distance from the play", "dist", cfg.dist, Math.max(1, hardStop()), 80, 0.5, "m")}
-        ${pair("Extra length at each end", "extend", cfg.extend || 0, -40, 60, 1, "m", "Only where the corner next to it is open.")}</div></details>` : ""}
+      ${(side && layoutOf() === "stands") || (above && SIDE_ENDS[tab]) ? `<details class="sub" open><summary>${above ? "Length" : "Position and length"}</summary><div class="inner">
+        ${above ? "" : check("Same distance from the play as the other stands", "distSame", cfg.dist == null)}
+        ${above || cfg.dist == null ? "" : pair("Distance from the play", "dist", cfg.dist, Math.max(1, hardStop()), 80, 0.5, "m")}
+        <p class="hint">${above ? "How far round into each corner this stand's tiers carry on over the bowl." : "How far this stand runs past the pitch, or wraps round into the corner, at each end. Two stands that wrap in meet up."}</p>
+        ${[0, 1].map(e => endControls(cfg, tab, e)).join("")}</div></details>` : ""}
       ${isRing() ? `<details class="sub" open><summary>Place in the ring</summary><div class="inner">
         <div class="row"><label for="ringName">Name</label><input type="text" id="ringName" data-p="name" maxlength="30" value="${esc(cfg.name || "")}" aria-label="Stand name"></div>
         ${pair("Share of the way round", "share", cfg.share || 1, 0.2, 4, 0.1, "×", "Bigger stands take more of the ring; take all its tiers away to leave a gap.")}</div></details>` : ""}
@@ -651,9 +664,7 @@ $("ringBox").addEventListener("input", e => { const el = e.target; if (!el.datas
 $("tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (!b) return; selectTab(b.dataset.tab, false); });
 $("editor").addEventListener("input", e => {
   const el = e.target, p = el.dataset.p;
-  if (el.dataset.reach){ const [key, k, side] = el.dataset.reach.split(":"), cc = S.corners[key]; cc.reach = (cc.reach || []).slice();
-    cc.reach[+k] = Object.assign({}, cc.reach[+k], {[side]: +el.value/100}); el.parentElement.querySelector("output").textContent = el.value + "%"; changed(false, true); return; }
-  if (el.dataset.meet){ const c = CORNERS.find(x => x.key === el.dataset.meet); S.corners[c.key].meet = +el.value/100; el.parentElement.querySelector("output").textContent = meetText(c); changed(false, true); return; }
+  if (el.dataset.wrap){ const cfg = cfgForTab(); cfg["wrap" + el.dataset.wrap] = +el.value/100; el.parentElement.querySelector("output").textContent = el.value + "%"; changed(false, true); return; }
   if (!p || el.tagName === "SELECT") return;
   if (el.type === "checkbox"){
     if (p === "roofAlign"){ S.roofAlign = el.checked; changed(); return; }
@@ -677,7 +688,8 @@ $("editor").addEventListener("input", e => {
 });
 $("editor").addEventListener("change", e => {
   const el = e.target;
-  if (el.dataset.corner){ const cc = S.corners[el.dataset.corner], f = el.dataset.cf; cc[f] = el.type === "checkbox" ? el.checked : el.value; if (f !== "roof") delete cc.reach; renderEditor(); changed(); return; }
+  if (el.dataset.wrap){ renderEditor(); return; } // runs and notes depend on how far it wraps
+  if (el.dataset.corner){ const cc = S.corners[el.dataset.corner], f = el.dataset.cf; cc[f] = el.type === "checkbox" ? el.checked : el.value; renderEditor(); changed(); return; }
   if (el.dataset.actChange === "style"){ applyStyle(cfgForTab(), el.value, isHybrid() && tab === "B"); renderEditor(); changed(); return; }
   if (el.tagName === "SELECT" && el.dataset.p && el.dataset.p.endsWith(".support")){ // pillars, towers or nothing
     const tr = el.dataset.p.split(".").slice(0, -1).reduce((o, k) => o[k], el.dataset.p.startsWith("cc.") ? {cc:{tiers:S.cornerCustom}} : targetObj());
@@ -701,7 +713,17 @@ $("editor").addEventListener("click", e => {
     if (BOWL_PIECES.every(x => gone[x])) return flash("<b>A bowl needs at least one part.</b> Build another side first.");
     for (const x in gone) if (!gone[x]) delete gone[x];
     S.bowl.removed = gone; renderEditor(); changed(); return; }
-  const b = e.target.closest("[data-act]"); if (!b) { if (e.target.id === "allCorners"){ const v = clone(S.corners.NE); for (const c of CORNERS) S.corners[c.key] = clone(v); renderEditor(); changed(); } return; }
+  const cf = e.target.closest("[data-cfill],[data-copen]");
+  if (cf){ const c = CORNERS.find(x => x.key === (cf.dataset.cfill || cf.dataset.copen)), A = S.stands[c.a], B = S.stands[c.b], ta = A.tiers.length > 0, tb = B.tiers.length > 0;
+    A.run1 = Math.min(0, A.run1 || 0); B.run0 = Math.min(0, B.run0 || 0); // nothing pushes straight in any more
+    if (cf.dataset.cfill){ if (!ta && !tb) return flash("<b>There's no stand either side of this corner yet.</b> Give one some tiers first.");
+      A.wrap1 = ta ? (tb ? .5 : 1) : 0; B.wrap0 = tb ? (ta ? .5 : 1) : 0; }
+    else { A.wrap1 = 0; B.wrap0 = 0; S.corners[c.key].mode = "open"; }
+    renderEditor(); changed(); return; }
+  const b = e.target.closest("[data-act]"); if (!b) { if (e.target.id === "allCorners"){ // the first corner's set-up, stand by stand, in all four
+      const v = clone(S.corners.NE), N0 = S.stands.N, E0 = S.stands.E, wa = N0.wrap1 || 0, wb = E0.wrap0 || 0, ra = N0.run1 || 0, rb = E0.run0 || 0;
+      for (const c of CORNERS){ S.corners[c.key] = clone(v); Object.assign(S.stands[c.a], {wrap1:wa, run1:ra}); Object.assign(S.stands[c.b], {wrap0:wb, run0:rb}); }
+      renderEditor(); changed(); } return; }
   const act = b.dataset.act, cfg = cfgForTab(), arr = tiersEditable();
   const say = m => flash(m);
   if (act === "addTier"){ if (arr.length >= 4) return say("<b>Four tiers is the most a stand can have.</b>");
@@ -713,7 +735,8 @@ $("editor").addEventListener("click", e => {
   if (act === "clearColour"){ const parts = b.dataset.cp.split("."), tr = parts.slice(0, -1).reduce((o, k) => o[k], b.dataset.cp.startsWith("cc.") ? {cc:{tiers:S.cornerCustom}} : targetObj()); delete tr[parts[parts.length-1]]; }
   if (act === "bowlShape"){ const [label, gone] = BOWL_SHAPES[b.dataset.shape]; S.bowl.removed = {}; for (const k of gone) S.bowl.removed[k] = true;
     flash(`<b>${label}.</b> Tap the plan to fine-tune it.`, UNDO); }
-  if (act === "mirror"){ S.stands[OPPOSITE[tab]] = clone(cfg); flash(`<b>Copied</b> to the ${SIDE_NAMES[OPPOSITE[tab]].toLowerCase()}.`, UNDO); }
+  if (act === "mirror"){ const m2 = clone(cfg); [m2.run0, m2.run1, m2.wrap0, m2.wrap1] = [cfg.run1, cfg.run0, cfg.wrap1, cfg.wrap0]; // the opposite stand runs the other way round
+    S.stands[OPPOSITE[tab]] = m2; flash(`<b>Copied</b> to the ${SIDE_NAMES[OPPOSITE[tab]].toLowerCase()}.`, UNDO); }
   if (act === "seeOutside"){ goCam("exterior"); return; }
   if (act === "copy"){ clipboard = clone(cfg); say("<b>Copied.</b> Pick another stand and paste."); renderEditor(); return; }
   if (act === "paste" && clipboard){ const c2 = clone(clipboard); if (isHybrid() && tab === "B") c2.tiers = c2.tiers.slice(0,1); Object.assign(cfg, c2); }
@@ -975,7 +998,7 @@ $("skin").addEventListener("change", e => { archOf().skin = e.target.value; chan
 bindRadio("skinShape", v => { archOf().skinShape = v; changed(); });
 for (const k of ["arch","ramps","towers","plaza"]) $("a-"+k).addEventListener("change", e => { archOf()[k] = e.target.checked; changed(); });
 function openState(st, sideTab, tweak){
-  S = st; quiet = true; if (tweak) tweak(); tab = isHybrid() ? "B" : (sideTab || "N");
+  S = upgradeCorners(st); quiet = true; if (tweak) tweak(); tab = isHybrid() ? "B" : (sideTab || "N");
   setSeatColours(); renderTypeSizes(); renderEditor(); renderViews(); changed(true);
 }
 document.querySelectorAll("#presets button").forEach(b => b.addEventListener("click", () => {

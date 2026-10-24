@@ -106,10 +106,18 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check((await page.evaluate(() => window.__gw.state().stands.N.tiers[2].trim0)) === 12 && (await cap()) > 0, "a tier can stop short of the end of its stand");
   await page.fill("#facSign", "GROUNDWORKS"); await page.waitForTimeout(300);
   check((await page.evaluate(() => window.__gw.state().stands.N.facade.sign)) === "GROUNDWORKS", "lettering can go on the outside wall");
-  // corners: each tier's reach from each stand
-  await page.click('[data-tab="C"]'); await page.selectOption('select[data-corner="NE"][data-cf="mode"]', "blend"); await page.waitForTimeout(300);
-  await page.locator('[data-reach^="NE:"]').first().evaluate(el => { el.value = "40"; el.dispatchEvent(new Event("input", {bubbles:true})); }); await page.waitForTimeout(300);
-  check((await page.evaluate(() => (window.__gw.state().corners.NE.reach || []).some(r => r && (r.a === 0.4 || r.b === 0.4)))) && (await cap()) > 0, "a corner tier can be set to come part way round");
+  // stands own their length: wrapping round into a corner, and corners just fill what's left
+  const beforeWrap = await cap();
+  await page.locator('[data-wrap="1"]').evaluate(el => { el.value = "60"; el.dispatchEvent(new Event("input", {bubbles:true})); el.dispatchEvent(new Event("change", {bubbles:true})); }); await page.waitForTimeout(300);
+  check((await page.evaluate(() => window.__gw.state().stands.N.wrap1)) === 0.6 && (await cap()) > beforeWrap, "a stand on a bowl can wrap part way round a corner");
+  await page.click('[data-tab="C"]'); await page.waitForTimeout(200);
+  const beforeFill = await cap(); await page.click('[data-cfill="SE"]'); await page.waitForTimeout(300);
+  const afterFill = await cap(); await page.click('[data-copen="SE"]'); await page.selectOption('select[data-corner="SE"][data-cf="mode"]', "stand"); await page.waitForTimeout(300);
+  check(afterFill >= beforeFill && (await cap()) > 0 && (await page.evaluate(() => window.__gw.state().corners.SE.mode)) === "stand", "a corner can be filled by the stands or given its own corner stand");
+  await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300);
+  await page.click('#panes [data-pane="stands"]'); await page.waitForTimeout(200); await page.click('[data-tab="S"]');
+  await page.waitForSelector('input[type=number][data-p="run0"]', {state:"visible"}); const shortS = await cap(); await page.fill('input[type=number][data-p="run0"]', "20"); await page.press('input[type=number][data-p="run0"]', "Tab"); await page.waitForTimeout(300);
+  check((await page.evaluate(() => window.__gw.state().stands.S.run0)) === 20 && (await cap()) > shortS, "a stand can run on past the end of the pitch");
   await page.click('#panes [data-pane="ground"]'); await page.check("#plotOn"); await page.waitForTimeout(300);
   await page.locator("#plotExact summary").click(); await page.fill("#plotW", "260"); await page.press("#plotW", "Enter"); await page.waitForTimeout(300);
   check((await page.evaluate(() => { const xs = window.__gw.state().plot.pts.map(p => p[0]); return Math.max(...xs) - Math.min(...xs); })) === 260, "the plot can be set to an exact width");

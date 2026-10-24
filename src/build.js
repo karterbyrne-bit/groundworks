@@ -1,47 +1,25 @@
 /* ================= build ================= */
 let LAST = null, LAST_REGIONS = [], tab = "N";
-/* How far round a corner (0 to 1) tier k reaches from each of its two stands. The corner's own settings can change any of it. */
-function cornerReach(c, k, ta, tb){
-  const cc = S.corners[c.key], r = cc.reach && cc.reach[k];
-  // stands with matching stacks blend all the way round; otherwise each brings its whole stack halfway and they meet
-  const A = S.stands[c.a].tiers, B = S.stands[c.b].tiers, kind = t => t.type === "exec" ? "exec" : "seat";
-  const match = A.length === B.length && A.every((t, i) => kind(t) === kind(B[i]));
-  let a = ta ? (match ? 1 : 0.5) : 0, b = tb ? (match ? 1 : 0.5) : 0;
-  if (cc.tiers === "lower" && k > 0) a = b = 0;
-  if (cc.tiers === "upper" && k === 0) a = b = 0;
-  if (r){ if (ta && r.a != null) a = r.a; if (tb && r.b != null) b = r.b; }
-  return {a: ta ? Math.max(0, Math.min(1, a)) : 0, b: tb ? Math.max(0, Math.min(1, b)) : 0};
-}
-/* A stand's tier as it carries on into a corner: same kind, rows and rake, but none of the stand's own end trims or towers. */
-const intoCorner = tr => { const o = Object.assign({}, tr, {pillars:false}); delete o.trim0; delete o.trim1; delete o.hold; delete o.sideRows; return o; };
-/* Tiers for a corner at fraction f between its two stands (or its own custom tiers). Each tier is the first stand's while
-   that stand's reach lasts, the second's while its reach lasts, a blend where both reach, and a ghost where neither does:
-   laid out but not built, so any tier above it stays up rather than dropping. */
-function cornerTiers(c, f){
-  const cc = S.corners[c.key];
-  if (cc.mode === "custom"){
-    let out = S.cornerCustom.map(x => Object.assign({}, x));
-    if (cc.tiers === "lower") out = out.slice(0, 1);
-    else if (cc.tiers === "upper" && out.length > 1) out[0] = Object.assign({}, out[0], {ghost:true});
-    return out;
+/* Who gets a corner. Each stand says how far it wraps round into the corner at each end (0 to 1) and, with separate
+   stands, how far its straight runs past the pitch there. Only one stand can push straight into a corner, and a stand can't
+   run into another's wrap; two wraps that overlap meet in proportion. Whatever is left between them is the corner's gap:
+   left open, or given a corner stand of its own. */
+function cornerPlan(c){
+  const lay = layoutOf(), A = S.stands[c.a], B = S.stands[c.b], on = st => !!(st && st.tiers.length);
+  const w = v => Math.max(0, Math.min(1, +v || 0));
+  let wa = on(A) ? w(A.wrap1) : 0, wb = on(B) ? w(B.wrap0) : 0, ra = 0, rb = 0;
+  if (lay === "stands"){
+    ra = on(A) && !wa ? +A.run1 || 0 : 0; rb = on(B) && !wb ? +B.run0 || 0 : 0;
+    if (ra > 0){ wb = 0; rb = Math.min(rb, 0); }          // the first stand runs straight into the corner: the other stops at the pitch
+    else if (wa > 0) rb = Math.min(rb, 0);                // it wraps in: the other can wrap to meet it, but not push straight in
+    else if (rb > 0) ra = Math.min(ra, 0);
   }
-  const A = S.stands[c.a].tiers, B = S.stands[c.b].tiers, out = [];
-  for (let k=0;k<4;k++){
-    const a = A[k], b = B[k]; if (!a && !b) break;
-    // where two reaches just touch, the slice belongs to the first stand, so a stack of tiers never mixes the two stands
-    const R = cornerReach(c, k, a, b), inA = a && R.a > 0 && f <= R.a + 1e-6, inB = b && R.b > 0 && (1 - f < R.b - 1e-6 || R.b >= 1);
-    if (inA && inB){
-      const lo = 1 - R.b, hi = R.a, t0 = hi - lo > 1e-6 ? (f - lo)/(hi - lo) : (f < 0.5 ? 0 : 1), t = t0*t0*(3 - 2*t0);
-      const type = a.type === b.type ? a.type : t < 0.5 ? a.type : b.type, T = S.types[type].row; // mixed corners take the nearer stand's kind
-      const dA = a.rows*S.types[a.type].row, dB = b.rows*S.types[b.type].row;
-      const L = (x, def) => { const va = a[x] != null ? a[x] : (b[x] != null ? b[x] : def), vb = b[x] != null ? b[x] : va; return va*(1-t) + vb*t; };
-      out.push({type, rows:(dA*(1-t) + dB*t)/T, rake:L("rake",22), over:L("over",0), gap:L("gap",3), auto: !!(a.auto || b.auto), pillars:false});
-    }
-    else if (inA) out.push(intoCorner(a));
-    else if (inB) out.push(intoCorner(b));
-    else out.push(Object.assign(intoCorner(f < 0.5 ? (a || b) : (b || a)), {ghost:true}));
-  }
-  return out;
+  let meet = false;
+  if (wa + wb > 1){ const t = wa + wb; wa /= t; wb /= t; meet = true; }
+  else if (wa + wb > 0.97 && wa > 0 && wb > 0) meet = true;
+  const cc = S.corners[c.key] || {}, lo = wa, hi = 1 - wb;
+  const gap = !meet && hi - lo > 0.04 && ra <= 0 && rb <= 0 ? [lo, hi] : null;
+  return {wa, wb, ra, rb, meet, gap, stand: !!(gap && cc.mode === "stand" && S.cornerCustom.length)};
 }
 /* A tier's row count for fixes: on a bowl with its own rows per side, its deepest side. Setting it trims every side to it. */
 const variesBySide = tr => !!(tr && tr.sideRows && S.bowl.varyRows && S.bowl.tiers.includes(tr));
@@ -170,7 +148,7 @@ function resample(P, step){ const out = [], n = P.length; for (let i=0;i<n;i++){
 function normals(P){ const n = P.length; return P.map((p,i) => { const a = P[(i-1+n)%n], b = P[(i+1)%n]; const nx = b[1]-a[1], nz = -(b[0]-a[0]), l = Math.hypot(nx,nz) || 1; return [nx/l, nz/l]; }); }
 /* A thin square bar between two points (for lattice work). */
 function bar(buf, p, q, w){
-  const d = [q[0]-p[0], q[1]-p[1], q[2]-p[2]], L = Math.hypot(...d) || 1; d[0]/=L; d[1]/=L; d[2]/=L;
+  const d = [q[0]-p[0], q[1]-p[1], q[2]-p[2]], L = Math.hypot(...d); if (!(L > 1e-6)) return; d[0]/=L; d[1]/=L; d[2]/=L; // nothing to draw between two points that coincide
   let u = Math.abs(d[1]) < .9 ? [d[2], 0, -d[0]] : [1, 0, 0]; const ul = Math.hypot(...u); u = u.map(x => x/ul*w/2);
   const v = [d[1]*u[2]-d[2]*u[1], d[2]*u[0]-d[0]*u[2], d[0]*u[1]-d[1]*u[0]];
   const c = [[1,1],[-1,1],[-1,-1],[1,-1]].map(([a,b]) => [u[0]*a+v[0]*b, u[1]*a+v[1]*b, u[2]*a+v[2]*b]);
@@ -683,7 +661,7 @@ function build(){
   const addUsed = arr => arr.forEach(x => used.add(x.type));
   if (lay !== "stands"){ addUsed(S.bowl.tiers); if (S.bowl.varyRows) for (const s2 of SIDES) if (!bowlGone(s2)) addUsed(bowlSideTiers(s2)); }
   if (lay === "ring") ringOf().stands.forEach(r => addUsed(r.tiers));
-  else if (lay !== "bowl"){ SIDES.forEach(s => addUsed(S.stands[s].tiers)); if (CORNERS.some(c => S.corners[c.key].mode === "custom")) addUsed(S.cornerCustom); }
+  else if (lay !== "bowl"){ SIDES.forEach(s => addUsed(S.stands[s].tiers)); if (CORNERS.some(c => cornerPlan(c).stand)) addUsed(S.cornerCustom); }
   if (floorRows) used.add("seated");
   const typeBad = {};
   for (const ty of used){
@@ -726,8 +704,11 @@ function build(){
     const margin = roofOn ? 1.6 : 0.3;
     let overflow = 0;
     const s0 = setAt(Math.floor(m/2));
-    const cum = [0]; for (let i=1;i<m;i++){ const a = pt(i-1,s0), b = pt(i,s0); cum.push(cum[i-1] + Math.hypot(b[0]-a[0], b[1]-a[1])); }
-    const lenTotal = cum[m-1] + (closed ? Math.hypot(pt(0,s0)[0]-pt(m-1,s0)[0], pt(0,s0)[1]-pt(m-1,s0)[1]) : 0);
+    // distances along the stand are measured a few rows back, where a stand wrapping round a corner still has some length
+    const sc = closed ? s0 : s0 + 8;
+    const cum = [0]; for (let i=1;i<m;i++){ const a = pt(i-1,sc), b = pt(i,sc); cum.push(cum[i-1] + Math.hypot(b[0]-a[0], b[1]-a[1])); }
+    const lenTotal = cum[m-1] + (closed ? Math.hypot(pt(0,sc)[0]-pt(m-1,sc)[0], pt(0,sc)[1]-pt(m-1,sc)[1]) : 0);
+    const endOpen = s => !closed && ((s === 0 && !(st.joined && st.joined[0])) || (s === m-1 && !(st.joined && st.joined[1]))); // an end that isn't joined to the next stand
     /* A tier can stop short of either end of an open stand (start is the left end, seen from the play). */
     const cut = (tiers, i) => closed || !tiers.some((tr,k) => k >= st.drawFrom && (tr.trim0 > 0 || tr.trim1 > 0)) ? tiers
       : tiers.map((tr,k) => k >= st.drawFrom && (cum[i] < (tr.trim0 || 0) - 1e-6 || cum[i] > lenTotal - (tr.trim1 || 0) + 1e-6) ? Object.assign({}, tr, {ghost:true}) : tr); // laid out but not built, so anything above it stays up
@@ -830,12 +811,13 @@ function build(){
     const pillarAt = marks(12), midI = (() => { let best = Math.floor(m/2), bd = Infinity; for (let i=0;i<m;i++){ const d = Math.abs(cum[i] - lenTotal/2); if (d < bd && profs[i].some(p => nRows(p) >= 1 && !p.ghost)){ bd = d; best = i; } } return best; })();
     const sideMids = (() => { if (!st.sideAt) return []; const by = {}; for (let i=0;i<m;i++){ const s = st.sideAt(i); if (s) (by[s] = by[s] || []).push(i); }
       return Object.entries(by).map(([s, l]) => [l[Math.floor(l.length/2)], s]); })();
-    const cap = (s, p, from, to) => {
+    const cap = (s, p, from, to, rail) => {
       const T = p.T, d1 = p.front + from*T, d2 = p.front + to*T;
       const y1 = p.stacked ? (from === 0 ? p.hF - 1.5 : p.hs[from] - 1.5) : 0, y2 = p.stacked ? p.hs[to-1] - 1.5 : 0;
       /* the end of a tier: a concrete side wall stepping up with the rows, just proud of them, with a handrail along the top */
       const yb = d => lerp(y1, y2, (d - d1)/Math.max(1e-6, d2 - d1)), cb = buf("concrete");
       for (let j=from;j<to;j++){ const a = p.front + j*T, b = a + T, h = p.hs[j] + .15; quad(cb, V(s,a,yb(a)), V(s,b,yb(b)), V(s,b,h), V(s,a,h)); }
+      if (rail === false) return; // where it meets the next stand, the wall only closes any step between them
       const hb = buf("steel"), r0 = [d1 + .2, p.hs[from] + 1.1], r1 = [d2 - .2, p.hs[to-1] + 1.1];
       bar(hb, V(s,r0[0],r0[1]), V(s,r1[0],r1[1]), .06);
       const posts = Math.max(1, Math.round((to - from)*T/2.5));
@@ -902,11 +884,8 @@ function build(){
             const order = S.keepClose === false ? away.concat(close) : close.concat(away);
             fix = order[0] || null; alts = order.slice(1);
           }
-          // a corner tier blended from its stands has no settings of its own: bring it less far round, or leave the corner open
-          const cornerFixes = !ref && st.ck ? [
-            {label:"Bring this tier less far round the corner", run:() => { const cc = S.corners[st.ck], r0 = (cc.reach || []).slice();
-              return searchFix(v2 => { cc.reach = r0.slice(); cc.reach[kk] = {a:v2, b:v2}; }, [.8,.6,.5,.4,.3,.2,.1,0], key); }},
-            {moves:true, label:"Leave this corner open", run:() => { S.corners[st.ck].mode = "open"; return !dryIssues().some(i => i.key === key); }}] : [];
+          // a corner stand can always be taken away, leaving the gap open
+          const cornerFixes = st.ck ? [{moves:true, label:"Leave this corner open", run:() => { S.corners[st.ck].mode = "open"; return !dryIssues().some(i => i.key === key); }}] : [];
           /* Every way of fixing it, tried in turn when the chosen fix alone isn't enough: closer-keeping fixes first unless
              the designer prefers moving seats back. A fix only gives up (and undoes itself) when none of them work. */
           const keeps = [], moves = [];
@@ -999,13 +978,13 @@ function build(){
         const p = pk(s), n = p && !p.ghost ? nRows(p) : 0; if (n < 1) continue;
         // open stand ends: close the tier, and wall in the space under a stacked tier
         if (!closed && (s === 0 || s === m-1)){
-          cap(s, p, 0, n);
+          cap(s, p, 0, n, endOpen(s));
           if (p.stacked){ const bk = p.front + n*T, top = p.hs[n-1], lb = Math.min(p.lowerBack, bk);
             const soff = d => lerp(p.hF - 1.5, top - 1.5, (d - p.front)/Math.max(.1, bk - p.front));
             if (bk > lb + .1){ quad(buf(wallKey), V(s,lb,0), V(s,bk,0), V(s,bk,top-1.5), V(s,lb,soff(lb)));
               // the end of the stand under the tier is part of the building, so it wears the same façade as the back
               const tg0 = tangent(s), out = s === 0 ? [-tg0[0], -tg0[1]] : tg0;
-              if (look !== "plain" && !DRY) dressWall(buf, look, wallKey, pt(s,lb), pt(s,bk), soff(lb), top - 1.5, out, {windows:fac.windows, winSize:fac.winSize, accent:fac.accent}); }
+              if (look !== "plain" && !DRY && endOpen(s)) dressWall(buf, look, wallKey, pt(s,lb), pt(s,bk), soff(lb), top - 1.5, out, {windows:fac.windows, winSize:fac.winSize, accent:fac.accent}); }
             if (!p.lowerGhost && lb > p.front + .1){ const low = heightAt(profs[s].slice(0,k), p.front);
               quad(buf(wallKey), V(s,p.front,low + 1), V(s,lb,p.lowerBackH + 1.2), V(s,lb,soff(lb)), V(s,p.front,p.hF - 1.5)); }
           }
@@ -1176,7 +1155,7 @@ function build(){
     }
     // façade extras: stair towers, entrance gates and window mullions on the back wall
     const backAt = i => info[i] ? info[i].back + (roofOn ? 1.5 : 0) : null;
-    if (fac.towers){ const ts = closed ? [...marks(60)] : [0, m-1];
+    if (fac.towers){ const ts = closed ? [...marks(60)] : [0, m-1].filter(endOpen);
       for (const i of ts){ const b = backAt(i); if (b == null) continue; const tg = tangent(i), side = closed ? 0 : (i ? 4 : -4), q = pt(i, b + 3.5);
         post(buf("tower"), q[0] + tg[0]*side, q[1] + tg[1]*side, 0, info[i].top, 6); grow(q[0], q[1]); } } // level with the back of the stand, so it doesn't poke up behind the fans
     /* Entrances: turnstile blocks standing out from the back wall, each with a row of turnstile doors, an exit gate,
@@ -1342,42 +1321,47 @@ function build(){
       buildSliced({name:cfg.name || `Stand ${i+1}`, key:"R" + i, cfg, set: standSet(cfg), tiersFor:() => cfg.tiers, tierRef:k => cfg.tiers[k], drawFrom:0, sel: tab === "R" + i, geo});
     });
   } else if (lay === "stands"){
+    /* Each stand is one building: it can wrap round into the corner at its start, run straight along its side (past the
+       pitch if it likes), and wrap round into the corner at its end. Corners are what's left between stands. */
+    const plans = {}; for (const c of CORNERS) plans[c.key] = cornerPlan(c);
+    const fanOf = (c, f0, f1) => { const uA = SIDE_DIR[c.a], uB = SIDE_DIR[c.b];
+      return fanGeo([(uA[0]||uB[0])*(F.W/2+set), (uA[1]||uB[1])*(F.H/2+set)], uA, uB, shape, set, f0, f1); };
+    const CK = k => CORNERS.find(c => c.key === k);
     for (const s of SIDES){
       const cfg = S.stands[s]; if (!cfg.tiers.length) continue;
-      const [c0, c1] = SIDE_ENDS[s], base = (s === "N" || s === "S") ? F.W/2 + set : F.H/2 + set;
-      const e0 = base + (S.corners[c0].mode === "open" ? cfg.extend || 0 : 0), e1 = base + (S.corners[c1].mode === "open" ? cfg.extend || 0 : 0);
+      const [k0, k1] = SIDE_ENDS[s], P0 = plans[k0], P1 = plans[k1], base = (s === "N" || s === "S") ? F.W/2 + set : F.H/2 + set;
+      const straight = densify(linearize(d => sidePath(F, s, d, Math.max(2, base + P0.rb), Math.max(2, base + P1.ra)), false), 4, standSet(cfg) + 6);
+      const O = [], Vs = [];
+      if (P0.wb > 0.005){ const g = fanOf(CK(k0), 1 - P0.wb, 1); O.push(...g.o.slice(0, -1)); Vs.push(...g.v.slice(0, -1)); } // this stand is the second at its start corner
+      O.push(...straight.o); Vs.push(...straight.v);
+      if (P1.wa > 0.005){ const g = fanOf(CK(k1), 0, P1.wa); O.push(...g.o.slice(1)); Vs.push(...g.v.slice(1)); }            // and the first at its end corner
       buildSliced({name:SIDE_NAMES[s], key:s, cfg, set: standSet(cfg), tiersFor:() => cfg.tiers, tierRef:k => cfg.tiers[k], drawFrom:0, sel: tab === s,
-        geo: densify(linearize(d => sidePath(F, s, d, Math.max(2, e0), Math.max(2, e1)), false), 4, standSet(cfg) + 6)});
+        geo:{o:O, v:Vs, closed:false, tag:O.map((_, i) => i)}, joined:[P0.meet, P1.meet]});
     }
     for (const c of CORNERS){
-      const cc = S.corners[c.key], mode = cc.mode; if (mode !== "blend" && mode !== "custom") continue;
-      const sa = S.stands[c.a], sb = S.stands[c.b]; if (mode === "blend" && !sa.tiers.length && !sb.tiers.length) continue;
-      const uA = SIDE_DIR[c.a], uB = SIDE_DIR[c.b], sx = uA[0]||uB[0], sz = uA[1]||uB[1];
-      const geo = fanGeo([sx*(F.W/2+set), sz*(F.H/2+set)], uA, uB, shape, set);
-      const sA = standSet(sa), sB = standSet(sb);
-      buildSliced({name:c.name, key:"C", ck:c.key, geo, cfg:cornerCfg(sa, sb, cc), setFor:i => mode === "custom" ? set : lerp(sA, sB, geo.frac[i]), set,
-        tiersFor:i => cornerTiers(c, geo.frac[i]), tierRef: mode === "custom" ? k => S.cornerCustom[k] : null, drawFrom:0, sel: tab === "C", styleLabel:false});
+      const P = plans[c.key]; if (!P.stand) continue;
+      const sa = S.stands[c.a], sb = S.stands[c.b], geo = fanOf(c, P.gap[0], P.gap[1]), sA = standSet(sa), sB = standSet(sb);
+      buildSliced({name:c.name, key:"C", ck:c.key, geo, cfg:cornerCfg(sa, sb, S.corners[c.key]), setFor:i => lerp(sA, sB, geo.frac[i]), set,
+        tiersFor:() => S.cornerCustom, tierRef:k => S.cornerCustom[k], drawFrom:0, sel: tab === "C", styleLabel:false});
     }
   } else {
     const ring = ringGeo(), rc = S.bowl.tiers.length, lowCfg = Object.assign({}, S.bowl, {roof:R("none")});
     for (const geo of bowlGeos(ring))
       buildSliced({name:"Lower bowl", key:"B", geo, cfg:lowCfg, set, tiersFor:i => bowlTiersAt(geo.tag[i], nc), tierRef:k => S.bowl.tiers[k], drawFrom:0, sel: tab === "B", sideAt:sideAt(geo), levelPiece:levelBySide(geo)});
-    const split = key => S.corners[key].mode === "split";
+    /* The stands on top of the bowl follow its shape, each wrapping as far round into its corners as it says. */
+    const plans = {}; for (const c of CORNERS) plans[c.key] = cornerPlan(c);
     for (const s of SIDES){
       const cfg = S.stands[s]; if (!cfg.tiers.length && cfg.roof.shape === "none") continue;
-      const [gb, ga] = SIDE_GROUPS[s], kb = GROUP_KEY[gb], ka = GROUP_KEY[ga];
-      const meet = key => nc*Math.max(0, Math.min(1, S.corners[key].meet == null ? 0.5 : S.corners[key].meet)); // where the stands meet, from the first one
-      const lo = gb*(nc+1) + (split(kb) ? meet(kb) : nc), hi = ga*(nc+1) + (split(ka) ? meet(ka) : 0);
+      const [gb, ga] = SIDE_GROUPS[s], P0 = plans[GROUP_KEY[gb]], P1 = plans[GROUP_KEY[ga]];
+      const lo = gb*(nc+1) + nc*(1 - P0.wb), hi = ga*(nc+1) + nc*P1.wa;
       const geo = subGeo(ring, lo, hi, total4);
-      buildSliced({name:SIDE_NAMES[s], key:s, geo, cfg, set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc).concat(cfg.tiers), geo.o[i], geo.v[i]), tierRef:k => cfg.tiers[k], drawFrom:rc, sel: tab === s, levelPiece:levelBySide(geo)});
+      buildSliced({name:SIDE_NAMES[s], key:s, geo, cfg, set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc).concat(cfg.tiers), geo.o[i], geo.v[i]), tierRef:k => cfg.tiers[k], drawFrom:rc, sel: tab === s, levelPiece:levelBySide(geo), joined:[P0.meet, P1.meet]});
     }
     for (const c of CORNERS){
-      const cc = S.corners[c.key], mode = cc.mode; if (mode !== "blend" && mode !== "custom") continue;
-      const sa = S.stands[c.a], sb = S.stands[c.b]; if (mode === "blend" && !sa.tiers.length && !sb.tiers.length) continue;
-      if (shape === "square") continue;
-      const geo = subGeo(ring, c.g*(nc+1), c.g*(nc+1) + nc, total4);
-      buildSliced({name:c.name, key:"C", ck:c.key, geo, cfg:cornerCfg(sa, sb, cc), set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc).concat(cornerTiers(c, geo.frac[i])), geo.o[i], geo.v[i]),
-        tierRef: mode === "custom" ? k => S.cornerCustom[k] : null, drawFrom:rc, sel: tab === "C", styleLabel:false});
+      const P = plans[c.key]; if (!P.stand || shape === "square") continue;
+      const sa = S.stands[c.a], sb = S.stands[c.b], geo = subGeo(ring, c.g*(nc+1) + nc*P.gap[0], c.g*(nc+1) + nc*P.gap[1], total4);
+      buildSliced({name:c.name, key:"C", ck:c.key, geo, cfg:cornerCfg(sa, sb, S.corners[c.key]), set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc).concat(S.cornerCustom), geo.o[i], geo.v[i]),
+        tierRef:k => S.cornerCustom[k], drawFrom:rc, sel: tab === "C", styleLabel:false});
     }
   }
   /* ---------- one roof over the whole ground ----------
@@ -1468,15 +1452,12 @@ function build(){
     const fr = farRef && farRef.ref, ck = farRef && farRef.ck, rowsDown = []; if (fr) for (let x = Math.round(rowsOf(fr)) - 1; x >= 2; x--) rowsDown.push(x);
     const fixes = [];
     if (fr) fixes.push({label:"Trim its back rows", run:() => searchFix(v2 => setRows(fr, v2), rowsDown, "far")});
-    if (ck){ fixes.push({label:"Bring that tier less far round the corner", run:() => { const cc = S.corners[ck], r0 = (cc.reach || []).slice();
-      return searchFix(v2 => { cc.reach = r0.slice(); cc.reach[farRef.kk] = {a:v2, b:v2}; }, [.8,.6,.5,.4,.3,.2,.1,0], "far"); }});
-      fixes.push({label:"Leave that corner open", run:() => { S.corners[ck].mode = "open"; return !dryIssues().some(i => i.key === "far"); }}); }
+    if (ck) fixes.push({label:"Leave that corner open", run:() => { S.corners[ck].mode = "open"; return !dryIssues().some(i => i.key === "far"); }});
     /* Taking one stand back can leave another as the furthest, so keep trimming whichever seats are now furthest until it clears. */
     const fixFar = () => { const snap = JSON.stringify(S);
       for (let n=0;n<30;n++){ const r = dryRun(); if (!r.issues.some(i => i.key === "far")) return true; const f2 = r.farRef; if (!f2) break;
         if (f2.ref){ const now = Math.round(rowsOf(f2.ref)); if (now <= 2) break; setRows(f2.ref, Math.max(2, now - Math.max(1, Math.round(now*0.12)))); }
-        else if (f2.ck){ const cc = S.corners[f2.ck], cur = cc.reach && cc.reach[f2.kk] && cc.reach[f2.kk].a != null ? cc.reach[f2.kk].a : 1;
-          if (cur <= 0.05) cc.mode = "open"; else { cc.reach = (cc.reach || []).slice(); cc.reach[f2.kk] = {a:Math.max(0, cur - .2), b:Math.max(0, cur - .2)}; } }
+        else if (f2.ck) S.corners[f2.ck].mode = "open";
         else break; }
       if (!dryIssues().some(i => i.key === "far")) return true; S = JSON.parse(snap); return false; };
     const farFixes = (fixes.length ? fixes : [{label:"Trim the furthest seats", run:() => false}]).map(f => Object.assign({}, f, {run:() => { const snap = JSON.stringify(S); if (f.run() || fixFar()) return true; S = JSON.parse(snap); return false; }}));
@@ -1501,7 +1482,7 @@ function build(){
     mesh.userData.stadium = true;
     group.add(mesh);
   }
-  if (window.__gwCheck){ let bad = 0, verts = 0; for (const k in Bf){ const arr = Bf[k]; verts += arr.length/3; for (let i=0;i<arr.length;i++) if (!isFinite(arr[i])) bad++; } result.nan = bad; result.verts = verts; }
+  if (window.__gwCheck){ let bad = 0, verts = 0; for (const k in Bf){ const arr = Bf[k]; verts += arr.length/3; for (let i=0;i<arr.length;i++) if (!isFinite(arr[i])) bad++; } result.nan = bad; result.verts = verts; result.nanKeys = Object.keys(Bf).filter(k => Bf[k].some(x => !isFinite(x))); }
   // set up for a second sport, the floor shows its markings, big enough to reach the stands either way
   const {tex, Wt, Ht} = CV ? floorTexture(CV.F2, Math.max(1, (F.W + 2*set - CV.F2.W)/2, (F.H + 2*set - CV.F2.H)/2), CV.sp) : floorTexture(F, set);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(Wt, Ht), new THREE.MeshStandardMaterial({map:tex, roughness:1}));
