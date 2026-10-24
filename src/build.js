@@ -43,6 +43,10 @@ function cornerTiers(c, f){
   }
   return out;
 }
+/* A tier's row count for fixes: on a bowl with its own rows per side, its deepest side. Setting it trims every side to it. */
+const variesBySide = tr => !!(tr && tr.sideRows && S.bowl.varyRows && S.bowl.tiers.includes(tr));
+const rowsOf = tr => variesBySide(tr) ? Math.max(tr.rows, ...Object.values(tr.sideRows)) : tr.rows;
+function setRows(tr, v){ if (variesBySide(tr)){ for (const k in tr.sideRows) tr.sideRows[k] = Math.min(tr.sideRows[k], v); tr.rows = Math.min(tr.rows, v); } else tr.rows = v; }
 /* A material in a colour picked in the editor: a copy of a shared one, made once and kept with them. */
 function tint(base, hex){
   if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) return base;
@@ -783,7 +787,7 @@ function build(){
       const first = !only || only === kindsAt(k)[0], idx = first ? kDrawn : kDrawn - 1;
       const name = cap1((st.name + " " + tierName(idx, realCount, above)).trim() + ((realCount > 1 || above) ? " tier" : ""));
       if (first) kDrawn++;
-      curRef = {ref, name};
+      curRef = {ref, name, ck: !ref && st.ck ? st.ck : null, kk};
       let tierC = Infinity, firstC = Infinity, steep = 0;
       for (let j=1;j<nRows(best);j++){ const N = best.hs[j]-best.hs[j-1], D = best.front + focusIn + (j-1)*T + 0.3, R0 = best.hs[j-1] + eye - focusY;
         const cv = D*(N+R0)/(D+T) - R0; if (j === 1) firstC = cv; tierC = Math.min(tierC, cv); }
@@ -797,7 +801,7 @@ function build(){
       if (isFinite(tierC)){ minC = Math.min(minC, tierC);
         if (tierC*1000 < L.minC - 0.5){ bad = true;
           const key = `C:${st.name}:${kk}`, mm = Math.round(tierC*1000), front = firstC*1000 < L.minC + 3;
-          const rowsDown = r => { const out = []; for (let x = r.rows - 1; x >= 2; x--) out.push(x); return out; };
+          const rowsDown = r => { const out = []; for (let x = Math.round(rowsOf(r)) - 1; x >= 2; x--) out.push(x); return out; };
           const setbacks = () => { const out = []; const base = st.key in S.stands && S.stands[st.key].dist != null ? S.stands[st.key].dist : S.setback;
             for (let x = base + 0.5; x <= base + 20; x += 0.5) out.push(x); return out; };
           const setDist = v2 => { if (lay === "stands" && S.stands[st.key] && S.stands[st.key].dist != null) S.stands[st.key].dist = v2; else S.setback = v2; };
@@ -822,14 +826,31 @@ function build(){
             } else away.push({moves:true, label:"Move it back from the play", run:() => searchFix(setDist, setbacks(), key)});
           } else {
             text = `${name}: the back rows are too far up for the tier's maximum steepness to keep the view clear (${mm} mm; needs ${L.minC} mm). Make it steeper, or use fewer rows.`;
-            if (ref) away.push({moves:true, label:"Use fewer rows", run:() => searchFix(v2 => { ref.rows = v2; }, rowsDown(ref), key)});
+            if (ref) away.push({moves:true, label:"Use fewer rows", run:() => searchFix(v2 => setRows(ref, v2), rowsDown(ref), key)});
           }
+          let alts = [];
           if (best.auto){
             const pri = l => l.startsWith("Tuck") ? 0 : l.startsWith("Aim") ? 1 : 2; close.sort((a,b) => pri(a.label) - pri(b.label));
             const order = S.keepClose === false ? away.concat(close) : close.concat(away);
-            fix = order[0] || null; var alts = order.slice(1);
+            fix = order[0] || null; alts = order.slice(1);
           }
-          issue(text, key, "view", Object.assign({fix, alts: best.auto ? alts : []}, where)); } }
+          // a corner tier blended from its stands has no settings of its own: bring it less far round, or leave the corner open
+          const cornerFixes = !ref && st.ck ? [
+            {label:"Bring this tier less far round the corner", run:() => { const cc = S.corners[st.ck], r0 = (cc.reach || []).slice();
+              return searchFix(v2 => { cc.reach = r0.slice(); cc.reach[kk] = {a:v2, b:v2}; }, [.8,.6,.5,.4,.3,.2,.1,0], key); }},
+            {moves:true, label:"Leave this corner open", run:() => { S.corners[st.ck].mode = "open"; return !dryIssues().some(i => i.key === key); }}] : [];
+          /* Every way of fixing it, tried in turn when the chosen fix alone isn't enough: closer-keeping fixes first unless
+             the designer prefers moving seats back. A fix only gives up (and undoes itself) when none of them work. */
+          const keeps = [], moves = [];
+          if (rakes.length) keeps.push(steeper);
+          if (best.stacked && ref) moves.push(() => { const o0 = ref.over || 0; return searchFix(v2 => { ref.over = Math.max(-15, o0 - v2); }, [1,2,3,4,6,8,10,12,15], key); });
+          if (!st.ck) moves.push(() => searchFix(setDist, setbacks(), key));
+          if (ref) moves.push(() => searchFix(v2 => setRows(ref, v2), rowsDown(ref), key));
+          for (const f of cornerFixes) moves.push(f.run);
+          const rest = S.keepClose === false ? moves.concat(keeps) : keeps.concat(moves);
+          const thorough = run => () => { const snap = JSON.stringify(S); if (run()) return true; for (const f of rest){ if (f()) return true; } S = JSON.parse(snap); return false; };
+          const all = (fix ? [fix] : []).concat(alts, cornerFixes).map(f => Object.assign({}, f, {run:thorough(f.run)}));
+          issue(text, key, "view", Object.assign({fix:all[0] || null, alts:all.slice(1)}, where)); } }
       // creative geometry notes for stacked tiers
       if (best.stacked && !best.lowerGhost && best.over > 0.5){
         const head = best.hF - 1.5 - best.lowerBackH;
@@ -1356,9 +1377,14 @@ function build(){
   else for (const r of allRecs){ if (roofQuads.some(q => q !== "all" && inPoly([r.x, r.z], q))) covered += r.seats; }
   const farName = F.flag ? "far corner" : (F.home ? "home plate" : "centre");
   if (far > L.maxView){
-    const fr = farRef && farRef.ref, rowsDown = []; if (fr) for (let x = fr.rows - 1; x >= 2; x--) rowsDown.push(x);
+    const fr = farRef && farRef.ref, ck = farRef && farRef.ck, rowsDown = []; if (fr) for (let x = Math.round(rowsOf(fr)) - 1; x >= 2; x--) rowsDown.push(x);
+    const fixes = [];
+    if (fr) fixes.push({label:"Trim its back rows", run:() => searchFix(v2 => setRows(fr, v2), rowsDown, "far")});
+    if (ck){ fixes.push({label:"Bring that tier less far round the corner", run:() => { const cc = S.corners[ck], r0 = (cc.reach || []).slice();
+      return searchFix(v2 => { cc.reach = r0.slice(); cc.reach[farRef.kk] = {a:v2, b:v2}; }, [.8,.6,.5,.4,.3,.2,.1,0], "far"); }});
+      fixes.push({label:"Leave that corner open", run:() => { S.corners[ck].mode = "open"; return !dryIssues().some(i => i.key === "far"); }}); }
     issue(`The furthest fan${farRef ? " (back of the " + farRef.name.toLowerCase() + ")" : ""} is ${Math.round(far)} m from the ${farName}. The limit is ${L.maxView} m.`, "far", "view",
-      {fix: fr ? {label:"Trim its back rows", run:() => searchFix(v2 => { fr.rows = v2; }, rowsDown, "far")} : null});
+      {fix: fixes[0] || null, alts: fixes.slice(1)});
   }
   const sext = [Math.max(-bounds[0], bounds[1]), Math.max(-bounds[2], bounds[3])];
   const result = {issues, total, maxH, bounds, covered, minC, slowest, far, restricted, byType, roofNeedMax};
