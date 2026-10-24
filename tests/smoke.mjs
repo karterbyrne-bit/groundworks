@@ -37,7 +37,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   const cap = () => page.evaluate(() => window.__gw.last().total);
   check((await cap()) > 1000, "default stadium has a capacity");
 
-  for (const p of ["bowl", "leitch", "fight"]) {
+  for (const p of ["bowl", "leitch", "bullring"]) {
     await page.click(`[data-p="${p}"]`); await page.waitForTimeout(300);
     check((await cap()) > 0, `preset "${p}" builds`);
   }

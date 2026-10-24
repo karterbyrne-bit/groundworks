@@ -260,7 +260,6 @@ const M = {
   window: std({color:0x1d262c, roughness:.25, metalness:.3}), trim: std({color:0xd9d2c2, roughness:.85}),
   canvas: new THREE.MeshStandardMaterial({color:0x2e5fa8, roughness:.8}),
   rope: new THREE.MeshStandardMaterial({color:0xf2f2f2, roughness:.5}),
-  cageNet: new THREE.MeshStandardMaterial({color:0x111111, roughness:.6, transparent:true, opacity:.35, side:DS}),
   dark: new THREE.MeshStandardMaterial({color:0x1d2124, roughness:.6}),
   mast: new THREE.MeshStandardMaterial({color:0x9aa1a5, roughness:.5, metalness:.5}),
   lamp: new THREE.MeshStandardMaterial({color:0xfffbe8, emissive:0xfff3c4, emissiveIntensity:.9}),
@@ -362,37 +361,11 @@ function drawKind(ctx, F, Wt, Ht, lw){
     return;
   }
   if (k === "bullring"){ ctx.fillStyle = "#c9a86c"; ctx.fillRect(-Wt/2,-Ht/2,Wt,Ht); ctx.beginPath(); ctx.arc(0,0,W/2,0,Math.PI*2); ctx.fillStyle = "#dcc08a"; ctx.fill(); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = .2; ctx.beginPath(); ctx.arc(0,0,W/2*0.6,0,Math.PI*2); ctx.stroke(); return; }
-  if (k === "boxing" || k === "cage" || k === "concert"){ ctx.fillStyle = "#26292c"; rr(ctx, W+1.2, H+1.2, F.r); ctx.fill(); return; }
-  if (k === "basketball"){
-    ctx.fillStyle = "#c99a5e"; ctx.fillRect(-W/2,-H/2,W,H);
-    ctx.strokeStyle = "rgba(0,0,0,.07)"; ctx.lineWidth = .04; for (let z=-H/2;z<H/2;z+=0.2) line(-W/2,z,W/2,z);
-    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = .05; ctx.strokeRect(-W/2,-H/2,W,H); line(0,-H/2,0,H/2);
-    ctx.beginPath(); ctx.arc(0,0,1.8,0,Math.PI*2); ctx.stroke();
-    for (const s of [-1,1]){
-      const bx = s*W/2, hx = bx - s*1.575;
-      ctx.fillStyle = "rgba(160,40,40,.55)"; ctx.fillRect(s>0?bx-5.8:bx,-2.45,5.8,4.9); ctx.strokeRect(s>0?bx-5.8:bx,-2.45,5.8,4.9);
-      ctx.beginPath(); ctx.arc(bx-s*5.8,0,1.8,0,Math.PI*2); ctx.stroke();
-      const a = Math.asin(Math.min(1,(H/2-0.9)/6.75));
-      ctx.beginPath(); ctx.arc(hx,0,6.75, s>0?Math.PI-a:-a, s>0?Math.PI+a:a); ctx.stroke();
-      line(bx,-(H/2-0.9),hx-s*Math.cos(a)*6.75,-(H/2-0.9)); line(bx,(H/2-0.9),hx-s*Math.cos(a)*6.75,(H/2-0.9));
-    }
-    return;
-  }
   if (k === "tennis"){
     ctx.fillStyle = "#3d6fb0"; ctx.fillRect(-11.885,-5.485,23.77,10.97);
     ctx.strokeStyle = "#ffffff"; ctx.lineWidth = .05;
     ctx.strokeRect(-11.885,-5.485,23.77,10.97); line(-11.885,-4.115,11.885,-4.115); line(-11.885,4.115,11.885,4.115);
     line(-6.4,-4.115,-6.4,4.115); line(6.4,-4.115,6.4,4.115); line(-6.4,0,6.4,0);
-    return;
-  }
-  if (k === "hockey"){
-    rr(ctx,W,H,F.r); ctx.fillStyle = "#eef5f8"; ctx.fill();
-    ctx.lineWidth = .3; ctx.strokeStyle = "#c2272d"; line(0,-H/2,0,H/2);
-    for (const s of [-1,1]) line(s*(W/2-3.4),-H/2+2,s*(W/2-3.4),H/2-2);
-    ctx.strokeStyle = "#2453a6"; for (const s of [-1,1]) line(s*W/8,-H/2,s*W/8,H/2);
-    ctx.strokeStyle = "#c2272d"; ctx.lineWidth = .05;
-    for (const s of [-1,1]) for (const z of [-6.7,6.7]){ ctx.beginPath(); ctx.arc(s*(W/2-9.4),z,4.57,0,Math.PI*2); ctx.stroke(); }
-    ctx.strokeStyle = "#2453a6"; ctx.beginPath(); ctx.arc(0,0,4.57,0,Math.PI*2); ctx.stroke();
     return;
   }
   const SURF = {grass:["#3d7a38","#468a40"],court:["#c4945a","#b98a52"],ice:["#e9f2f6","#e3edf2"],sand:["#dcc48f","#d6bd87"],arena:["#3a3e42","#3a3e42"],tennis:["#3d6fb0","#3d6fb0"],mat:["#2d6cb5","#2d6cb5"]};
@@ -484,41 +457,11 @@ function addProps(g, F, buf){
   }
   if (!F.custom) return;
   const W = F.W, H = F.H;
-  if (F.kind === "boxing"){
-    add(new THREE.BoxGeometry(W+1.2,1.2,H+1.2), M.canvas, 0,0.6,0);
-    const colours = [0xc3322b,0xf2f2f2,0x1f3f8f,0xf2f2f2];
-    [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx,sz],i) => add(cyl(.09,1.5), new THREE.MeshStandardMaterial({color:colours[i]}), sx*W/2*0.84, 1.95, sz*H/2*0.84));
-    for (const y of [1.65,2.0,2.35,2.65]){
-      add(new THREE.BoxGeometry(W*0.84,.05,.05), M.rope, 0,y,-H/2*0.84); add(new THREE.BoxGeometry(W*0.84,.05,.05), M.rope, 0,y,H/2*0.84);
-      add(new THREE.BoxGeometry(.05,.05,H*0.84), M.rope, -W/2*0.84,y,0); add(new THREE.BoxGeometry(.05,.05,H*0.84), M.rope, W/2*0.84,y,0);
-    }
-  }
-  if (F.kind === "cage"){
-    const R = W/2/Math.cos(Math.PI/8);
-    add(cyl(R+0.6,0.9,8), M.dark, 0,0.45,0, Math.PI/8);
-    add(cyl(R-0.05,0.02,8), M.canvas, 0,0.91,0, Math.PI/8);
-    const net = add(new THREE.CylinderGeometry(R,R,1.8,8,1,true), M.cageNet, 0,1.8,0, Math.PI/8); net.castShadow = false;
-    for (let i=0;i<8;i++){ const a = i*Math.PI/4; add(cyl(.07,1.9), M.dark, Math.cos(a)*R, 1.85, Math.sin(a)*R); }
-  }
   if (F.kind === "bullring"){ const P0 = closedPathS(F, F.r, 0, "curved"); ribbon(buf("barrierWood"), P0, P0, 0, 1.6, true); }
   if (F.kind === "wrestleball") for (const s of [-1,1]) add(new THREE.BoxGeometry(.3,.5,H), M.white, s*(W/2+0.4),.25,0);
-  if (F.kind === "basketball") for (const s of [-1,1]){
-    add(new THREE.BoxGeometry(.4,3.4,.4), M.dark, s*(W/2+1.3),1.7,0);
-    add(new THREE.BoxGeometry(.05,1.07,1.83), new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:.6}), s*(W/2-1.2),3.4,0);
-    const rim = add(new THREE.TorusGeometry(.23,.02,6,16), M.barrier, s*(W/2-1.575),3.05,0); rim.rotation.x = Math.PI/2;
-  }
   if (F.kind === "tennis"){
     add(new THREE.BoxGeometry(.03,.95,12.8), new THREE.MeshStandardMaterial({color:0x222222,transparent:true,opacity:.7}), 0,.475,0);
     for (const z of [-6.4,6.4]) add(cyl(.05,1.07), M.dark, 0,.535,z);
-  }
-  if (F.kind === "hockey"){
-    const P0 = closedPathS(F, F.r, 0, "curved");
-    ribbon(buf("white"), P0, P0, 0, 1.07, true); ribbon(buf("glass"), P0, P0, 1.07, 2.9, true);
-  }
-  if (F.kind === "concert"){
-    add(new THREE.BoxGeometry(14,2,Math.min(H*0.7,30)), M.dark, -W/2+7,1,0);
-    add(new THREE.BoxGeometry(1,14,Math.min(H*0.7,30)+2), M.column, -W/2-0.5,7,0);
-    add(new THREE.BoxGeometry(14,0.8,Math.min(H*0.7,30)+2), M.column, -W/2+7,14,0);
   }
 }
 

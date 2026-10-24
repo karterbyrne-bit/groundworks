@@ -13,12 +13,7 @@ const BALLPARK = {lf:101, cf:122, rf:99, wall:3, lfWall:3};
 const CRICKET = {L:150, W:136};
 const KINDS = {
   wrestleball:{label:"Wrestleball", W:16.5,H:4.5,r:0,surface:"grass",set:2.5,floor:0,zones:[4,8.5,4],outdoor:true,note:"An outdoor sport on grass: 16.5 × 4.5 m, with two 4 m end zones either side of an 8.5 m central playing area."},
-  boxing:{label:"Boxing", W:7.3,H:7.3,r:0,surface:"arena",set:3,focusY:1.2,floor:6,note:"A 6.1 m (20 ft) ring inside the ropes on a 1.2 m-high platform, with ringside floor seats."},
-  cage:{label:"MMA cage", W:9.1,H:9.1,r:2.66,surface:"arena",set:3,focusY:0.9,floor:6,note:"A 9.1 m (30 ft) octagon on a 0.9 m stage, with ringside floor seats."},
-  basketball:{label:"Basketball", W:28,H:15,r:0,surface:"court",set:3,floor:3,note:"28 × 15 m court with courtside seats."},
-  hockey:{label:"Ice hockey", W:61,H:30,r:8.5,surface:"ice",set:4,floor:0,note:"61 × 30 m rink with boards and glass."},
   tennis:{label:"Tennis", W:36.6,H:18.3,r:0,surface:"tennis",set:4,floor:0,note:"Doubles court with the run-off a show court needs."},
-  concert:{label:"Concert", W:60,H:40,r:0,surface:"arena",set:3,floor:0,note:"A standing floor with a stage at the west end."},
   bullring:{label:"Bullring", W:50,H:50,r:25,surface:"sand",set:2,floor:0,note:"A round sand arena, 50 m across."},
   plain:{label:"Plain floor", W:100,H:64,r:0,surface:"grass",set:4,floor:0,note:"Any floor up to 400 × 300 m. Set the exact size below."}
 };
@@ -261,13 +256,6 @@ const PRESETS = {
   wrestle:Pz({sport:"custom",custom:{kind:"wrestleball",W:16.5,H:4.5,r:0,surface:"grass",floor:0},layout:"stands",cornerShape:"angled",setback:2.5,corner:6,
     stands:{N:mk("modern",[t("seated",12,24)]),S:mk("regular",[t("bench",9,24)],{shape:"none"}),E:mk("kop",[t("rail",8,30,true)],{shape:"none"}),W:mk("kop",[t("rail",8,30,true)],{shape:"none"})},
     corners:{NE:corner("blend"),SE:corner("open"),SW:corner("open"),NW:corner("open")},seat:"#2f6b3d",lights:true,boards:false,focusIn:2.5}),
-  fight:Pz({sport:"custom",custom:{kind:"cage",W:9.1,H:9.1,r:2.66,surface:"arena",floor:5},layout:"bowl",cornerShape:"angled",setback:3,corner:0,
-    bowl:mk("modern",[t("seated",22,26,true),t("exec",2,22,true,{over:1,gap:3.4}),t("seated",14,32,true,{over:2,gap:4})],{shape:"closed",mat:"metal",support:"none",lift:3}),seat:"#2c3135",lights:false,boards:false,night:true,seeThrough:true,seatPattern:"tiers",seat2:"#b3202a",focusIn:4}),
-  bearpit:Pz({sport:"custom",custom:{kind:"boxing",W:7.3,H:7.3,r:0,surface:"arena",floor:4},layout:"stands",cornerShape:"square",setback:3,corner:0,
-    stands:{N:mk("brickmain",[t("seated",20,30,true),t("seated",10,33,true,{over:2,gap:4})],{shape:"gable",mat:"metal",support:"truss",lift:2,reach:2}),
-      S:mk("brickmain",[t("seated",20,30,true),t("seated",10,33,true,{over:2,gap:4})],{shape:"gable",mat:"metal",support:"truss",lift:2,reach:2}),
-      E:mk("brickmain",[t("terrace",24,24,true)],{shape:"slope",mat:"metal",support:"none",lift:2,reach:2}),W:mk("brickmain",[t("terrace",24,24,true)],{shape:"slope",mat:"metal",support:"none",lift:2,reach:2})},
-    corners:allCorners("blend"),seat:"#7d1f33",lights:false,boards:false,night:true,seeThrough:false,focusIn:3.5}),
   bullring:Pz({sport:"custom",custom:{kind:"bullring",W:50,H:50,r:25,surface:"sand",floor:0},layout:"bowl",setback:6,corner:0,
     bowl:mk("interwar",[t("seated",18,22),t("seated",8,28,true,{over:0,gap:3.4,pillars:true})],{shape:"slope",mat:"metal",reach:-6,lift:3,support:"columns"}),seat:"#c3322b",lights:false,boards:false}),
   /* The lower tier wraps an athletics track; a deep upper tier floats behind it on a true oval. */
@@ -325,8 +313,6 @@ withArch("bowl", {skin:"fins", skinShape:"round", plaza:true});
 withArch("monument", {arch:true, plaza:true});
 withArch("leitch", {pylons:true}); withArch("mixed", {pylons:true});
 withArch("wall", {ramps:true});
-withArch("fight", {skin:"cushion", skinShape:"round", plaza:true});
-withArch("bearpit", {skin:"brick", skinShape:"hull"});
 withArch("bullring", {skin:"brick", skinShape:"round"});
 withArch("wrestle", {pylons:true});
 const KEY = "groundworks-v6", SAVES_KEY = "groundworks-designs";

@@ -607,7 +607,7 @@ function build(){
   focusY = F.focusY || 0;
   focusIn = S.focusIn != null ? Math.max(0, Math.min(S.focusIn, maxFocusIn(F))) : defaultFocusIn(F);
   const floorRows = F.custom ? Math.max(0, Math.round(S.custom.floor || 0)) : 0;
-  const floorStart = F.kind === "boxing" || F.kind === "cage" ? 1.8 : 1.2, floorT = 0.85;
+  const floorStart = 1.2, floorT = 0.85;
   const floorNeed = floorRows ? floorStart + floorRows*floorT + 0.9 : 1;
   const set = Math.max(S.setback, floorNeed);
   const standSet = cfg => Math.max(floorNeed, cfg && cfg.dist != null ? cfg.dist : S.setback);
@@ -1106,7 +1106,7 @@ function build(){
     return st;
   }
 
-  /* ---------- floor seats round a ring, cage or court ---------- */
+  /* ---------- courtside seats on the floor ---------- */
   if (floorRows){
     let fs = 0;
     for (let j=0;j<floorRows;j++){
