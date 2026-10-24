@@ -1,6 +1,6 @@
 // Builds index.html (one self-contained, minified page) from the files in src/.
 // Run: npm install   (once)   then   npm run build
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { transformSync } from "esbuild";
 
 const src = f => readFileSync(new URL("./src/" + f, import.meta.url), "utf8");
@@ -33,4 +33,7 @@ ${outBody}
 </html>
 `;
 writeFileSync(new URL("./index.html", import.meta.url), html);
+// Hosting copy: Vercel serves the "public" folder (GitHub Pages serves index.html from the root).
+mkdirSync(new URL("./public/", import.meta.url), { recursive: true });
+writeFileSync(new URL("./public/index.html", import.meta.url), html);
 console.log(`index.html written: ${(html.length / 1024).toFixed(0)} KB${dev ? " (dev, unminified)" : ""}`);

@@ -27,7 +27,7 @@ It's a creative tool. Its checks are loosely based on UK sports-ground guidance 
 | `src/build.js` | Builds the stadium, runs the checks, draws architecture, lights and screens |
 | `src/ui.js` | The control panel, camera, editing, saving and undo |
 | `src/styles.css`, `src/body.html` | The page's look and layout |
-| `build.mjs` | Joins and minifies `src/` into `index.html` |
+| `build.mjs` | Joins and minifies `src/` into `index.html` (and a copy in `public/` for Vercel) |
 
 ## Making changes
 
