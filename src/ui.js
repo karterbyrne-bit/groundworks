@@ -452,8 +452,10 @@ const check = (label, p, val) => `<label class="toggle"><input type="checkbox" d
 const pick = (label, p, val, opts) => `<div class="row"><label>${label}</label><select data-p="${p}" aria-label="${label}">${Object.entries(opts).map(([k,v]) => `<option value="${k}"${k===val?" selected":""}>${v}</option>`).join("")}</select></div>`;
 const SIDE_SHORT = {N:"Main", S:"Opposite", E:"East", W:"West"};
 /* Rows for each side of a bowl, side by side, instead of one number for the whole way round. */
-const sideRowsBox = (tr, pre, isT) => `<div class="row"><label>${isT ? "Steps" : "Rows"} on each side</label></div><div class="siderows">${SIDES.map(s => { const gone = bowlGone(s);
-  return `<label><span>${SIDE_SHORT[s]}</span><input type="number" data-p="${pre}sideRows.${s}" value="${gone ? 0 : Math.round(sideRowsOf(tr, s))}" min="0" max="90" step="1"${gone ? " disabled" : ""} aria-label="${isT ? "Steps" : "Rows"} on the ${SIDE_NAMES[s].toLowerCase()}"></label>`; }).join("")}</div>`;
+const TYPE_SHORT = {seated:"Seats", exec:"Boxes", rail:"Rail seats", bench:"Benches", terrace:"Terrace"};
+const sideRowsBox = (tr, pre) => `<div class="row"><label>Seating and rows on each side</label></div><div class="siderows">${SIDES.map(s => { const gone = bowlGone(s), ty = sideTypeOf(tr, s);
+  return `<label><span>${SIDE_SHORT[s]}</span><select data-p="${pre}sideType.${s}"${gone ? " disabled" : ""} aria-label="Seating on the ${SIDE_NAMES[s].toLowerCase()}">${Object.entries(TYPE_SHORT).map(([k,v]) => `<option value="${k}"${k === ty ? " selected" : ""}>${v}</option>`).join("")}</select>
+    <input type="number" data-p="${pre}sideRows.${s}" value="${gone ? 0 : Math.round(sideRowsOf(tr, s))}" min="0" max="120" step="1"${gone ? " disabled" : ""} aria-label="${ty === "terrace" ? "Steps" : "Rows"} on the ${SIDE_NAMES[s].toLowerCase()}"></label>`; }).join("")}</div>`;
 const TIER_FRONTS = {auto:"Stand's own style", plain:"Plain fascia", lattice:"Criss-cross lattice (Leitch)", glass:"Glass balustrade", concrete:"Concrete parapet", brick:"Brick parapet"};
 const TIER_HOLDS = {none:"Nothing visible (cantilever)", pillars:"Pillars under its front edge", towers:"Towers at each end with a truss"};
 const colourPick = (label, p, val, def) => `<div class="row colour"><label>${label}</label><span class="num"><input type="color" data-p="${p}" value="${val || def || "#888888"}" aria-label="${label}">
@@ -473,8 +475,8 @@ function tierBlocks(arr, above, base, bySide, ends){
     const pre = (base ? base + "." : "") + "tiers." + k + ".";
     const depth = tr.rows * S.types[tr.type].row;
     return `<div class="tier" data-k="${k}"><div class="tier-h"><span>${nm ? nm + " tier" : "Tier"}</span><button class="mini" data-act="removeTier" data-k="${k}" aria-label="Remove this tier">Remove</button></div>
-      <div class="row"><label>Type</label><select data-p="${pre}type" aria-label="Seating type">${Object.entries(TYPES).map(([v,o]) => `<option value="${v}"${v===tr.type?" selected":""}>${o.label}</option>`).join("")}</select></div>
-      ${bySide ? sideRowsBox(tr, pre, isT) : pair(isT ? "Steps" : "Rows", pre + "rows", tr.rows, 1, 90, 1, "", `${depth.toFixed(1)} m deep`)}
+      ${bySide ? "" : `<div class="row"><label>Type</label><select data-p="${pre}type" aria-label="Seating type">${Object.entries(TYPES).map(([v,o]) => `<option value="${v}"${v===tr.type?" selected":""}>${o.label}</option>`).join("")}</select></div>`}
+      ${bySide ? sideRowsBox(tr, pre) : pair(isT ? "Steps" : "Rows", pre + "rows", tr.rows, 1, 90, 1, "", `${depth.toFixed(1)} m deep`)}
       <div class="row"><label class="toggle"><input type="checkbox" data-p="${pre}auto"${tr.auto ? " checked" : ""}> Auto steepness</label><output id="o-rk-${k}"></output>
         ${tr.auto ? "" : `<input type="range" data-p="${pre}rake" min="8" max="45" step="1" value="${tr.rake}" aria-label="Steepness in degrees">`}</div>
       ${stacked ? `${pair("Projects forward over the tier below", pre + "over", tr.over || 0, -15, 40, 0.5, "m", "Negative sets it back instead.")}
@@ -511,8 +513,8 @@ function bowlShapeBlock(){
     <p class="hint">Tap a side or a corner to leave it out, for a horseshoe or a bowl that stops short. The main stand is at the top, as in Plan view.</p>
     <div class="bowlplan">${cell("NW")}${cell("N")}${cell("NE")}${cell("W")}<span class="bp-floor">${field().custom ? "Floor" : "Pitch"}</span>${cell("E")}${cell("SW")}${cell("S")}${cell("SE")}</div>
     <div class="scales"><span>Quick shape:</span>${Object.entries(BOWL_SHAPES).map(([k,[label]]) => `<button class="btn small" data-act="bowlShape" data-shape="${k}">${label}</button>`).join("")}</div>
-    ${check("Give each side its own number of rows", "bowlVary", !!S.bowl.varyRows)}
-    ${S.bowl.varyRows ? `<p class="hint">The corners blend from one side's depth to the next. Set a tier to 0 rows on a side to leave it off there.</p>` : ""}
+    ${check("Give each side its own seating and rows", "bowlVary", !!S.bowl.varyRows)}
+    ${S.bowl.varyRows ? `<p class="hint">Each side can have its own seating (a seated main stand with terraces round the rest, say) and depth; the corners blend from one side to the next. Set a tier to 0 rows on a side to leave it off there.</p>` : ""}
   </div></details>`;
 }
 /* Corner controls: how far round each tier comes from each stand, and where stands that meet halfway meet. */
@@ -633,7 +635,7 @@ $("editor").addEventListener("input", e => {
     if (p === "roofAlign"){ S.roofAlign = el.checked; changed(); return; }
     if (p === "roof.level"){ setPath(targetObj(), p, el.checked); renderEditor(); changed(); return; }
     if (p === "bowlVary"){ S.bowl.varyRows = el.checked;
-      if (el.checked) S.bowl.tiers.forEach(tr => { tr.sideRows = {N:tr.rows, S:tr.rows, E:tr.rows, W:tr.rows}; });
+      if (el.checked) S.bowl.tiers.forEach(tr => { tr.sideRows = {N:tr.rows, S:tr.rows, E:tr.rows, W:tr.rows}; tr.sideType = {N:tr.type, S:tr.type, E:tr.type, W:tr.type}; });
       else S.bowl.tiers.forEach(tr => { if (tr.sideRows) tr.rows = Math.max(1, ...SIDES.filter(s2 => !bowlGone(s2)).map(s2 => tr.sideRows[s2] != null ? tr.sideRows[s2] : tr.rows)); }); // keep the deepest side
       renderEditor(); changed(); return; }
     if (p === "distSame"){ cfgForTab().dist = el.checked ? null : (LAST ? LAST.set : S.setback); renderEditor(); changed(); return; }
@@ -644,7 +646,7 @@ $("editor").addEventListener("input", e => {
   if (el.type === "color"){ setPath(targetObj(), p, el.value); changed(false, true); return; }
   if (el.type === "text"){ const had = !!getPath(targetObj(), p); setPath(targetObj(), p, el.value.replace(/[<>"'`\\]/g, "").slice(0, 30)); if (had !== !!el.value) renderEditorKeepFocus(el); changed(false, true); return; }
   const v = +el.value; if (!isFinite(v)) return;
-  setPath(targetObj(), p, p.includes(".sideRows.") ? clamp(Math.round(v), 0, 90) : el.type === "number" && p.endsWith("rows") ? Math.max(1, Math.round(v)) : v);
+  setPath(targetObj(), p, p.includes(".sideRows.") ? clamp(Math.round(v), 0, 120) : el.type === "number" && p.endsWith("rows") ? Math.max(1, Math.round(v)) : v);
   $("editor").querySelectorAll(`[data-p="${p}"]`).forEach(o => { if (o !== el) o.value = el.value; });
   if (p.endsWith(".rows")){ const tr = p.split(".").slice(-2)[0], tier = targetObj().tiers[+tr]; const note = el.closest(".pair").querySelector(".note"); if (note) note.textContent = (tier.rows*S.types[tier.type].row).toFixed(1) + " m deep"; }
   refreshOutputs(); changed(false, el.type === "range");
@@ -657,6 +659,12 @@ $("editor").addEventListener("change", e => {
     const tr = el.dataset.p.split(".").slice(0, -1).reduce((o, k) => o[k], el.dataset.p.startsWith("cc.") ? {cc:{tiers:S.cornerCustom}} : targetObj());
     tr.pillars = el.value === "pillars"; if (el.value === "towers") tr.hold = "towers"; else delete tr.hold; renderEditor(); changed(); return; }
   if (el.type === "color") return;
+  if (el.tagName === "SELECT" && el.dataset.p && el.dataset.p.includes(".sideType.")){ // keep the side as deep as it was
+    const parts = el.dataset.p.split("."), side = parts.pop(), tr = parts.slice(0, -1).reduce((o, k) => o[k], targetObj());
+    const from = sideTypeOf(tr, side), rows = sideRowsOf(tr, side);
+    tr.sideType = Object.assign({}, tr.sideType, {[side]: el.value});
+    tr.sideRows = Object.assign({}, tr.sideRows, {[side]: Math.max(1, Math.round(rows*S.types[from].row/S.types[el.value].row))});
+    renderEditor(); changed(); return; }
   if (el.tagName === "SELECT" && el.dataset.p){ setPath(targetObj(), el.dataset.p, el.value); renderEditor(); changed(); }
 });
 $("editor").addEventListener("click", e => {

@@ -66,17 +66,23 @@ function bowlPiece(tag, nc){
     : {key:CORNER_AFTER[g], corner:false};
 }
 const sideRowsOf = (tr, s) => S.bowl.varyRows && tr.sideRows && tr.sideRows[s] != null ? Math.max(0, tr.sideRows[s]) : tr.rows;
+const sideTypeOf = (tr, s) => S.bowl.varyRows && tr.sideType && TYPES[tr.sideType[s]] ? tr.sideType[s] : tr.type;
 const withRows = (tiers, f) => tiers.map((tr,k) => Object.assign({}, tr, {rows:f(tr,k)}));
-/* The bowl's tiers at one point round the ring: that side's rows, a blend in a corner, or nothing where it's left out. */
+const onSide = (tr, s) => Object.assign({}, tr, {type:sideTypeOf(tr, s), rows:sideRowsOf(tr, s)}); // a bowl tier as built on one side
+/* The bowl's tiers at one point round the ring: that side's seating and rows, a blend in a corner, or nothing where it's
+   left out. A corner between two kinds of seating blends the depth and takes the kind of the nearer side. */
 function bowlTiersAt(tag, nc){
   const pc = bowlPiece(tag, nc), T = S.bowl.tiers;
   if (bowlGone(pc.key)) return withRows(T, () => 0);
   if (!S.bowl.varyRows) return T;
-  if (!pc.corner) return withRows(T, tr => sideRowsOf(tr, pc.key));
+  if (!pc.corner) return T.map(tr => onSide(tr, pc.key));
   const a = !bowlGone(pc.before), b = !bowlGone(pc.after), f = (1 - Math.cos(Math.PI*pc.f))/2;
-  return withRows(T, tr => a && b ? lerp(sideRowsOf(tr, pc.before), sideRowsOf(tr, pc.after), f) : a ? sideRowsOf(tr, pc.before) : b ? sideRowsOf(tr, pc.after) : tr.rows);
+  return T.map(tr => { if (!(a && b)) return a ? onSide(tr, pc.before) : b ? onSide(tr, pc.after) : tr;
+    const ta = onSide(tr, pc.before), tb = onSide(tr, pc.after), type = f < 0.5 ? ta.type : tb.type;
+    const depth = lerp(ta.rows*S.types[ta.type].row, tb.rows*S.types[tb.type].row, f);
+    return Object.assign({}, tr, {type, rows: depth/S.types[type].row}); });
 }
-const bowlSideTiers = s => withRows(S.bowl.tiers, tr => bowlGone(s) ? 0 : sideRowsOf(tr, s));
+const bowlSideTiers = s => bowlGone(s) ? withRows(S.bowl.tiers, () => 0) : S.bowl.tiers.map(tr => onSide(tr, s));
 /* The unbroken stretches of a bowl with parts left out, as ranges round the ring; null when nothing is left out. */
 function bowlRuns(nc){
   const on = BOWL_PIECES.map(k => !bowlGone(k));
@@ -525,6 +531,19 @@ function roofLights(anchors, bf, F){
       if (!best || used.has(best) || bd < 0.5) continue; used.add(best);
       const sp = new THREE.SpotLight(0xfff4dc, 1.1, 0, 1.0, 0.6, 1); sp.position.set(best[0], best[1], best[2]); sp.target.position.set(-best[0]*0.2, 0, -best[2]*0.2); group.add(sp); group.add(sp.target); } }
 }
+/* A floodlight head: a frame of separate lamps angled down at the play, with a service platform behind. */
+const lampGeo = new THREE.BoxGeometry(1.25, 1.05, .5), lampRim = new THREE.BoxGeometry(1.45, 1.25, .35); lampGeo.keep = lampRim.keep = true;
+function lampHead(x, y, z){
+  const g = new THREE.Group(); g.position.set(x, y, z);
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(12, 7.6, .35), M.column); g.add(frame);
+  for (let r=0;r<4;r++) for (let c=0;c<6;c++){ const px = -4.6 + c*1.84, py = -2.6 + r*1.75;
+    const rim = new THREE.Mesh(lampRim, M.dark); rim.position.set(px, py, .3); g.add(rim);
+    const l = new THREE.Mesh(lampGeo, M.lamp); l.position.set(px, py, .42); g.add(l); }
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(12.4, .2, 2), M.steel); deck.position.set(0, -4.2, -.9); g.add(deck);
+  const rail = new THREE.Mesh(new THREE.BoxGeometry(12.4, .08, .08), M.steel); rail.position.set(0, -3.2, -1.85); g.add(rail);
+  g.lookAt(0, 0, 0); g.traverse(o => { o.castShadow = true; o.userData.stadium = true; });
+  return g;
+}
 function maxFocusIn(F){ return Math.min(10, Math.max(Math.min(F.W, F.H)/2, Math.max(F.W, F.H)/4)); }
 function defaultFocusIn(F){ return F.custom ? Math.min(4, Math.min(F.W, F.H)*0.3) : 0; }
 let PRE = false;
@@ -544,7 +563,7 @@ function build(){
   if (!DRY){
     scene.remove(group);
     const shared = new Set(Object.values(M)); // free what this build made, but keep the shared materials and cached textures
-    group.traverse(o => { if (o.geometry) o.geometry.dispose(); for (const m of [].concat(o.material || [])){ if (m.map && m.map.dispose && !m.map.keep) m.map.dispose(); if (!m.keep && !shared.has(m)) m.dispose(); } });
+    group.traverse(o => { if (o.geometry && !o.geometry.keep) o.geometry.dispose(); for (const m of [].concat(o.material || [])){ if (m.map && m.map.dispose && !m.map.keep) m.map.dispose(); if (!m.keep && !shared.has(m)) m.dispose(); } });
     group = new THREE.Group(); scene.add(group);
   }
   const Bf = {}; const buf = k => (Bf[k] = Bf[k] || []);
@@ -573,7 +592,7 @@ function build(){
   // seating types in use, then type-wide checks
   const used = new Set();
   const addUsed = arr => arr.forEach(x => used.add(x.type));
-  if (lay !== "stands") addUsed(S.bowl.tiers);
+  if (lay !== "stands"){ addUsed(S.bowl.tiers); if (S.bowl.varyRows) for (const s2 of SIDES) if (!bowlGone(s2)) addUsed(bowlSideTiers(s2)); }
   if (lay !== "bowl"){ SIDES.forEach(s => addUsed(S.stands[s].tiers)); if (CORNERS.some(c => S.corners[c.key].mode === "custom")) addUsed(S.cornerCustom); }
   if (floorRows) used.add("seated");
   const typeBad = {};
@@ -743,6 +762,9 @@ function build(){
       const aisleAt = marks(tierType === "terrace" ? 24 : S.design.gangEvery*S.types[tierType].width + S.design.gangWidth);
       const vomAt = !best.stacked && nRows(best) >= 10 ? marks(S.design.exitEvery) : new Set();
       const rowLen = [], recs = []; let frontLen = 0;
+      const gangCut = sl => aisleAt.has(sl) ? S.design.gangWidth/2 + .05 : 0;
+      const vomRows = n => { const j0 = Math.floor(n*0.42); return [j0, Math.min(n, j0 + 4)]; };
+      const vomCut = (sl, n, j) => { if (!vomAt.has(sl) || n < 10) return 0; const [ja, jb] = vomRows(n); return j >= ja && j < jb ? S.design.exitWidth/2 + .3 : 0; };
       for (let i=0;i<segs;i++){
         const j1 = nx(i), p0 = pk(i), p1 = pk(j1);
         const n0 = p0 && !p0.ghost ? nRows(p0) : 0, n1 = p1 && !p1.ghost ? nRows(p1) : 0, mr = Math.min(n0, n1);
@@ -750,15 +772,21 @@ function build(){
           for (let j=0;j<mr;j++){
             const a0 = p0.front + j*T, a1 = p1.front + j*T, h0 = p0.hs[j], h1 = p1.hs[j];
             const alt = (tierType === "seated" || tierType === "rail") && altRow(i, j, kk);
-            quad(buf(alt ? "seatAlt" : seatKey), V(i,a0,h0), V(j1,a1,h1), V(j1,a1+T,h1), V(i,a0+T,h0));
-            if (j>0) quad(buf("riser"), V(i,a0,p0.hs[j-1]), V(j1,a1,p1.hs[j-1]), V(j1,a1,h1), V(i,a0,h0));
+            const m0 = pt(i, a0+T/2), m1 = pt(j1, a1+T/2), len = Math.hypot(m1[0]-m0[0], m1[1]-m0[1]) || 1e-6;
+            // seats stop at the edge of a gangway or an exit tunnel rather than running through it
+            const v0 = vomCut(i, n0, j), v1 = vomCut(j1, n1, j), f0 = Math.min(.49, Math.max(gangCut(i), v0)/len), f1 = 1 - Math.min(.49, Math.max(gangCut(j1), v1)/len);
+            const E = (d0, y0, d1, y1, f) => { const p = V(i, d0, y0), q = V(j1, d1, y1); return [lerp(p[0],q[0],f), lerp(p[1],q[1],f), lerp(p[2],q[2],f)]; };
+            const strip = (key, d0, y0, d1, y1, e0, z0, e1, z1) => quad(buf(key), E(d0,y0,d1,y1,f0), E(d0,y0,d1,y1,f1), E(e0,z0,e1,z1,f1), E(e0,z0,e1,z1,f0));
+            strip(alt ? "seatAlt" : seatKey, a0,h0,a1,h1, a0+T,h0,a1+T,h1);
+            if (j>0) strip("riser", a0,p0.hs[j-1],a1,p1.hs[j-1], a0,h0,a1,h1);
             const b0 = a0+T-.1, b1 = a1+T-.1;
-            if (tierType === "rail") quad(buf("barrier"), V(i,b0,h0+.95), V(j1,b1,h1+.95), V(j1,b1,h1+1.05), V(i,b0,h0+1.05));
-            else if (tierType === "terrace"){ if (j>0 && j % S.design.barrierEvery === 0) quad(buf("barrier"), V(i,a0+.08,h0+.95), V(j1,a1+.08,h1+.95), V(j1,a1+.08,h1+1.12), V(i,a0+.08,h0+1.12)); }
-            else if (tierType !== "bench"){ const bh = tierType === "exec" ? .55 : .42; quad(buf(tierType === "exec" ? "exec" : alt ? "seatAltBack" : backKey), V(i,b0,h0), V(j1,b1,h1), V(j1,b1,h1+bh), V(i,b0,h0+bh)); }
-            const m0 = pt(i, a0+T/2), m1 = pt(j1, a1+T/2), len = Math.hypot(m1[0]-m0[0], m1[1]-m0[1]);
-            rowLen[j] = (rowLen[j]||0) + len; if (j === 0) frontLen += len;
-            recs.push({j, len, d:(a0+a1)/2, x:(m0[0]+m1[0])/2, z:(m0[1]+m1[1])/2, i, m0, m1, h0, h1, type:tierType});
+            if (tierType === "rail") strip("barrier", b0,h0+.95,b1,h1+.95, b0,h0+1.05,b1,h1+1.05);
+            else if (tierType === "terrace"){ if (j>0 && j % S.design.barrierEvery === 0) strip("barrier", a0+.08,h0+.95,a1+.08,h1+.95, a0+.08,h0+1.12,a1+.08,h1+1.12); }
+            else if (tierType !== "bench"){ const bh = tierType === "exec" ? .55 : .42; strip(tierType === "exec" ? "exec" : alt ? "seatAltBack" : backKey, b0,h0,b1,h1, b0,h0+bh,b1,h1+bh); }
+            const use = Math.max(0, len - Math.min(len*.49, v0) - Math.min(len*.49, v1)); // exit tunnels take seats out; gangways are already allowed for
+            rowLen[j] = (rowLen[j]||0) + use; if (j === 0) frontLen += len;
+            const c0 = lerp2(m0, m1, f0), c1 = lerp2(m0, m1, f1);
+            recs.push({j, len:use, d:(a0+a1)/2, x:(m0[0]+m1[0])/2, z:(m0[1]+m1[1])/2, i, m0:c0, m1:c1, h0:lerp(h0,h1,f0), h1:lerp(h0,h1,f1), type:tierType});
           }
           const y00 = p0.stacked ? p0.hF-1.5 : 0, y10 = p1.stacked ? p1.hF-1.5 : 0;
           quad(fasc, V(i,p0.front,y00), V(j1,p1.front,y10), V(j1,p1.front,p1.hF), V(i,p0.front,p0.hF));
@@ -802,14 +830,27 @@ function build(){
           }
         }
         const tg = tangent(s);
-        if (aisleAt.has(s)){ const gw = S.design.gangWidth/2;
-          for (let j=0;j<n;j++){ const a = pt(s, p.front + j*T), b = pt(s, p.front + (j+1)*T), h = p.hs[j] + .03;
-            quad(buf("aisle"), [a[0]-tg[0]*gw,h,a[1]-tg[1]*gw], [a[0]+tg[0]*gw,h,a[1]+tg[1]*gw], [b[0]+tg[0]*gw,h,b[1]+tg[1]*gw], [b[0]-tg[0]*gw,h,b[1]-tg[1]*gw]);
-            if (tierType !== "terrace" && tierType !== "bench") quad(buf("aisle"), [b[0]-tg[0]*gw,h,b[1]-tg[1]*gw], [b[0]+tg[0]*gw,h,b[1]+tg[1]*gw], [b[0]+tg[0]*gw,h+.5,b[1]+tg[1]*gw], [b[0]-tg[0]*gw,h+.5,b[1]-tg[1]*gw]); }
+        const across = (w, d, y, side) => { const q = pt(s, d); return [q[0] + tg[0]*w*side, y, q[1] + tg[1]*w*side]; };
+        if (aisleAt.has(s)){ // a stepped gangway: two steps to each row where the rake is steep, yellow nosings, a handrail
+          const gw = S.design.gangWidth/2, at = (d, y, side) => across(gw, d, y, side), seats = tierType !== "terrace";
+          const tread = (d0, d1, y) => { quad(buf("aisle"), at(d0,y,-1), at(d0,y,1), at(d1,y,1), at(d1,y,-1)); quad(buf("barrier"), at(d0,y+.01,-1), at(d0,y+.01,1), at(d0+.07,y+.01,1), at(d0+.07,y+.01,-1)); };
+          const riser = (d, y0, y1) => { if (y1 > y0 + .01) quad(buf("riser"), at(d,y0,-1), at(d,y0,1), at(d,y1,1), at(d,y1,-1)); };
+          for (let j=0;j<n;j++){ const a = p.front + j*T, h = p.hs[j] + .02, prev = j ? p.hs[j-1] + .02 : h, rise = h - prev;
+            if (seats && rise > .3){ const mid = h - rise/2; riser(a, prev, mid); tread(a, a + T/2, mid); riser(a + T/2, mid, h); tread(a + T/2, a + T, h); }
+            else { riser(a, prev, h); tread(a, a + T, h); } }
+          if (seats && n >= 4 && p.steep > 25) for (let j=0;j<n-1;j++){ const q0 = pt(s, p.front + (j+.5)*T), q1 = pt(s, p.front + (j+1.5)*T);
+            bar(buf("steel"), [q0[0], p.hs[j]+.95, q0[1]], [q1[0], p.hs[j+1]+.95, q1[1]], .06);
+            if (j % 3 === 0) bar(buf("steel"), [q0[0], p.hs[j], q0[1]], [q0[0], p.hs[j]+.95, q0[1]], .05); }
         }
-        if (vomAt.has(s) && n >= 10){ const ew = S.design.exitWidth/2, j0 = Math.floor(n*0.42);
-          for (let j=j0;j<Math.min(n, j0+4);j++){ const a = pt(s, p.front + j*T), b = pt(s, p.front + (j+1)*T), h = p.hs[j] + .06;
-            quad(buf("void"), [a[0]-tg[0]*ew,h,a[1]-tg[1]*ew], [a[0]+tg[0]*ew,h,a[1]+tg[1]*ew], [b[0]+tg[0]*ew,h,b[1]+tg[1]*ew], [b[0]-tg[0]*ew,h,b[1]-tg[1]*ew]); }
+        if (vomAt.has(s) && n >= 10){ // an exit tunnel: a pit in the tier with walls, a railing, and the dark tunnel mouth at its back
+          const ew = S.design.exitWidth/2, [ja, jb] = vomRows(n), at = (d, y, side) => across(ew, d, y, side);
+          const fl = p.hs[ja], dF = p.front + ja*T, dB = p.front + jb*T, topB = p.hs[Math.min(n-1, jb)];
+          quad(buf("riser"), at(dF,fl,-1), at(dF,fl,1), at(dB,fl,1), at(dB,fl,-1));
+          quad(buf("void"), at(dB,fl,-1), at(dB,fl,1), at(dB,topB,1), at(dB,topB,-1));
+          for (const side of [-1, 1]){
+            for (let j=ja;j<jb;j++){ const d0 = p.front + j*T; quad(buf("concrete"), at(d0,fl,side), at(d0+T,fl,side), at(d0+T,p.hs[j]+.45,side), at(d0,p.hs[j]+.45,side)); }
+            bar(buf("steel"), at(dF, fl + 1, side), at(dB, p.hs[jb-1] + 1.4, side), .06); }
+          bar(buf("steel"), at(dF, fl + 1, -1), at(dF, fl + 1, 1), .06);
         }
         // pillars under a stacked tier's front (always when the tier below is left open)
         if (p.stacked && (p.pillars || p.lowerGhost) && tc.hold !== "towers" && pillarAt.has(s)){
@@ -942,8 +983,22 @@ function build(){
     if (fac.towers){ const ts = closed ? [...marks(60)] : [0, m-1];
       for (const i of ts){ const b = backAt(i); if (b == null) continue; const tg = tangent(i), side = closed ? 0 : (i ? 4 : -4), q = pt(i, b + 3.5);
         post(buf("tower"), q[0] + tg[0]*side, q[1] + tg[1]*side, 0, info[i].top + 3, 6); grow(q[0], q[1]); } }
-    if (fac.gates) for (const i of marks(14)){ const b = backAt(i); if (b == null) continue; const tg = tangent(i), q = pt(i, b + .08);
-      quad(buf("gate"), [q[0]-tg[0]*1.6, 0, q[1]-tg[1]*1.6], [q[0]+tg[0]*1.6, 0, q[1]+tg[1]*1.6], [q[0]+tg[0]*1.6, 3.4, q[1]+tg[1]*1.6], [q[0]-tg[0]*1.6, 3.4, q[1]-tg[1]*1.6]); }
+    /* Entrances: turnstile blocks standing out from the back wall, each with a row of turnstile doors, an exit gate,
+       a canopy and a band in the accent colour; plain gates in between. */
+    if (fac.gates){ const blocks = marks(36), band = fac.accent ? tint("trim", fac.accent) : "trim";
+      for (const i of marks(12)){ const b = backAt(i); if (b == null) continue; const tg = tangent(i);
+        const at = (d, w, y) => { const q = pt(i, b + d); return [q[0] + tg[0]*w, y, q[1] + tg[1]*w]; };
+        const face = (key, d, w0, w1, y0, y1) => quad(buf(key), at(d,w0,y0), at(d,w1,y0), at(d,w1,y1), at(d,w0,y1));
+        if (!blocks.has(i)){ face("gate", .08, -1.6, 1.6, 0, 3.4); continue; }
+        const W = 5.5, D = 3.2, H = 3.6; // the block itself
+        face(wallKey, D, -W, W, 0, H);
+        for (const sd of [-1, 1]) quad(buf(wallKey), at(0,sd*W,0), at(D,sd*W,0), at(D,sd*W,H), at(0,sd*W,H));
+        quad(buf("roofSolid"), at(0,-W,H), at(0,W,H), at(D,W,H), at(D,-W,H));
+        face(band, D + .03, -W, W, H - .6, H - .1);
+        for (const w of [-3.6, -1.8, 0, 1.8]) face("gate", D + .04, w - .55, w + .55, 0, 2.3);   // turnstiles
+        face("gate", D + .04, 3.1, 4.9, 0, 2.8);                                                 // exit gate
+        quad(buf("steel"), at(D,-W-.4,2.7), at(D,W+.4,2.7), at(D+1.4,W+.4,2.9), at(D+1.4,-W-.4,2.9));  // canopy
+        const g = pt(i, b + D + 1.4); grow(g[0], g[1]); } }
     /* The outside wall, dressed in the stand's look: windows, pilasters, bands, fins or glass. It runs along the roof's back
        edge where there is a roof, otherwise along the back of the top tier. */
     const wallOpt = {windows:fac.windows, winSize:fac.winSize, concourse:fac.concourse, accent:fac.accent};
@@ -1249,7 +1304,7 @@ function build(){
       const x = sx*(sext[0]+8), z = sz*(sext[1]+8);
       if (fm === "pylons") pylon(buf2, x, z, mh);
       else { const mm = new THREE.Mesh(new THREE.CylinderGeometry(.6,1.1,mh,10), M.mast); mm.position.set(x,mh/2,z); mm.castShadow = true; group.add(mm); }
-      const head = new THREE.Mesh(new THREE.BoxGeometry(10,6,1), M.lamp); head.position.set(x, mh+2, z); head.lookAt(0,0,0); group.add(head);
+      group.add(lampHead(x, mh + 3, z));
       if (S.night){ const sp = new THREE.SpotLight(0xfff4dc, 1.25, 0, 0.75, 0.6, 1); sp.position.set(x, mh+2, z); sp.target.position.set(-sx*F.W*0.15, 0, -sz*F.H*0.15); group.add(sp); group.add(sp.target); }
     }
   }
