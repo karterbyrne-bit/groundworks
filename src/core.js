@@ -229,6 +229,13 @@ const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.48; controls.autoRotateSpeed = 0.6;
 controls.addEventListener("change", invalidate);
 const hemi = new THREE.HemisphereLight(0xffffff, 0x4a554c, 0.75); scene.add(hemi);
+/* A soft sky for shiny things to reflect: glass, metal cladding and steel pick up a bright horizon and a darker ground,
+   which is most of what makes them read as glass and metal rather than flat colour. */
+{ const c = document.createElement("canvas"); c.width = 16; c.height = 256; const g = c.getContext("2d"), gr = g.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, "#6f93b8"); gr.addColorStop(0.42, "#cfdde8"); gr.addColorStop(0.5, "#eef2f2"); gr.addColorStop(0.53, "#8d948c"); gr.addColorStop(1, "#4b524c");
+  g.fillStyle = gr; g.fillRect(0, 0, 16, 256);
+  const t = new THREE.CanvasTexture(c); t.mapping = THREE.EquirectangularReflectionMapping;
+  const pm = new THREE.PMREMGenerator(renderer); var SKY_ENV = pm.fromEquirectangular(t).texture; SKY_ENV.keep = true; pm.dispose(); t.dispose(); }
 const sun = new THREE.DirectionalLight(0xffffff, 0.9);
 const fill = new THREE.DirectionalLight(0xdfe8ff, 0.25); fill.position.set(-120, 80, -140); scene.add(fill);
 sun.position.set(140, 260, 90); sun.castShadow = true; sun.shadow.mapSize.set(2048,2048); sun.shadow.bias = -0.0004;
@@ -269,7 +276,7 @@ const M = {
   board: std({color:0x10233f, roughness:.4, emissive:0x163a6e, emissiveIntensity:.8}),
   site: std({color:0xc0392b, roughness:.6}), handle: std({color:0xffffff, roughness:.5, emissive:0x5a1a14}),
   white: std({color:0xffffff, roughness:.4}),
-  window: std({color:0x1d262c, roughness:.25, metalness:.3}), trim: std({color:0xd9d2c2, roughness:.85}),
+  window: std({color:0x34465a, roughness:.08, metalness:.75, envMapIntensity:1.2}), frame: std({color:0x2f3438, roughness:.5, metalness:.5}), trim: std({color:0xd9d2c2, roughness:.85}),
   canvas: new THREE.MeshStandardMaterial({color:0x2e5fa8, roughness:.8}),
   rope: new THREE.MeshStandardMaterial({color:0xf2f2f2, roughness:.5}),
   dark: new THREE.MeshStandardMaterial({color:0x1d2124, roughness:.6}),
@@ -279,6 +286,7 @@ const M = {
   road: std({color:0x3a3d40, roughness:.95}), pavement: std({color:0xbdbcb4, roughness:.95}), water: std({color:0x3f6f8c, roughness:.12, metalness:.15}),
   ballast: std({color:0x857d72, roughness:1}), slate: std({color:0x3c4248, roughness:.75}), outfield: std({color:0x23452c, roughness:.85}), track: std({color:0xb4513a, roughness:.9})
 };
+for (const k of ["window","glass","glassClad","roofGlass","steel","roofEdge","water","mast","bench","cable","column"]) M[k].envMap = SKY_ENV;
 for (const st in STYLES) M["clad_"+st] = std({color:STYLES[st].clad, roughness: [0x8b4636,0x9a4a3a,0x7d3b2c].includes(STYLES[st].clad) ? .95 : .6, metalness: st === "showpiece" ? .3 : .15});
 function setSeatColours(){
   M.seated.color.set(S.seat); M.seatBack.color.set(S.seat).multiplyScalar(0.8); M.rail.color.set(S.seat);

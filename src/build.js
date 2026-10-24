@@ -456,10 +456,11 @@ function signMaterial(text, colour){
   const t = new THREE.CanvasTexture(c); t.keep = true;
   const m = new THREE.MeshStandardMaterial({map:t, transparent:true, alphaTest:.25, roughness:.5, emissive:new THREE.Color(colour), emissiveMap:t, emissiveIntensity:0});
   m.keep = true; m.aspect = c.width/c.height;
+  m.edge = new THREE.MeshStandardMaterial({map:t, transparent:true, alphaTest:.25, roughness:.6, color:new THREE.Color(0.45, 0.45, 0.45)}); m.edge.keep = true; // the letters' thickness
   if (!document.fonts || document.fonts.check(font)) signTex[k] = m; // try again once the lettering font has loaded
   return m;
 }
-const ACCENTS = new Set(["trim", "band", "steel", "white", "lattice"]);
+const ACCENTS = new Set(["trim", "band", "lattice"]); // the club colour goes on dressings and stripes, never on glazing frames or steel
 function dressWall(buf, look, wallKey, a, b, ya, yb, n, opt){
   const len = Math.hypot(b[0]-a[0], b[1]-a[1]); if (len < 0.5) return;
   opt = opt || {}; const dens = opt.windows == null ? 1 : opt.windows, wsz = opt.winSize || 1, buf0 = buf;
@@ -483,7 +484,10 @@ function dressWall(buf, look, wallKey, a, b, ya, yb, n, opt){
   const cells = step => Math.max(1, Math.round(len/step));
   const windows = (key, step, storey, first, w, h, sill) => { if (dens <= 0) return; const nC = cells(step/dens); w *= wsz; h = Math.min(h*wsz, storey - 0.6);
     for (let c=0;c<nC;c++){ const fc = (c + .5)/nC, fw = w/2/len;
-      for (let y = first; y + h < Math.min(top(fc), lo + 2) - 1.2; y += storey){ panel(key, fc - fw, fc + fw, y, y + h, .06); if (sill) panel(sill, fc - fw*1.25, fc + fw*1.25, y - .22, y, .14); } } };
+      for (let y = first; y + h < Math.min(top(fc), lo + 2) - 1.2; y += storey){
+        const fr = .09/len; panel("frame", fc - fw - fr, fc + fw + fr, y - .09, y + h + .09, .04); panel(key, fc - fw, fc + fw, y, y + h, .07); // glass in a frame
+        if (w > 1.1) panel("frame", fc - .035/len, fc + .035/len, y, y + h, .09); // and a mullion down the middle of a wide one
+        if (sill) panel(sill, fc - fw*1.25, fc + fw*1.25, y - .22, y, .14); } } };
   if (look === "brick"){
     panel("trim", 0, 1, 0, 0.9, .1);
     windows("window", 4.5, 4.2, 4.4, 1.5, 2.3, "trim");
@@ -491,7 +495,7 @@ function dressWall(buf, look, wallKey, a, b, ya, yb, n, opt){
     ledge("trim", lo - 1.1, lo - .4, .45, true);
   } else if (look === "timber"){
     windows("window", 3, 3.6, 2.4, 1.2, 1.6, "white");
-    for (let c=0;c<=cells(1.6);c++) rib("white", c/cells(1.6), .12, .3, Math.max(.8, top(c/cells(1.6)) - .3), .06);
+    for (let c=0;c<=cells(1.6);c++) rib(wallKey, c/cells(1.6), .12, .3, Math.max(.8, top(c/cells(1.6)) - .3), .06); // cover battens
     ledge("roofGreen", lo - .9, lo - .2, .3, true);
   } else if (look === "deco"){
     const nC = cells(3.2);
@@ -501,11 +505,13 @@ function dressWall(buf, look, wallKey, a, b, ya, yb, n, opt){
   } else if (look === "concrete"){
     for (let y = 3; y + 3.2 < lo - .5; y += 5.2){ if (dens > 0) panel("window", 0, 1, y, y + 1.6*wsz, .05); ledge("concrete", y + 1.6, y + 3.1, .8); }
     ledge("concrete", lo - 1.2, lo - .2, .9, true);
-  } else if (look === "sheet"){
-    for (let y = 2.4; y < lo - .5; y += 2.4) panel("band", 0, 1, y, y + .07, .04);
-    for (let c=0;c<=cells(6);c++) rib("band", c/cells(6), .08, 0, Math.max(.5, top(c/cells(6))), .05);
-    if (lo > 6) ledge("lattice", lo - 3.4, lo - 2.2, .12, true);
-    panel("window", 0, 1, .3, Math.min(3, lo - 1), .06);
+  } else if (look === "sheet"){ // profiled metal panels between the stand's frame, a glazed ground floor and one bold club stripe
+    const base = Math.min(4.4, lo - 1.5);
+    if (base > 2.5){ panel("window", 0, 1, .3, base, .07); for (let c=0;c<=cells(1.8);c++) rib("frame", c/cells(1.8), .1, .3, base, .14); ledge("steel", base, base + .4, 1.4); }
+    const stripe = lo > 10;
+    for (let c=0;c<=cells(8);c++) rib(wallKey, c/cells(8), .4, Math.max(0, base) + .4, Math.max(base + .8, stripe ? lo - 3.6 : top(c/cells(8)) - .1), .22);
+    if (stripe) ledge("band", lo - 3.6, lo - 1.8, .3, true);
+    ledge("steel", lo - .45, lo - .05, .4, true);
   } else if (look === "fins"){
     panel("window", 0, 1, .3, Math.min(4.6, lo - 1), .05); panel("glass", 0, 1, .3, Math.min(4.6, lo - 1), .5);
     const nC = cells(2.4);
@@ -519,6 +525,7 @@ function dressWall(buf, look, wallKey, a, b, ya, yb, n, opt){
     for (let y = 3.6; y < lo - .5; y += 3.6) ledge("steel", y, y + .14, .4);
   } else if (look === "grid"){
     windows("window", 2.6, 3.3, 1.6, 1.3, 1.8, null);
+    for (let y = 3.75; y < lo - 1.5; y += 3.3) ledge(wallKey, y, y + .3, .25); // a floor edge between each storey
     ledge("trim", lo - .8, lo - .2, .3, true);
   }
   if (opt.concourse && lo > 6 && look !== "fins" && look !== "glass"){ // a glazed concourse along the ground floor, under a canopy
@@ -1195,13 +1202,16 @@ function build(){
         mat.emissiveIntensity = S.night ? .9 : .35; // a little light keeps it legible in shadow
         const vl = Math.hypot(v[si][0], v[si][1]) || 1, nOut = [v[si][0]/vl, v[si][1]/vl], tg = tangent(si);
         const top = onRoof ? R2.y(0) : roofOn && R2 ? R2.y(1) : x.top;
-        let h = Math.max(1.4, Math.min(5, top*0.11)); if (h*mat.aspect > lenTotal*0.85) h = lenTotal*0.85/mat.aspect;
+        // big raised letters, as clubs mount their names: about a sixth of the wall's height, never wider than most of the stand
+        let h = onRoof ? Math.max(1.4, Math.min(5, top*0.11)) : Math.max(2, Math.min(7, top*0.17)); if (h*mat.aspect > lenTotal*0.7) h = lenTotal*0.7/mat.aspect;
         const w = h*mat.aspect, mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
         if (onRoof){ const p = pt(si, R2.inner - .3), yc = R2.y(0) - .3 - h/2, hw = w/2 + 1.5, q = pt(si, R2.inner - .1);
           quad(buf("roofEdge"), [q[0]-tg[0]*hw, yc - h/2 - .4, q[1]-tg[1]*hw], [q[0]+tg[0]*hw, yc - h/2 - .4, q[1]+tg[1]*hw], [q[0]+tg[0]*hw, R2.y(0), q[1]+tg[1]*hw], [q[0]-tg[0]*hw, R2.y(0), q[1]-tg[1]*hw]);
           mesh.position.set(p[0], yc, p[1]); mesh.lookAt(p[0] - nOut[0], yc, p[1] - nOut[1]); }
-        else { const p = pt(si, (roofOn && R2 ? R2.outer : x.back) + (look === "fins" ? 1.6 : look === "glass" ? .6 : .3)), yc = top - h*.75;
-          mesh.position.set(p[0], yc, p[1]); mesh.lookAt(p[0] + nOut[0], yc, p[1] + nOut[1]); }
+        else { const p = pt(si, (roofOn && R2 ? R2.outer : x.back) + (look === "fins" ? 1.9 : look === "concrete" ? 1.3 : look === "glass" ? .9 : .7)), yc = look === "sheet" && top > 10 ? top - 4.1 - h*.55 : top - h*1.05; // under the club stripe on metal cladding
+          mesh.position.set(p[0], yc, p[1]); mesh.lookAt(p[0] + nOut[0], yc, p[1] + nOut[1]);
+          for (let l=1;l<=6;l++){ const e = new THREE.Mesh(mesh.geometry, mat.edge), d = l*0.06; // stacked behind the face, so the letters stand off the wall
+            e.position.set(p[0] - nOut[0]*d, yc, p[1] - nOut[1]*d); e.quaternion.copy(mesh.quaternion); e.userData.stadium = true; group.add(e); } }
         mesh.userData.stadium = true; group.add(mesh);
       }
     }
