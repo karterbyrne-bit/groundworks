@@ -283,7 +283,7 @@ function setTip(){
   tipEl.classList.toggle("msg", !!(tipOverride || picking || look));
 }
 function setLook(on){
-  look = on;
+  look = on; if (!on && crowdClear) clearCrowdNear(null);
   controls.enableZoom = !on; controls.enablePan = !on;
   controls.rotateSpeed = on ? -0.35 : 1;
   controls.maxPolarAngle = on ? Math.PI*0.8 : Math.PI*0.49;
@@ -437,16 +437,20 @@ renderer.domElement.addEventListener("pointerup", e => {
   if (picking){
     const hits = ray.intersectObjects(group.children.filter(m => m.userData.seat), false);
     if (!hits.length){ tipEl.innerHTML = "<b>That's not a seat.</b> Click on the coloured seating."; return; }
-    const h = hits[0].point, f = LAST.F.home || [0,0];
-    const p = new THREE.Vector3(h.x, h.y + 1.2, h.z);
-    const aim = new THREE.Vector3(f[0], focusY + 1, f[1]).sub(p).normalize().multiplyScalar(0.5);
-    picking = false; view.classList.remove("picking"); setLook(true); moveCam(p, p.clone().add(aim)); setTip();
+    const he = homeEndOf().at; seatView(hits[0].point, ["terrace","rail"].includes(hits[0].object.userData.kind) || (!!he && standAt(hits[0].point) === he));
     return;
   }
   if (look) return;
   const hits = ray.intersectObjects(group.children.filter(m => m.userData.stadium), false); if (!hits.length) return;
   const key = standAt(hits[0].point); if (key) selectTab(key, true);
 });
+/* The view from a spot in the stands, looking at the middle of the play. Fans stand on terraces and rail seats (and all
+   through the home end), so their eyes are higher; the fans right round them are cleared so the view isn't a wall of heads. */
+function seatView(h, standing, instant){
+  const f = LAST.F.home || [0,0], p = new THREE.Vector3(h.x, h.y + (standing ? 1.65 : 1.2), h.z);
+  const aim = new THREE.Vector3(f[0], focusY + 1, f[1]).sub(p).normalize().multiplyScalar(0.5);
+  picking = false; view.classList.remove("picking"); setLook(true); clearCrowdNear([h.x, h.y + 1, h.z]); moveCam(p, p.clone().add(aim), instant); setTip();
+}
 /* Which stand is under a point: the region whose seating slice lies nearest. */
 function standAt(p){
   const D = LAST; if (!D) return null;
@@ -616,7 +620,7 @@ function tierBlocks(arr, above, base, bySide, ends){
       ${bySide ? "" : `<div class="row"><label>Type</label><select data-p="${pre}type" aria-label="Seating type">${Object.entries(TYPES).map(([v,o]) => `<option value="${v}"${v===tr.type?" selected":""}>${o.label}</option>`).join("")}</select></div>`}
       ${bySide ? sideRowsBox(tr, pre) : pair(isT ? "Steps" : "Rows", pre + "rows", tr.rows, 1, 90, 1, "", `${depth.toFixed(1)} m deep`)}
       <div class="row"><label class="toggle"><input type="checkbox" data-p="${pre}auto"${tr.auto ? " checked" : ""}> Auto steepness</label><output id="o-rk-${k}"></output>
-        ${tr.auto ? "" : `<input type="range" data-p="${pre}rake" min="8" max="45" step="1" value="${tr.rake}" aria-label="Steepness in degrees">`}</div>
+        ${tr.auto ? "" : `<input type="range" data-p="${pre}rake" min="8" max="60" step="1" value="${tr.rake}" aria-label="Steepness in degrees">`}</div>
       ${stacked ? `${pair("Projects forward over the tier below", pre + "over", tr.over || 0, -15, 40, 0.5, "m", "Negative sets it back instead.")}
       ${pair("Height above the tier below", pre + "gap", tr.gap == null ? 3 : tr.gap, 1.5, 40, 0.5, "m")}
 ` : ""}
@@ -638,6 +642,7 @@ function roofBlock(cfg, bowl){
     ${check("Line up every roof in the ground at the same height", "roofAlign", !!S.roofAlign)}
     ${pair(rf.level !== false ? "Height above the tallest row" : "Height above the top row", "roof.lift", rf.lift, 1.5, 40, 0.5, "m")}
     ${rf.shape !== "gable" ? pair("Tilt up towards the play", "roof.tilt", rf.tilt, -15, 25, 1, "°") + pair("Curve", "roof.curve", Math.round((rf.curve||0)*100), 0, 100, 5, "%") : ""}
+    ${rf.shape !== "gable" ? pair("See-through strip at the front", "roof.edge", Math.round((rf.edge != null ? rf.edge : rf.mat === "metal" ? .2 : 0)*100), 0, 60, 5, "%", "Lets light reach the pitch, as most modern roofs do.") : ""}
     ${rf.shape === "closed" ? pair("Opening in the middle", "roof.opening", Math.round((rf.opening||0)*100), 0, 90, 5, "%") : ""}` : ""}
   </div></details>`;
 }
@@ -718,6 +723,14 @@ function renderEditor(){
       </div>
       <div class="row"><label for="sty">Architecture</label><select id="sty" data-act-change="style">${Object.entries(eras).map(([era, list]) => `<optgroup label="${era}">${list.map(([v,o]) => `<option value="${v}"${v===cfg.style?" selected":""}>${o.label}</option>`).join("")}</optgroup>`).join("")}</select></div>
       <p class="hint">${sty.note} Picking a style brings in its own tiers, overhangs, roof and façade; everything stays editable.</p>
+      <details class="sub" data-standlib data-more="lib"${openMore.has("lib") ? " open" : ""}><summary>Famous stands and my stands</summary><div class="inner">
+        <div class="row"><label for="standPre">Start this stand from</label><select id="standPre" aria-label="Start this stand from"><option value="">Pick a stand…</option>
+          <optgroup label="Famous kinds of stand">${Object.entries(STAND_PRESETS).map(([k, v]) => `<option value="p:${k}">${esc(v.label)}</option>`).join("")}</optgroup>
+          ${readStands().length ? `<optgroup label="My stands">${readStands().map((x, i) => `<option value="m:${i}">${esc(x.name)}</option>`).join("")}</optgroup>` : ""}</select></div>
+        <p class="hint">It keeps this stand's place, length and name, and brings in the tiers, roof and walls. Undo if you liked it better before.</p>
+        <div class="saverow"><input type="text" id="standName" maxlength="30" placeholder="Name this stand" aria-label="Name for this stand"><button class="btn small" data-act="saveStand">Save to my stands</button></div>
+        ${readStands().length ? `<ul class="savelist">${readStands().map((x, i) => `<li><span>${esc(x.name)}</span><button class="mini" data-act="delStand" data-i="${i}">Delete</button></li>`).join("")}</ul>` : ""}
+      </div></details>
       ${ring ? "" : `<div class="scales"><span>Quick size:</span>${Object.entries(SCALES).map(([k,v]) => `<button class="btn small" data-act="scale" data-scale="${k}">${v.label}</button>`).join("")}</div>`}
       ${(side && layoutOf() === "stands") || (above && SIDE_ENDS[tab]) ? `<details class="sub" open><summary>${above ? "Length" : "Position and length"}</summary><div class="inner">
         ${above ? "" : check("Same distance from the play as the other stands", "distSame", cfg.dist == null)}
@@ -735,7 +748,12 @@ function renderEditor(){
       <details class="sub"><summary>Facilities, access and fire risk</summary><div class="inner">
         ${pick("Facilities", "facilities", facilitiesOf(cfg), FACILITIES)}
         <p class="hint">Better facilities cost more to build but make for happier fans (see the Architect's notes under Results).</p>
-        ${accessOf().on ? pair("Wheelchair platforms in this stand", "accessCount", cfg.accessCount != null ? cfg.accessCount : accessOf().per, 0, 12, 1, "") : ""}
+        ${accessOf().on ? (() => { const SA = standAccessOf(cfg), own = cfg.access || {}, here = LAST ? LAST.parts.filter(p => p.key === tab).reduce((a, p) => a + (p.wheel || 0), 0) : 0;
+          return `<div class="row"><label>Wheelchair platforms</label><output>${here} spaces here</output></div>
+            ${pair(isBowl() ? "Platforms on each side" : "Platforms in this stand", "access.count", SA.per, 0, 16, 1, "")}
+            ${pick("Where", "access.at", own.at || "", Object.assign({"":"Same as the whole ground"}, ACCESS_AT))}
+            ${pick("Arranged", "access.arrange", own.arrange || "", Object.assign({"":"Same as the whole ground"}, ACCESS_ARRANGE))}
+            ${pair("Length of each", "access.length", SA.length, 4, 30, 1, "m", `${Math.floor(SA.length/1.6)} spaces each, with a companion seat beside every one.`)}`; })() : ""}
         ${pick("Fire risk", "fire", cfg.fire || "auto", FIRE_RISKS)}
         <p class="hint">Sets how quickly this stand has to clear in an emergency: ${S.limits.evacLow} minutes for low risk, ${S.limits.evacMedium} for medium, ${S.limits.evacHigh} for high. Worked out from its style, this one counts as <b>${fireRiskOf(cfg)}</b>.</p></div></details>
       ${ring ? "" : `<details class="sub" open><summary>Outside walls</summary><div class="inner">
@@ -786,7 +804,7 @@ function setPath(obj, path, val){
   const parts = path.split("."); if (parts[0] === "cc"){ obj = {tiers:S.cornerCustom}; parts.shift(); }
   let o = obj; for (let i=0;i<parts.length-1;i++) o = o[parts[i]] = o[parts[i]] || {};
   const last = parts[parts.length-1];
-  if (last === "curve" || last === "opening" || last === "entryAt") val = val/100;
+  if (last === "curve" || last === "opening" || last === "entryAt" || last === "edge") val = val/100;
   o[last] = val;
 }
 $("editor").addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.more){ if (d.open) openMore.add(d.dataset.more); else openMore.delete(d.dataset.more); } }, true);
@@ -823,6 +841,8 @@ $("editor").addEventListener("input", e => {
 });
 $("editor").addEventListener("change", e => {
   const el = e.target;
+  if (el.id === "standPre" && el.value){ const [kind, key] = el.value.split(":"), from = kind === "p" ? STAND_PRESETS[key] && STAND_PRESETS[key].cfg() : (readStands()[+key] || {}).cfg;
+    if (from){ applyStandCfg(clone(from)); flash(`<b>${esc(kind === "p" ? STAND_PRESETS[key].label : readStands()[+key].name)}.</b> ${kind === "p" ? esc(STAND_PRESETS[key].note) : ""}`, UNDO); } return; }
   if (el.dataset.wrap){ renderEditor(); return; } // runs and notes depend on how far it wraps
   if (el.dataset.corner){ const cc = S.corners[el.dataset.corner], f = el.dataset.cf; cc[f] = el.type === "checkbox" ? el.checked : el.value; renderEditor(); changed(); return; }
   if (el.dataset.actChange === "style"){ applyStyle(cfgForTab(), el.value, isHybrid() && tab === "B"); renderEditor(); changed(); return; }
@@ -873,6 +893,11 @@ $("editor").addEventListener("click", e => {
   if (act === "mirror"){ const m2 = clone(cfg); [m2.run0, m2.run1, m2.wrap0, m2.wrap1] = [cfg.run1, cfg.run0, cfg.wrap1, cfg.wrap0]; // the opposite stand runs the other way round
     S.stands[OPPOSITE[tab]] = m2; flash(`<b>Copied</b> to the ${SIDE_NAMES[OPPOSITE[tab]].toLowerCase()}.`, UNDO); }
   if (act === "seeOutside"){ goCam("exterior"); return; }
+  if (act === "saveStand"){ const nm = cleanName($("standName").value || "").trim() || "My stand " + (readStands().length + 1), list = readStands();
+    const keep = clone(cfg); for (const k of ["dist","run0","run1","wrap0","wrap1","name","share","removed","varyRows"]) delete keep[k];
+    list.unshift({name:nm, cfg:keep}); writeStands(list.slice(0, 40)); flash(`<b>Saved “${esc(nm)}”</b> to your stands. Pick it from <b>Start this stand from</b> on any stand, in any design.`); renderEditor(); return; }
+  if (act === "delStand"){ const list = readStands(), gone = list.splice(+b.dataset.i, 1)[0]; writeStands(list);
+    flash(`<b>Deleted “${esc(gone ? gone.name : "")}”.</b>`, {label:"Undo", run:() => { const l2 = readStands(); l2.splice(+b.dataset.i, 0, gone); writeStands(l2); renderEditor(); }}); renderEditor(); return; }
   if (act === "copy"){ clipboard = clone(cfg); say("<b>Copied.</b> Pick another stand and paste."); renderEditor(); return; }
   if (act === "paste" && clipboard){ const c2 = clone(clipboard); if (isHybrid() && tab === "B") c2.tiers = c2.tiers.slice(0,1); Object.assign(cfg, c2); }
   if (act === "reset"){ const fresh = mk(cfg.style); if (isHybrid()) fresh.tiers = tab === "B" ? fresh.tiers.slice(0,1) : fresh.tiers.slice(1); Object.assign(cfg, fresh); }
@@ -941,7 +966,7 @@ function syncSizes(){
   so("gangWidth", g.gangWidth.toFixed(2) + " m" + (g.gangWidth < L.minGang - 1e-9 ? " · breaks rule" : ""), g.gangWidth < L.minGang - 1e-9);
   so("exitEvery", g.exitEvery + " m");
   { const AC = accessOf(), VH = vehicleOf(), opts = tdSides(), need = LAST ? wheelchairNeed(LAST.total) : 0, have = LAST ? LAST.wheelchair || 0 : 0;
-    $("acOn").checked = AC.on; $("acRows").hidden = !AC.on; $("acAt").value = AC.at;
+    $("acOn").checked = AC.on; $("acRows").hidden = !AC.on; $("acAt").value = AC.at; $("acArrange").value = AC.arrange || "spread";
     $("acPer").value = AC.per; $("o-acPer").textContent = AC.per; $("acLength").value = AC.length; $("o-acLength").textContent = `${AC.length} m (${Math.floor(AC.length/1.6)} spaces)`;
     $("acSum").innerHTML = `<b>${have} wheelchair spaces</b>. Guidance asks for about ${need} at a ground this size.`; $("acSum").classList.toggle("over", have < need);
     $("vhOn").checked = VH.on; $("vhRows").hidden = !VH.on;
@@ -1131,6 +1156,7 @@ $("screens").addEventListener("change", e => { const el = e.target; if (!el.data
 for (const id of ["crowd","night","seeThrough","players"]) $(id).addEventListener("change", e => { S[id] = e.target.checked; changed(); });
 $("scenery").addEventListener("change", e => { S.scenery = e.target.checked ? "real" : "model"; changed(); });
 bindRange("crowdFill", v => S.crowdFill = v/100);
+for (const [id, k] of [["bdEnd","end"],["bdSide","side"],["bdHeight","height"]]) bindRange(id, v => { S.boardSet = Object.assign(boardSetOf(), {[k]: v}); });
 $("fieldShape").innerHTML = Object.entries(FIELD_SHAPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
 $("fieldShape").addEventListener("change", e => { S.fieldShape = Object.assign(fieldShapeOf(), {shape:e.target.value}); changed(true); });
 bindRange("fieldMargin", v => { S.fieldShape = Object.assign(fieldShapeOf(), {margin:v}); }, true);
@@ -1153,8 +1179,10 @@ $("acAt").innerHTML = Object.entries(ACCESS_AT).map(([k, v]) => `<option value="
 const acSet = (k, v) => { S.access = Object.assign(accessOf(), {[k]: v}); }, vhSet = (k, v) => { S.vehicle = Object.assign(vehicleOf(), {[k]: v}); };
 $("acOn").addEventListener("change", e => { acSet("on", e.target.checked);
   if (e.target.checked){ const is = dryIssues().find(i => i.key === "access:spaces"); if (is && is.fix) is.fix.run(); } // start with enough to meet the guidance
-  changed(); });
+  renderEditor(); changed(); }); // each stand's own platform settings appear or go
 $("acAt").addEventListener("change", e => { acSet("at", e.target.value); changed(); });
+$("acArrange").innerHTML = Object.entries(ACCESS_ARRANGE).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+$("acArrange").addEventListener("change", e => { acSet("arrange", e.target.value); changed(); });
 bindRange("acPer", v => acSet("per", v)); bindRange("acLength", v => acSet("length", v));
 $("vhOn").addEventListener("change", e => { vhSet("on", e.target.checked); changed(); });
 $("vhAt").addEventListener("change", e => { vhSet("at", e.target.value); changed(); });
@@ -1178,6 +1206,9 @@ $("awayCount").addEventListener("input", e => { if (e.target.value === "" || isN
 $("awayColour").addEventListener("input", e => { awaySet("colour", e.target.value); changed(false, true); });
 bindRange("awayGap", v => awaySet("gap", v));
 $("homeAt").addEventListener("change", e => { S.homeEnd = Object.assign(homeEndOf(), {at:e.target.value}); changed(); });
+const heSet = (k, v) => { S.homeEnd = Object.assign(homeEndOf(), {[k]: v}); };
+for (const [id, k] of [["homeFlags","flags"],["homeBanners","banners"],["homeTifo","tifo"]]) $(id).addEventListener("change", e => { heSet(k, e.target.checked); changed(); });
+$("homeTexts").addEventListener("input", e => { heSet("texts", e.target.value.replace(/[<>"'`\\]/g, "").toUpperCase().slice(0, 120)); changed(false, true); });
 $("homeName").addEventListener("input", e => { S.homeEnd = Object.assign(homeEndOf(), {name:cleanName(e.target.value).toUpperCase()}); changed(false, true); });
 $("stewards").addEventListener("change", e => { S.stewards = e.target.checked; changed(); });
 $("waveBtn").addEventListener("click", () => {
@@ -1216,6 +1247,19 @@ document.querySelectorAll("#presets button").forEach(b => b.addEventListener("cl
 }));
 
 /* ================= saved designs ================= */
+/* My stands: single stands saved to reuse in any design, kept in this browser like saved designs. */
+const STANDS_KEY = "groundworks-stands";
+function readStands(){ try { const l = JSON.parse(localStorage.getItem(STANDS_KEY)); return Array.isArray(l) ? l.filter(x => x && x.cfg && Array.isArray(x.cfg.tiers)) : []; } catch(e) { return []; } }
+function writeStands(list){ try { localStorage.setItem(STANDS_KEY, JSON.stringify(list)); } catch(e) { flash("<b>Couldn't save:</b> this browser isn't allowing storage here."); } }
+/* Bring a stand's tiers, roof and walls onto the stand being edited, keeping its place, length and name. */
+function applyStandCfg(from){
+  const cfg = cfgForTab(), keep = {}; for (const k of ["dist","run0","run1","wrap0","wrap1","name","share","removed","varyRows"]) if (cfg[k] !== undefined) keep[k] = cfg[k];
+  for (const k of Object.keys(cfg)) delete cfg[k]; Object.assign(cfg, from, keep);
+  if (isHybrid() && tab === "B") cfg.tiers = cfg.tiers.slice(0, 1);
+  if ((isBowl() || (isHybrid() && tab === "B")) && cfg.roof && cfg.roof.shape === "gable") cfg.roof.shape = "slope";
+  if (S.bowl.varyRows && cfg === S.bowl) for (const tr of cfg.tiers) if (!tr.sideRows){ tr.sideRows = {N:tr.rows, S:tr.rows, E:tr.rows, W:tr.rows}; tr.sideType = {N:tr.type, S:tr.type, E:tr.type, W:tr.type}; }
+  renderEditor(); changed(true);
+}
 function readSaves(){ try { return JSON.parse(localStorage.getItem(SAVES_KEY)) || []; } catch(e) { return []; } }
 function writeSaves(list){ try { localStorage.setItem(SAVES_KEY, JSON.stringify(list)); } catch(e) { flash("<b>Couldn't save:</b> this browser isn't allowing storage here."); } }
 function renderSaves(){
@@ -1395,6 +1439,11 @@ function syncUI(){
   if (siteDrawn !== JSON.stringify(S.site || [])) renderSite();
   syncConvert();
   $("boards").checked = !!S.boards;
+  { const BS = boardSetOf(), D = LAST, FP = D ? pitchOf(D.F) : null; $("boardRows").hidden = !S.boards;
+    $("bdEnd").value = BS.end; $("bdSide").value = BS.side; $("bdHeight").value = BS.height;
+    $("o-bdEnd").textContent = BS.end + " m"; $("o-bdSide").textContent = BS.side + " m"; $("o-bdHeight").textContent = BS.height.toFixed(1) + " m";
+    const roomX = D ? D.set + (D.F.W - FP.W)/2 - 1 : 99, roomZ = D ? D.set + (D.F.H - FP.H)/2 - 1 : 99, tight = BS.end > roomX + .01 || BS.side > roomZ + .01;
+    $("bdNote").hidden = !tight; $("bdNote").textContent = tight ? `The stands are close, so the boards stop a metre short of them (${Math.max(0, Math.min(BS.end, roomX)).toFixed(1)} m behind the goals, ${Math.max(0, Math.min(BS.side, roomZ)).toFixed(1)} m from the touchlines).` : ""; }
   const AR = Object.assign({skin:"none", skinShape:"round"}, S.arch || {});
   $("skin").value = AR.skin; document.querySelector(`input[name=skinShape][value=${AR.skinShape}]`).checked = true; $("skinShapeRow").hidden = AR.skin === "none";
   for (const k of ["arch","ramps","towers","plaza"]) $("a-"+k).checked = !!AR[k];
@@ -1427,7 +1476,9 @@ function syncUI(){
     $("awayNote").textContent = AL && AW.on ? `${fmt(AL.seats)} seats given to away fans${AL.gap ? `, ${fmt(AL.gap)} left empty to keep the fans apart` : ""}.` : "";
     if (document.activeElement !== $("awayColour")) $("awayColour").value = AW.colour;
     $("homeAt").innerHTML = `<option value="">None</option>` + opts.map(([k, n]) => `<option value="${k}"${k === HEs.at ? " selected" : ""}>${esc(n)}</option>`).join("");
-    $("homeNameRow").hidden = !HEs.at; if (document.activeElement !== $("homeName")) $("homeName").value = HEs.name || "";
+    $("homeRows").hidden = !HEs.at; if (document.activeElement !== $("homeName")) $("homeName").value = HEs.name || "";
+    $("homeFlags").checked = HEs.flags !== false; $("homeBanners").checked = HEs.banners !== false; $("homeTifo").checked = !!HEs.tifo;
+    $("homeTextsRow").hidden = $("homeTexts").hidden = HEs.banners === false; if (document.activeElement !== $("homeTexts")) $("homeTexts").value = HEs.texts || "";
     $("stewards").checked = S.stewards !== false; }
   $("seeBtn").setAttribute("aria-pressed", String(!!S.seeThrough)); $("nightBtn").setAttribute("aria-pressed", String(!!S.night));
   { const T = S.seatText || {}, opts = seatTextStands();
@@ -1481,4 +1532,4 @@ requestAnimationFrame(() => requestAnimationFrame(async () => {
 }));
 window.addEventListener("hashchange", openFromLink);
 /* read-only hook for automated checks */
-window.__gw = {state:() => JSON.parse(JSON.stringify(S)), last:() => LAST, busy:() => pending, boards:() => { let n = 0; group.traverse(o => { if (o.userData.ads) n++; }); return n > 0; }, crowd:() => { if (!CROWD) return null; const a = CROWD.bodies.instanceMatrix.array; let up = 0; for (let i=0;i<CROWD.n;i++) if (a[i*16+13] > CROWD.base[0][i*16+13] + 0.05) up++; return {n:CROWD.n, standing:up}; }, memory:() => Object.assign({materials:Object.keys(M).length, programs:renderer.info.programs.length}, renderer.info.memory), regions:() => LAST_REGIONS, look:(p, t, stand) => { anim = null; if (stand){ picking = false; setLook(true); } moveCam(new THREE.Vector3(...p), new THREE.Vector3(...t), true); invalidate(); }};
+window.__gw = {state:() => JSON.parse(JSON.stringify(S)), last:() => LAST, seat:(x, y, z, standing) => seatView({x, y, z}, standing, true), busy:() => pending, boards:() => { let n = 0; group.traverse(o => { if (o.userData.ads) n++; }); return n > 0; }, crowd:() => { if (!CROWD) return null; const a = CROWD.bodies.instanceMatrix.array; let up = 0; for (let i=0;i<CROWD.n;i++) if (a[i*16+13] > CROWD.base[0][i*16+13] + 0.05) up++; return {n:CROWD.n, standing:up}; }, memory:() => Object.assign({materials:Object.keys(M).length, programs:renderer.info.programs.length}, renderer.info.memory), regions:() => LAST_REGIONS, look:(p, t, stand) => { anim = null; if (stand){ picking = false; setLook(true); } moveCam(new THREE.Vector3(...p), new THREE.Vector3(...t), true); invalidate(); }};

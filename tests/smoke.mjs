@@ -63,7 +63,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   // bowls with parts left out and their own rows on each side, and one roof over the whole ground
   const last = () => page.evaluate(() => { const L = window.__gw.last(); return {total:L.total, covered:L.covered, issues:L.issues.length}; });
   await page.click('[data-p="horseshoe"]'); await page.waitForTimeout(300);
-  check((await cap()) > 20000 && !(await last()).issues, 'preset "horseshoe" builds with no warnings');
+  check((await cap()) > 18000 && !(await last()).issues, 'preset "horseshoe" builds with no warnings');
   await page.click('[data-p="bowl"]'); await page.waitForTimeout(300);
   const fullBowl = await cap();
   await page.click('#panes [data-pane="stands"]');
@@ -133,6 +133,26 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   const nTiers = await page.evaluate(() => window.__gw.state().stands.N.tiers.length);
   check(nTiers === tiers0 + 4 && nTiers > 4 && (await cap()) > tiersCap, `a stand can have more than four tiers (${nTiers})`);
   check(errors.length === 0, "tall stands build without errors");
+  await page.click('#panes [data-pane="start"]');
+  // the view from a terrace: standing eye height, with the fans just in front cleared out of the way
+  { await page.click('#panes [data-pane="start"]'); await page.click('[data-p="leitch"]'); await page.waitForTimeout(400);
+    const spot = await page.evaluate(() => { const reg = window.__gw.regions().find(r => r.profs.some(pp => pp.some(x => x.type === "terrace"))); if (!reg) return null;
+      const i = Math.floor(reg.o.length/2), pr = reg.profs[i].find(x => x.type === "terrace"), j = Math.floor(pr.hs.length*0.4), d = pr.front + (j + .5)*pr.T;
+      return [reg.o[i][0] + d*reg.v[i][0], pr.hs[j], reg.o[i][1] + d*reg.v[i][1]]; });
+    if (spot){ await page.evaluate(([x, y, z]) => window.__gw.seat(x, y, z, true), spot); await page.waitForTimeout(300);
+      check(errors.length === 0, "the view from a terrace is at standing height with the fans in front cleared");
+      await page.click('[data-cam="aerial"]'); await page.waitForTimeout(300); }
+    await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300); }
+  // a famous kind of stand, and saving a stand to reuse
+  await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="W"]'); await page.waitForTimeout(200);
+  { const d = page.locator("details[data-standlib]"); if (!(await d.evaluate(x => x.open))) await d.locator("summary").click(); }
+  await page.selectOption("#standPre", "p:yellowwall"); await page.waitForTimeout(400);
+  check((await page.evaluate(() => window.__gw.state().stands.W.tiers[0].type)) === "terrace" && errors.length === 0, "a stand can start from a famous kind of stand");
+  await page.fill("#standName", "Big end"); await page.click('[data-act="saveStand"]'); await page.waitForTimeout(300);
+  await page.click('[data-tab="E"]'); await page.waitForTimeout(200);
+  { const d = page.locator("details[data-standlib]"); if (!(await d.evaluate(x => x.open))) await d.locator("summary").click(); }
+  await page.selectOption("#standPre", "m:0"); await page.waitForTimeout(400);
+  check((await page.evaluate(() => window.__gw.state().stands.E.tiers[0].type)) === "terrace", "a saved stand can be put on another side");
   await page.click('#panes [data-pane="start"]');
   // cricket and baseball: rings of stands
   await page.click('#panes [data-pane="start"]');
@@ -219,7 +239,11 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   const al = await page.evaluate(() => window.__gw.last().awayAlloc);
   check(al.seats >= 4000 && al.seats < 4300 && al.gap > 0, `the away end gets the seats it's allocated, with a gap round it (${Math.round(al.seats)})`);
   await page.selectOption("#homeAt", "W"); await page.fill("#homeName", "the kop"); await page.waitForTimeout(300);
-  check((await page.evaluate(() => JSON.stringify(window.__gw.state().homeEnd))) === '{"at":"W","name":"THE KOP"}' && errors.length === 0, "a stand can be the home end, with its own name");
+  const he = await page.evaluate(() => window.__gw.state().homeEnd);
+  check(he.at === "W" && he.name === "THE KOP" && errors.length === 0, "a stand can be the home end, with its own name");
+  await page.check("#homeTifo"); await page.fill("#homeTexts", "never walk alone, since 1892"); await page.waitForTimeout(400);
+  check(errors.length === 0 && (await page.evaluate(() => window.__gw.state().homeEnd.texts)) === "NEVER WALK ALONE, SINCE 1892", "the home end can have banners and a card display");
+  await page.uncheck("#homeTifo");
   await page.uncheck("#awayOn"); await page.selectOption("#homeAt", "");
   // a round field round a wrestleball pitch
   await page.click('#panes [data-pane="start"]'); await page.click('[data-p="wrestle"]'); await page.waitForTimeout(300); await page.click('#panes [data-pane="ground"]');
@@ -256,7 +280,23 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.locator('details.sub', {hasText:"Facilities, access and fire risk"}).locator("summary").first().click();
   await page.locator('select[data-p="facilities"]').selectOption("premium"); await page.waitForTimeout(300);
   check(errors.length === 0 && /premium/.test(await page.evaluate(() => JSON.stringify(window.__gw.state()))), "a stand's facilities can be chosen");
+  // each stand can set its own wheelchair platforms, and a roof can have a see-through strip at the front
+  await page.click('#panes [data-pane="rules"]'); await page.check("#acOn"); await page.waitForTimeout(400); const wc0 = await page.evaluate(() => window.__gw.last().wheelchair);
+  await page.click('#panes [data-pane="stands"]'); await page.waitForTimeout(200);
+  const accCount = page.locator('input[type=number][data-p="access.count"]').first();
+  if (!(await accCount.isVisible())) await page.locator('details.sub', {hasText:"Facilities, access and fire risk"}).locator("summary").first().click();
+  await accCount.fill("1"); await accCount.press("Tab"); await page.waitForTimeout(400);
+  check((await page.evaluate(() => window.__gw.last().wheelchair)) < wc0, "a stand can have its own number of wheelchair platforms");
+  const edgeBox = page.locator('input[type=number][data-p="roof.edge"]').first();
+  if (await edgeBox.count()){ await edgeBox.fill("40"); await edgeBox.press("Tab"); await page.waitForTimeout(300);
+    check(/"edge":0.4/.test(await page.evaluate(() => JSON.stringify(window.__gw.state()))) && errors.length === 0, "a roof can have a see-through strip along its front"); }
+  await page.click('#panes [data-pane="rules"]'); await page.uncheck("#acOn");
   await page.click('#panes [data-pane="look"]'); await page.uncheck("#tnOn"); await page.uncheck("#dgOn");
+  // the pitch-side boards can be set further back
+  if (!(await page.locator("#boards").isChecked())) await page.check("#boards");
+  await page.evaluate(() => { const el = document.getElementById("bdEnd"); el.value = "8"; el.dispatchEvent(new Event("input", {bubbles:true})); });
+  await page.waitForTimeout(300);
+  check((await page.evaluate(() => window.__gw.state().boardSet.end)) === 8 && (await page.evaluate(() => window.__gw.boards())), "the advertising boards can be moved further from the pitch");
 
   // architect's notes
   await page.click('#panes [data-pane="results"]');

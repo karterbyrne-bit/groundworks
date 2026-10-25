@@ -219,6 +219,24 @@ const BASE = {
 };
 const Pz = o => Object.assign(clone(BASE), o);
 const fac = (cfg, f) => Object.assign(cfg, {facade:Object.assign({}, cfg.facade, f)}); // a stand with its own walls
+/* Famous kinds of stand to start one stand from, "in the style of" the real thing: each sets the tiers, roof and walls,
+   and leaves the stand where it is. */
+const STAND_PRESETS = {
+  yellowwall:{label:"Giant standing terrace (Yellow Wall style)", note:"One vast, steep bank of terracing under a roof, like Dortmund's Südtribüne. Steeper than UK rules allow for terraces: German grounds go to about 37°.",
+    cfg:() => fac(mk("terrace", [t("terrace", 80, 37, false, {entry:"middle", entryEvery:8, entryAt:.45})], {shape:"slope", mat:"metal", reach:3, lift:4, tilt:6, support:"none"}), {look:"sheet", accent:"#f5c400", concourse:true})},
+  kop:{label:"Big single-tier home end (the Kop style)", note:"One deep, steep seated tier behind the goal, under a single roof, like Anfield's Kop or Tottenham's South Stand.",
+    cfg:() => fac(mk("modern", [t("seated", 46, 22, true, {entry:"middle", entryEvery:9, entryAt:.5})], {shape:"slope", mat:"metal", reach:2, lift:4, tilt:4, support:"none"}), {look:"brick", gates:true, concourse:true})},
+  leitch:{label:"Leitch main stand (Ibrox style)", note:"Archibald Leitch's grand main stand: a red-brick front with towers and gates, the criss-cross balcony on the upper deck and a pitched roof with a gable.",
+    cfg:() => fac(mk("historic", [t("seated", 18, 16), t("seated", 12, 22, true, {over:0, gap:3.6, pillars:true})], {shape:"gable", mat:"metal", lift:2.5, reach:0, support:"columns"}), {look:"brick", colour:"#8b3a2e", accent:"#e8dcc4", gates:true, towers:true, windows:1.25})},
+  supertier:{label:"Three-tier super stand (Old Trafford North style)", note:"A huge three-tier cantilever with a ring of executive boxes between the lower and middle tiers, and no pillars in the way.",
+    cfg:() => fac(mk("modern", [t("seated", 30, 20), t("exec", 3, 22, true, {over:0, gap:3.6}), t("seated", 22, 28, true, {over:-3, gap:3.6}), t("seated", 16, 32, true, {over:-5, gap:3.6})], {shape:"slope", mat:"metal", reach:4, lift:5, tilt:6, support:"none", edge:.25}), {look:"fins", concourse:true})},
+  bombonera:{label:"Sheer stand of boxes (Bombonera style)", note:"A thin, near-vertical wall of boxes stacked one above the other, like the flat side of Boca Juniors' La Bombonera. Its boxes look down more steeply than UK rules allow: that's what makes it famous.",
+    cfg:() => mk("compact", [t("seated", 10, 30), ...[0,1,2,3,4].map(() => t("exec", 2, 30, true, {over:1.6, gap:3.4}))], {shape:"none"})},
+  cottage:{label:"Edwardian single-decker (Craven Cottage style)", note:"A small, old-fashioned single-decker with a pitched roof on pillars and a red-brick front, like Fulham's Johnny Haynes Stand.",
+    cfg:() => fac(mk("edwardian", [t("seated", 18, 16)], {shape:"gable", mat:"metal", lift:3, reach:-1, support:"columns"}), {look:"brick", colour:"#9a4a3a", accent:"#e8dcc4", gates:true})},
+  pavilion:{label:"Victorian cricket pavilion (Lord's style)", note:"A grand pavilion with members' balconies under a pitched roof, in cream and green.",
+    cfg:() => fac(mk("pavilion", [t("bench", 8, 18), t("seated", 6, 22, true, {over:-1, gap:3.2, pillars:true}), t("seated", 4, 24, true, {over:-2, gap:3, pillars:true})], {shape:"gable", mat:"green", lift:2.5, reach:.5, support:"columns"}), {look:"timber", colour:"#ece6d6", accent:"#2f6b3d", gates:true, windows:1.5})}
+};
 const PRESETS = {
   /* Just the pitch: nothing built yet. */
   blank:Pz({sport:"football",layout:"stands",cornerShape:"curved",setback:6,

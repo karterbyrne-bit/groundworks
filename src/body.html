@@ -234,6 +234,7 @@
         <label class="toggle"><input type="checkbox" id="acOn"> Wheelchair spaces</label>
         <div id="acRows">
           <div class="row"><label for="acAt">Where</label><select id="acAt" aria-label="Where the wheelchair platforms go"></select></div>
+          <div class="row"><label for="acArrange">Arranged</label><select id="acArrange" aria-label="How the wheelchair platforms are arranged"></select></div>
           <div class="row"><label for="acPer">Platforms in each stand (each side of a bowl)</label><output id="o-acPer"></output><input type="range" id="acPer" min="1" max="12" step="1"></div>
           <div class="row"><label for="acLength">Length of each platform</label><output id="o-acLength"></output><input type="range" id="acLength" min="5" max="24" step="1"></div>
           <p class="hint" id="acSum"></p>
@@ -244,7 +245,7 @@
           <div class="row"><label for="vhPos">Along the stand</label><output id="o-vhPos"></output><input type="range" id="vhPos" min="-60" max="60" step="1"></div>
           <div class="row"><label for="vhWidth">Width</label><output id="o-vhWidth"></output><input type="range" id="vhWidth" min="3.5" max="8" step="0.5"></div>
         </div>
-        <p class="hint">Each wheelchair space comes with a companion seat beside it. The vehicle entrance is 4.5 m high, so an ambulance or fire engine can drive straight onto the pitch.</p>
+        <p class="hint">Each stand can have its own number, place and arrangement of platforms: pick the stand under Stands, then <b>Facilities, access and fire risk</b>. Each wheelchair space comes with a companion seat beside it. The vehicle entrance is 4.5 m high, so an ambulance or fire engine can drive straight onto the pitch.</p>
       </div>
     </details>
 
@@ -323,6 +324,12 @@
       <div class="row colour" id="spTitleRow"><label for="spTitleColour">Name colour</label><span class="num"><input type="color" id="spTitleColour" value="#ffffff" aria-label="Name colour"></span></div>
       <label class="toggle" id="spOnStandRow"><input type="checkbox" id="spOnStand"> Put the name along the main stand's roof</label>
       <label class="toggle"><input type="checkbox" id="boards"> Advertising boards round the pitch</label>
+      <div id="boardRows">
+        <div class="row"><label for="bdEnd">Behind the goals</label><output id="o-bdEnd"></output><input type="range" id="bdEnd" min="1" max="15" step="0.5"></div>
+        <div class="row"><label for="bdSide">Back from the touchlines</label><output id="o-bdSide"></output><input type="range" id="bdSide" min="1" max="15" step="0.5"></div>
+        <div class="row"><label for="bdHeight">Board height</label><output id="o-bdHeight"></output><input type="range" id="bdHeight" min="0.6" max="1.4" step="0.1"></div>
+        <p class="hint" id="bdNote" hidden></p>
+      </div>
       <div class="row"><label for="spNames">Sponsors, one per line</label></div>
       <textarea id="spNames" rows="5" aria-label="Sponsors, one per line" placeholder="Up to 8 sponsors"></textarea>
       <p class="hint">Their names go on the boards round the pitch and on any LED ribbons along the tier fronts (add one under Floodlights &amp; screens). Each sponsor gets a panel in its own colours. Naming rights: give the ground a sponsor's name and it goes up on the main stand.</p>
@@ -341,7 +348,14 @@
           <div class="row"><label for="awayGap">Empty seats between the fans</label><output id="o-awayGap"></output><input type="range" id="awayGap" min="0" max="20" step="1"></div>
         </div>
         <div class="row"><label for="homeAt">Home end</label><select id="homeAt" aria-label="Home end"></select></div>
-        <div class="row" id="homeNameRow"><label for="homeName">Its name</label><input type="text" id="homeName" maxlength="24" placeholder="e.g. THE KOP" aria-label="Home end name"></div>
+        <div id="homeRows">
+          <div class="row"><label for="homeName">Its name</label><input type="text" id="homeName" maxlength="24" placeholder="e.g. THE KOP" aria-label="Home end name"></div>
+          <label class="toggle"><input type="checkbox" id="homeFlags"> Flags waving (a few in the away end too)</label>
+          <label class="toggle"><input type="checkbox" id="homeBanners"> Banners over the front of every tier</label>
+          <div class="row" id="homeTextsRow"><label for="homeTexts">Banner words, separated by commas</label></div>
+          <input type="text" id="homeTexts" maxlength="120" placeholder="e.g. NEVER WALK ALONE, SINCE 1892" aria-label="Banner words" style="width:100%;box-sizing:border-box">
+          <label class="toggle"><input type="checkbox" id="homeTifo"> Card display: the home end holds up bands of colour</label>
+        </div>
         <label class="toggle"><input type="checkbox" id="stewards"> Stewards in hi-vis along the front</label>
         <button class="btn small" id="waveBtn">🙌 Start a Mexican wave</button>
       </div>
