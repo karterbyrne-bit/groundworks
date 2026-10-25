@@ -1,0 +1,82 @@
+{
+  "default": {
+    "capacity": 38935,
+    "issues": 0
+  },
+  "blank": {
+    "capacity": 0,
+    "issues": 0
+  },
+  "ot": {
+    "capacity": 38935,
+    "issues": 0
+  },
+  "monument": {
+    "capacity": 21720,
+    "issues": 1
+  },
+  "mixed": {
+    "capacity": 25215,
+    "issues": 4
+  },
+  "urban": {
+    "capacity": 10249,
+    "issues": 5
+  },
+  "dell": {
+    "capacity": 8710,
+    "issues": 1
+  },
+  "leitch": {
+    "capacity": 16763,
+    "issues": 7
+  },
+  "ibrox": {
+    "capacity": 26914,
+    "issues": 0
+  },
+  "bowl": {
+    "capacity": 38847,
+    "issues": 0
+  },
+  "horseshoe": {
+    "capacity": 19717,
+    "issues": 0
+  },
+  "ringroof": {
+    "capacity": 17044,
+    "issues": 0
+  },
+  "wall": {
+    "capacity": 24379,
+    "issues": 1
+  },
+  "bullring": {
+    "capacity": 10819,
+    "issues": 0
+  },
+  "wrestle": {
+    "capacity": 1017,
+    "issues": 0
+  },
+  "lords": {
+    "capacity": 17283,
+    "issues": 0
+  },
+  "classicpark": {
+    "capacity": 16395,
+    "issues": 0
+  },
+  "ballpark": {
+    "capacity": 22495,
+    "issues": 0
+  },
+  "oval": {
+    "capacity": 60764,
+    "issues": 0
+  },
+  "cartuja": {
+    "capacity": 57138,
+    "issues": 0
+  }
+}
