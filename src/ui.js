@@ -909,6 +909,7 @@ function syncSizes(){
   so("gangEnd", ge + " seats" + (ge > oe ? " · breaks rule" : ""), ge > oe); $("gangEnd").value = ge;
   so("gangWidth", g.gangWidth.toFixed(2) + " m" + (g.gangWidth < L.minGang - 1e-9 ? " · breaks rule" : ""), g.gangWidth < L.minGang - 1e-9);
   so("exitEvery", g.exitEvery + " m");
+  $("pitchGates").checked = g.pitchGates !== false; $("emergEvery").value = g.emergEvery || 0; $("o-emergEvery").textContent = g.emergEvery > 0 ? g.emergEvery + " m" : "none";
   so("exitWidth", g.exitWidth.toFixed(1) + " m");
   const gap = g.barrierEvery * S.types.terrace.row, gOver = gap > L.barrierGap + 1e-9;
   so("barrierEvery", `${g.barrierEvery} steps (${gap.toFixed(1)} m)` + (gOver ? " · breaks rule" : ""), gOver);
@@ -1091,6 +1092,23 @@ $("screens").addEventListener("change", e => { const el = e.target; if (!el.data
 for (const id of ["crowd","night","seeThrough","players"]) $(id).addEventListener("change", e => { S[id] = e.target.checked; changed(); });
 $("scenery").addEventListener("change", e => { S.scenery = e.target.checked ? "real" : "model"; changed(); });
 bindRange("crowdFill", v => S.crowdFill = v/100);
+/* Tunnel and dugouts: which stands they can go in, and their settings. */
+const tdSides = () => isRing() ? ringOf().stands.map((r, i) => ["R" + i, r.name || "Stand " + (i+1)]).filter((x, i) => ringOf().stands[i].tiers.length)
+  : SIDES.filter(k => isBowl() || isHybrid() || S.stands[k].tiers.length).map(k => [k, SIDE_NAMES[k].toLowerCase()]);
+const tnSet = (k, v) => { S.tunnel = Object.assign(tunnelOf(), {[k]: v}); }, dgSet = (k, v) => { S.dugouts = Object.assign(dugoutsOf(), {[k]: v}); };
+$("dgStyle").innerHTML = Object.entries(DUGOUT_STYLES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+$("tnOn").addEventListener("change", e => { tnSet("on", e.target.checked); changed(); });
+$("tnAt").addEventListener("change", e => { tnSet("at", e.target.value); changed(); });
+$("tnExtend").addEventListener("change", e => { tnSet("extend", e.target.checked); changed(); });
+$("tnColour").addEventListener("input", e => { tnSet("colour", e.target.value); changed(false, true); });
+bindRange("tnPos", v => tnSet("pos", v)); bindRange("tnWidth", v => tnSet("width", v));
+$("dgOn").addEventListener("change", e => { dgSet("on", e.target.checked); changed(); });
+$("dgStyle").addEventListener("change", e => { dgSet("style", e.target.value); changed(); });
+$("dgAt").addEventListener("change", e => { dgSet("at", e.target.value); changed(); });
+$("dgColour").addEventListener("input", e => { dgSet("colour", e.target.value); changed(false, true); });
+bindRange("dgLength", v => dgSet("length", v)); bindRange("dgGap", v => dgSet("gap", v));
+$("pitchGates").addEventListener("change", e => { S.design.pitchGates = e.target.checked; changed(); });
+bindRange("emergEvery", v => S.design.emergEvery = v);
 const clock = h => { const hh = Math.floor(h), mm = Math.round((h - hh)*60); return `${((hh + 11) % 12) + 1}:${String(mm).padStart(2, "0")} ${hh < 12 ? "am" : "pm"}`; };
 $("hour").addEventListener("input", e => { S.hour = +e.target.value; $("o-hour").textContent = clock(S.hour); applyMood(); invalidate(); save(true); });
 /* Names typed by people end up in the page and in share links, so anything that looks like markup is stripped. */
@@ -1328,6 +1346,16 @@ function syncUI(){
     $("spOnStand").checked = SP.onStand !== false; $("spTitleRow").hidden = $("spOnStandRow").hidden = !SP.title;
     $("stadiumTitle").textContent = SP.title || ""; $("stadiumTitle").hidden = !SP.title; }
   $("hour").value = S.hour == null ? 15 : S.hour; $("o-hour").textContent = clock(S.hour == null ? 15 : S.hour); $("hourRow").hidden = !!S.night;
+  { const TNs = tunnelOf(), DGs = dugoutsOf(), opts = tdSides(), sel = (id, val) => { $(id).innerHTML = opts.map(([k, n]) => `<option value="${k}"${k === val ? " selected" : ""}>${esc(n)}</option>`).join(""); };
+    $("tdBox").hidden = !hasDugouts();
+    $("tnOn").checked = TNs.on; $("tnRows").hidden = !TNs.on; sel("tnAt", TNs.at); $("tnExtend").checked = TNs.extend !== false;
+    $("tnPos").value = TNs.pos; $("o-tnPos").textContent = TNs.pos ? `${Math.abs(TNs.pos)} m ${TNs.pos < 0 ? "left" : "right"}` : "middle";
+    $("tnWidth").value = TNs.width; $("o-tnWidth").textContent = TNs.width + " m";
+    if (document.activeElement !== $("tnColour")) $("tnColour").value = TNs.colour || S.seat;
+    $("dgOn").checked = DGs.on; $("dgRows").hidden = !DGs.on; $("dgStyle").value = DGs.style; sel("dgAt", DGs.at);
+    $("dgLength").value = DGs.length; $("o-dgLength").textContent = DGs.length + " m";
+    $("dgGap").value = DGs.gap; $("o-dgGap").textContent = DGs.gap + " m";
+    if (document.activeElement !== $("dgColour")) $("dgColour").value = DGs.colour || "#1d2a3a"; }
   $("players").checked = !!S.players; $("playersRow").hidden = !["football","rugby"].includes(S.sport);
   $("scenery").checked = S.scenery !== "model"; $("crowd").checked = S.crowd !== false; $("night").checked = !!S.night; $("seeThrough").checked = !!S.seeThrough;
   { const AW = awayOf(), fillPct = Math.round(100*(S.crowdFill == null ? 0.93 : S.crowdFill));

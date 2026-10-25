@@ -211,6 +211,18 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   if (await page.locator("#players").isVisible()){ await page.check("#players"); await page.waitForTimeout(300); check(errors.length === 0 && (await page.evaluate(() => window.__gw.state().players)), "players can line up for kick-off"); await page.uncheck("#players"); }
   await page.evaluate(() => { const el = document.getElementById("hour"); el.value = "19.5"; el.dispatchEvent(new Event("input", {bubbles:true})); });
   check((await page.evaluate(() => window.__gw.state().hour)) === 19.5 && /7:30 pm/.test(await page.locator("#o-hour").textContent()), "the time of day can be set");
+  // players' tunnel, dugouts in each style, and emergency exits
+  await page.click('#panes [data-pane="start"]'); await page.click('[data-p="bowl"]'); await page.waitForTimeout(300); await page.click('#panes [data-pane="look"]');
+  const noTunnel = await cap(); await page.check("#tnOn"); await page.waitForTimeout(300);
+  check((await cap()) < noTunnel && errors.length === 0, "a players' tunnel takes out the front rows where it comes through");
+  await page.check("#dgOn"); await page.waitForTimeout(300);
+  for (const style of ["sunk", "seats", "bubble"]){ await page.selectOption("#dgStyle", style); await page.waitForTimeout(300); }
+  check(errors.length === 0 && (await page.evaluate(() => window.__gw.state().dugouts.style)) === "bubble", "dugouts can be perspex, sunk into the stand or padded seats");
+  await page.click('#panes [data-pane="rules"]'); const em0 = await page.evaluate(() => window.__gw.last().slowestEm);
+  await page.evaluate(() => { const el = document.getElementById("emergEvery"); el.value = "20"; el.dispatchEvent(new Event("input", {bubbles:true})); }); await page.waitForTimeout(300);
+  check((await page.evaluate(() => window.__gw.last().slowestEm)) < em0, "emergency exits at the back of the tiers speed up an evacuation");
+  await page.click('#panes [data-pane="look"]'); await page.uncheck("#tnOn"); await page.uncheck("#dgOn");
+
   // architect's notes
   await page.click('#panes [data-pane="results"]');
   check(/Architect's notes/.test(await page.locator("#architect").textContent()) && await page.locator("#architect .score").count() === 5, "the architect's notes score the design");

@@ -217,6 +217,8 @@
         <div class="row"><label for="gangWidth">Gangway width</label><output id="o-gangWidth"></output><input type="range" id="gangWidth" min="0.6" max="1.8" step="0.05"></div>
         <div class="row"><label for="exitEvery">An exit every</label><output id="o-exitEvery"></output><input type="range" id="exitEvery" min="8" max="60" step="1"></div>
         <div class="row"><label for="exitWidth">Exit width</label><output id="o-exitWidth"></output><input type="range" id="exitWidth" min="1" max="5" step="0.1"></div>
+        <label class="toggle"><input type="checkbox" id="pitchGates"> Emergency gates in the pitch-side wall</label>
+        <div class="row"><label for="emergEvery">Emergency exits at the back of each tier, one every</label><output id="o-emergEvery"></output><input type="range" id="emergEvery" min="0" max="60" step="2"></div>
         <div class="row"><label for="barrierEvery">Crush barrier every</label><output id="o-barrierEvery"></output><input type="range" id="barrierEvery" min="2" max="16" step="1"></div>
       </div>
     </details>
@@ -267,6 +269,27 @@
       <div id="screens" class="screens"></div>
       <button class="btn small" id="addScreen">Add a screen</button>
       <p class="hint">Put screens on any stand or corner: tucked between the back row and the roof (great on tall, short ends), hung from the roof edge, on top, on legs behind, or as LED ribbons along the tier fronts.</p>
+    </section>
+
+    <section class="group" data-pane="look" id="tdBox">
+      <h2>Tunnel and dugouts</h2>
+      <label class="toggle"><input type="checkbox" id="tnOn"> Players' tunnel</label>
+      <div id="tnRows">
+        <div class="row"><label for="tnAt">Comes out of the</label><select id="tnAt" aria-label="Stand the tunnel comes out of"></select></div>
+        <div class="row"><label for="tnPos">Along the stand</label><output id="o-tnPos"></output><input type="range" id="tnPos" min="-40" max="40" step="1"></div>
+        <div class="row"><label for="tnWidth">Width</label><output id="o-tnWidth"></output><input type="range" id="tnWidth" min="3" max="8" step="0.5"></div>
+        <label class="toggle"><input type="checkbox" id="tnExtend"> Extending tunnel out onto the pitch</label>
+        <div class="row colour"><label for="tnColour">Tunnel colour</label><span class="num"><input type="color" id="tnColour" aria-label="Tunnel colour"></span></div>
+      </div>
+      <label class="toggle"><input type="checkbox" id="dgOn"> Dugouts</label>
+      <div id="dgRows">
+        <div class="row"><label for="dgStyle">Style</label><select id="dgStyle" aria-label="Dugout style"></select></div>
+        <div class="row"><label for="dgAt">In front of the</label><select id="dgAt" aria-label="Stand the dugouts are in front of"></select></div>
+        <div class="row"><label for="dgLength">Length of each</label><output id="o-dgLength"></output><input type="range" id="dgLength" min="4" max="24" step="1"></div>
+        <div class="row"><label for="dgGap">Distance from halfway</label><output id="o-dgGap"></output><input type="range" id="dgGap" min="1" max="30" step="0.5"></div>
+        <div class="row colour"><label for="dgColour">Seat colour</label><span class="num"><input type="color" id="dgColour" aria-label="Dugout seat colour"></span></div>
+      </div>
+      <p class="hint">The tunnel and dugouts sunk into a stand take the front rows out there, so the capacity drops a little. Perspex dugouts need about 4 m between the touchline and the stand.</p>
     </section>
 
     <section class="group" data-pane="look">
