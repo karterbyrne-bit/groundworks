@@ -638,6 +638,7 @@ function roofBlock(cfg, bowl){
     ${check("Line up every roof in the ground at the same height", "roofAlign", !!S.roofAlign)}
     ${pair(rf.level !== false ? "Height above the tallest row" : "Height above the top row", "roof.lift", rf.lift, 1.5, 40, 0.5, "m")}
     ${rf.shape !== "gable" ? pair("Tilt up towards the play", "roof.tilt", rf.tilt, -15, 25, 1, "°") + pair("Curve", "roof.curve", Math.round((rf.curve||0)*100), 0, 100, 5, "%") : ""}
+    ${rf.shape !== "gable" ? pair("See-through strip at the front", "roof.edge", Math.round((rf.edge != null ? rf.edge : rf.mat === "metal" ? .2 : 0)*100), 0, 60, 5, "%", "Lets light reach the pitch, as most modern roofs do.") : ""}
     ${rf.shape === "closed" ? pair("Opening in the middle", "roof.opening", Math.round((rf.opening||0)*100), 0, 90, 5, "%") : ""}` : ""}
   </div></details>`;
 }
@@ -735,7 +736,12 @@ function renderEditor(){
       <details class="sub"><summary>Facilities, access and fire risk</summary><div class="inner">
         ${pick("Facilities", "facilities", facilitiesOf(cfg), FACILITIES)}
         <p class="hint">Better facilities cost more to build but make for happier fans (see the Architect's notes under Results).</p>
-        ${accessOf().on ? pair("Wheelchair platforms in this stand", "accessCount", cfg.accessCount != null ? cfg.accessCount : accessOf().per, 0, 12, 1, "") : ""}
+        ${accessOf().on ? (() => { const SA = standAccessOf(cfg), own = cfg.access || {}, here = LAST ? LAST.parts.filter(p => p.key === tab).reduce((a, p) => a + (p.wheel || 0), 0) : 0;
+          return `<div class="row"><label>Wheelchair platforms</label><output>${here} spaces here</output></div>
+            ${pair(isBowl() ? "Platforms on each side" : "Platforms in this stand", "access.count", SA.per, 0, 16, 1, "")}
+            ${pick("Where", "access.at", own.at || "", Object.assign({"":"Same as the whole ground"}, ACCESS_AT))}
+            ${pick("Arranged", "access.arrange", own.arrange || "", Object.assign({"":"Same as the whole ground"}, ACCESS_ARRANGE))}
+            ${pair("Length of each", "access.length", SA.length, 4, 30, 1, "m", `${Math.floor(SA.length/1.6)} spaces each, with a companion seat beside every one.`)}`; })() : ""}
         ${pick("Fire risk", "fire", cfg.fire || "auto", FIRE_RISKS)}
         <p class="hint">Sets how quickly this stand has to clear in an emergency: ${S.limits.evacLow} minutes for low risk, ${S.limits.evacMedium} for medium, ${S.limits.evacHigh} for high. Worked out from its style, this one counts as <b>${fireRiskOf(cfg)}</b>.</p></div></details>
       ${ring ? "" : `<details class="sub" open><summary>Outside walls</summary><div class="inner">
@@ -786,7 +792,7 @@ function setPath(obj, path, val){
   const parts = path.split("."); if (parts[0] === "cc"){ obj = {tiers:S.cornerCustom}; parts.shift(); }
   let o = obj; for (let i=0;i<parts.length-1;i++) o = o[parts[i]] = o[parts[i]] || {};
   const last = parts[parts.length-1];
-  if (last === "curve" || last === "opening" || last === "entryAt") val = val/100;
+  if (last === "curve" || last === "opening" || last === "entryAt" || last === "edge") val = val/100;
   o[last] = val;
 }
 $("editor").addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.more){ if (d.open) openMore.add(d.dataset.more); else openMore.delete(d.dataset.more); } }, true);
@@ -941,7 +947,7 @@ function syncSizes(){
   so("gangWidth", g.gangWidth.toFixed(2) + " m" + (g.gangWidth < L.minGang - 1e-9 ? " · breaks rule" : ""), g.gangWidth < L.minGang - 1e-9);
   so("exitEvery", g.exitEvery + " m");
   { const AC = accessOf(), VH = vehicleOf(), opts = tdSides(), need = LAST ? wheelchairNeed(LAST.total) : 0, have = LAST ? LAST.wheelchair || 0 : 0;
-    $("acOn").checked = AC.on; $("acRows").hidden = !AC.on; $("acAt").value = AC.at;
+    $("acOn").checked = AC.on; $("acRows").hidden = !AC.on; $("acAt").value = AC.at; $("acArrange").value = AC.arrange || "spread";
     $("acPer").value = AC.per; $("o-acPer").textContent = AC.per; $("acLength").value = AC.length; $("o-acLength").textContent = `${AC.length} m (${Math.floor(AC.length/1.6)} spaces)`;
     $("acSum").innerHTML = `<b>${have} wheelchair spaces</b>. Guidance asks for about ${need} at a ground this size.`; $("acSum").classList.toggle("over", have < need);
     $("vhOn").checked = VH.on; $("vhRows").hidden = !VH.on;
@@ -1131,6 +1137,7 @@ $("screens").addEventListener("change", e => { const el = e.target; if (!el.data
 for (const id of ["crowd","night","seeThrough","players"]) $(id).addEventListener("change", e => { S[id] = e.target.checked; changed(); });
 $("scenery").addEventListener("change", e => { S.scenery = e.target.checked ? "real" : "model"; changed(); });
 bindRange("crowdFill", v => S.crowdFill = v/100);
+for (const [id, k] of [["bdEnd","end"],["bdSide","side"],["bdHeight","height"]]) bindRange(id, v => { S.boardSet = Object.assign(boardSetOf(), {[k]: v}); });
 $("fieldShape").innerHTML = Object.entries(FIELD_SHAPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
 $("fieldShape").addEventListener("change", e => { S.fieldShape = Object.assign(fieldShapeOf(), {shape:e.target.value}); changed(true); });
 bindRange("fieldMargin", v => { S.fieldShape = Object.assign(fieldShapeOf(), {margin:v}); }, true);
@@ -1153,8 +1160,10 @@ $("acAt").innerHTML = Object.entries(ACCESS_AT).map(([k, v]) => `<option value="
 const acSet = (k, v) => { S.access = Object.assign(accessOf(), {[k]: v}); }, vhSet = (k, v) => { S.vehicle = Object.assign(vehicleOf(), {[k]: v}); };
 $("acOn").addEventListener("change", e => { acSet("on", e.target.checked);
   if (e.target.checked){ const is = dryIssues().find(i => i.key === "access:spaces"); if (is && is.fix) is.fix.run(); } // start with enough to meet the guidance
-  changed(); });
+  renderEditor(); changed(); }); // each stand's own platform settings appear or go
 $("acAt").addEventListener("change", e => { acSet("at", e.target.value); changed(); });
+$("acArrange").innerHTML = Object.entries(ACCESS_ARRANGE).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+$("acArrange").addEventListener("change", e => { acSet("arrange", e.target.value); changed(); });
 bindRange("acPer", v => acSet("per", v)); bindRange("acLength", v => acSet("length", v));
 $("vhOn").addEventListener("change", e => { vhSet("on", e.target.checked); changed(); });
 $("vhAt").addEventListener("change", e => { vhSet("at", e.target.value); changed(); });
@@ -1395,6 +1404,11 @@ function syncUI(){
   if (siteDrawn !== JSON.stringify(S.site || [])) renderSite();
   syncConvert();
   $("boards").checked = !!S.boards;
+  { const BS = boardSetOf(), D = LAST, FP = D ? pitchOf(D.F) : null; $("boardRows").hidden = !S.boards;
+    $("bdEnd").value = BS.end; $("bdSide").value = BS.side; $("bdHeight").value = BS.height;
+    $("o-bdEnd").textContent = BS.end + " m"; $("o-bdSide").textContent = BS.side + " m"; $("o-bdHeight").textContent = BS.height.toFixed(1) + " m";
+    const roomX = D ? D.set + (D.F.W - FP.W)/2 - 1 : 99, roomZ = D ? D.set + (D.F.H - FP.H)/2 - 1 : 99, tight = BS.end > roomX + .01 || BS.side > roomZ + .01;
+    $("bdNote").hidden = !tight; $("bdNote").textContent = tight ? `The stands are close, so the boards stop a metre short of them (${Math.max(0, Math.min(BS.end, roomX)).toFixed(1)} m behind the goals, ${Math.max(0, Math.min(BS.side, roomZ)).toFixed(1)} m from the touchlines).` : ""; }
   const AR = Object.assign({skin:"none", skinShape:"round"}, S.arch || {});
   $("skin").value = AR.skin; document.querySelector(`input[name=skinShape][value=${AR.skinShape}]`).checked = true; $("skinShapeRow").hidden = AR.skin === "none";
   for (const k of ["arch","ramps","towers","plaza"]) $("a-"+k).checked = !!AR[k];
