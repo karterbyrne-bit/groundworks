@@ -22,6 +22,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   const ctx = await browser.newContext({ viewport, hasTouch: name === "phone" });
   const page = await ctx.newPage();
   page.setDefaultTimeout(120000);
+  await page.addInitScript(() => { window.__frames = 0; const raf = window.requestAnimationFrame.bind(window); window.requestAnimationFrame = f => raf(t => { window.__frames++; f(t); }); });
   const errors = [], external = [];
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
@@ -86,14 +87,14 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(bare === 0 && roofed.covered > roofed.total * 0.9, "one roof over the whole ground covers the seats");
   await page.click('#panes [data-pane="start"]');
   await page.click('[data-p="ringroof"]');
-  await page.waitForFunction(() => window.__gw.last().parts.some(p => p.label === "West end"));
+  await page.waitForFunction(() => !window.__gw.busy() && window.__gw.last().parts.some(p => p.label === "West end"));
   const rr = await last();
   check(rr.total > 15000 && rr.covered / rr.total > 0.9 && !rr.issues, 'preset "ringroof" builds under one roof with no warnings');
   await page.click('#panes [data-pane="start"]');
 
   // Ibrox: a deck on towers over an old stand; per-tier looks and lettering; typed plot sizes
   await page.click('[data-p="ibrox"]');
-  await page.waitForFunction(() => window.__gw.last().parts.some(p => p.label === "Main stand") && window.__gw.state().stands.N.tiers.length === 3);
+  await page.waitForFunction(() => !window.__gw.busy() && window.__gw.last().parts.some(p => p.label === "Main stand") && window.__gw.state().stands.N.tiers.length === 3);
   const ib = await last();
   check(ib.total > 20000 && !ib.issues, 'preset "ibrox" builds with no warnings');
   await page.click('[data-p="ot"]'); await page.waitForTimeout(300);
@@ -121,6 +122,14 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.click('#panes [data-pane="ground"]'); await page.check("#plotOn"); await page.waitForTimeout(300);
   await page.locator("#plotExact summary").click(); await page.fill("#plotW", "260"); await page.press("#plotW", "Enter"); await page.waitForTimeout(300);
   check((await page.evaluate(() => { const xs = window.__gw.state().plot.pts.map(p => p[0]); return Math.max(...xs) - Math.min(...xs); })) === 260, "the plot can be set to an exact width");
+  // as many tiers as you like: no stopping at four
+  await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="N"]'); await page.waitForTimeout(200);
+  const tiersCap = await cap(), tiers0 = await page.evaluate(() => window.__gw.state().stands.N.tiers.length);
+  for (let i = 0; i < 4; i++){ await page.click('[data-act="addTier"]'); await page.waitForTimeout(250); }
+  const nTiers = await page.evaluate(() => window.__gw.state().stands.N.tiers.length);
+  check(nTiers === tiers0 + 4 && nTiers > 4 && (await cap()) > tiersCap, `a stand can have more than four tiers (${nTiers})`);
+  check(errors.length === 0, "tall stands build without errors");
+  await page.click('#panes [data-pane="start"]');
   // cricket and baseball: rings of stands
   await page.click('#panes [data-pane="start"]');
   for (const p of ["lords", "classicpark", "ballpark"]){ await page.click(`[data-p="${p}"]`);
@@ -181,6 +190,39 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   for (const mount of ["ribbon", "roof", "ribbon"]) { await page.locator("#screens .screen").last().locator('[data-sf="mount"]').selectOption(mount); await page.waitForTimeout(300); }
   check(errors.length === 0 && (await cap()) > 0, "screens and LED ribbons can be added and changed");
 
+  // naming rights and sponsors
+  await page.fill("#spTitle", "Kestrel Bank Arena"); await page.fill("#spNames", "ACME\nNORTHLINE"); await page.waitForTimeout(400);
+  const sp = await page.evaluate(() => window.__gw.state().sponsors);
+  check(sp.title === "Kestrel Bank Arena" && sp.names.join() === "ACME,NORTHLINE" && (await page.locator("#stadiumTitle").textContent()) === "Kestrel Bank Arena", "the ground can be named and given sponsors");
+  await page.fill("#spTitle", "<b>Bad</b>"); await page.waitForTimeout(200);
+  check(!(await page.evaluate(() => window.__gw.state().sponsors.title)).includes("<"), "markup is stripped from names");
+  await page.fill("#spTitle", ""); await page.evaluate(() => document.activeElement.blur());
+
+  // letters in the seats, players on the pitch, the time of day
+  const plain = await page.evaluate(() => window.__gw.last().total);
+  await page.fill("#seatText", "UNITED"); await page.waitForTimeout(400); await page.waitForFunction(() => !window.__gw.busy());
+  const st0 = await page.evaluate(() => window.__gw.state().seatText);
+  check(st0.text === "UNITED" && !!st0.at && (await page.evaluate(() => window.__gw.last().total)) === plain && errors.length === 0, "letters can be spelt out in the seats without changing the capacity");
+  await page.fill("#seatText", ""); await page.evaluate(() => document.activeElement.blur());
+  if (await page.locator("#players").isVisible()){ await page.check("#players"); await page.waitForTimeout(300); check(errors.length === 0 && (await page.evaluate(() => window.__gw.state().players)), "players can line up for kick-off"); await page.uncheck("#players"); }
+  await page.evaluate(() => { const el = document.getElementById("hour"); el.value = "19.5"; el.dispatchEvent(new Event("input", {bubbles:true})); });
+  check((await page.evaluate(() => window.__gw.state().hour)) === 19.5 && /7:30 pm/.test(await page.locator("#o-hour").textContent()), "the time of day can be set");
+  // architect's notes
+  await page.click('#panes [data-pane="results"]');
+  check(/Architect's notes/.test(await page.locator("#architect").textContent()) && await page.locator("#architect .score").count() === 5, "the architect's notes score the design");
+  await page.click('#panes [data-pane="look"]');
+
+  // memory stays flat: picking colour after colour mustn't leave old materials behind
+  const memBefore = await page.evaluate(() => window.__gw.memory());
+  for (let i = 0; i < 25; i++){ await page.evaluate(i => { const el = document.querySelector('input[type=color][data-p]'); el.value = "#" + (0x204060 + i*0x050301).toString(16); el.dispatchEvent(new Event("input", {bubbles:true})); }, i); await page.waitForTimeout(40); }
+  await page.waitForFunction(() => !window.__gw.busy());
+  const memAfter = await page.evaluate(() => window.__gw.memory());
+  check(memAfter.materials <= memBefore.materials + 3 && memAfter.textures <= memBefore.textures + 3, `memory stays flat after many colour changes (${memBefore.materials}→${memAfter.materials} materials)`);
+  // the 3D view goes to sleep when nothing moves
+  await page.waitForTimeout(1500);
+  const framesIdle = await page.evaluate(async () => { const n0 = window.__frames; await new Promise(res => setTimeout(res, 1000)); return window.__frames - n0; });
+  check(framesIdle === 0, `nothing is redrawn while the stadium sits still (${framesIdle} frames in a second)`);
+
   // share link round trip: copy a link, open it in a fresh page, get the same stadium
   const before = await page.evaluate(() => JSON.stringify(window.__gw.state()));
   const link = await page.evaluate(async () => { let url = ""; navigator.clipboard.writeText = async t => { url = t; }; navigator.share = undefined; document.getElementById("shareBtn").click(); for (let i = 0; i < 100 && !url; i++) await new Promise(r => setTimeout(r, 100)); return url; });
@@ -201,6 +243,17 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await bad.waitForTimeout(500);
   check(!(await bad.evaluate(() => window.__gw.state().seat.includes("<"))), "a tampered link is refused");
   await bad.close();
+
+  // a damaged design code is refused with a message, and the current design is left alone
+  const keep = await page.evaluate(() => JSON.stringify(window.__gw.state()));
+  await page.click('#panes [data-pane="start"]');
+  await page.evaluate(() => { const d = document.getElementById("codeBox").closest("details"); if (d) d.open = true; });
+  const halfDesign = await page.evaluate(() => { const st = window.__gw.state(); delete st.stands.N.tiers; st.bowl.tiers = [{type:"seated"}]; return btoa(JSON.stringify(st)); });
+  for (const [code, what] of [[halfDesign, "half a design"], [halfDesign.slice(0, halfDesign.length >> 1), "a code cut off part way"]]){
+    await page.fill("#codeBox", code); await page.click("#importBtn"); await page.waitForTimeout(300);
+    check((await page.evaluate(() => JSON.stringify(window.__gw.state()))) === keep && /look right/.test(await page.locator(".toast").last().textContent()), `${what} is refused with a message`);
+  }
+  await page.fill("#codeBox", ""); await page.evaluate(() => document.activeElement.blur());
 
   await page.keyboard.press("?");
   check(await page.locator("#help").evaluate(d => d.open), "? opens help");
@@ -225,6 +278,19 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.click("[data-fresh]");
   await page.waitForFunction(() => document.documentElement.classList.contains("ready"));
   check((await page.evaluate(() => window.__gw.last().total)) > 0, "Start with a fresh design recovers");
+  await ctx.close();
+}
+
+// if the 3D engine doesn't arrive (a page cut off on a patchy connection), say so instead of showing a blank screen
+{
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(60000);
+  await page.route(base, async route => { const parts = readFileSync(new URL("index.html", root), "utf8").split("<script>");
+    parts[2] = parts[2].slice(parts[2].indexOf("</script>")); await route.fulfill({contentType:"text/html", body:parts.join("<script>")}); });
+  await page.goto(base);
+  await page.waitForSelector("#fatal:not([hidden])");
+  check(/3D view/.test(await page.locator("#fatal h2").textContent()), "a missing 3D engine shows a 'couldn't load the 3D view' card");
   await ctx.close();
 }
 

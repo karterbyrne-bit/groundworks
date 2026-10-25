@@ -8,7 +8,8 @@ const read = p => readFileSync(new URL(p, import.meta.url), "utf8");
 const src = f => read("./src/" + f);
 const dev = process.argv.includes("--dev"); // unminified, easier to debug
 
-const js = "(function(){\n" + ["data.js", "core.js", "build.js", "ui.js"].map(src).join("\n") + "\n})();\n";
+// if the 3D engine didn't arrive (a page cut off part way), boot.js shows a card instead of the app starting
+const js = "(function(){\nif (typeof THREE === \"undefined\" || !THREE.OrbitControls){ if (window.gwNo3D) window.gwNo3D(); return; }\n" + ["data.js", "core.js", "build.js", "ui.js"].map(src).join("\n") + "\n})();\n";
 const css = src("styles.css");
 const body = src("body.html");
 const boot = src("boot.js");

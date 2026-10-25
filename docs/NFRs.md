@@ -12,7 +12,8 @@ These describe *how well* Groundworks should work, rather than what it does. Eac
 | P2 | First view | On a mid-range phone with 4G, the stadium is on screen within 3 seconds. | 🟡 A loading screen shows straight away. Still to be timed on a real phone. |
 | P3 | Response to edits | A change to a setting shows in the 3D view within 0.5 seconds. | 🟡 Instant on a laptop. Check on a mid-range phone. |
 | P4 | Smooth movement | Orbiting the camera stays at 30 frames per second or better on a 2021 mid-range phone. | 🟡 Not yet measured. |
-| P5 | Battery | Nothing is redrawn while the stadium sits still. | ✅ The 3D view only redraws when something changes. |
+| P5 | Battery | Nothing is redrawn while the stadium sits still. | ✅ The frame loop stops completely half a second after the last change or touch. Shadows are only worked out again when the stadium changes, not while you orbit. Phones and tablets use fewer pixels and a smaller shadow map. |
+| P6 | Long sessions | Editing for an hour is as quick as the first minute. | ✅ Colours, lettering and screen faces that a rebuild no longer uses are freed. The automated test checks memory stays flat after many colour changes. |
 
 ## 2. Reliability
 
