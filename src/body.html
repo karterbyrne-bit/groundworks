@@ -270,8 +270,18 @@
     </section>
 
     <section class="group" data-pane="look">
-      <h2>Finishing touches</h2>
+      <h2>Name and sponsors</h2>
+      <div class="row"><label for="spTitle">Stadium name</label><input type="text" id="spTitle" maxlength="30" placeholder="e.g. Kestrel Bank Arena" aria-label="Stadium name"></div>
+      <div class="row colour" id="spTitleRow"><label for="spTitleColour">Name colour</label><span class="num"><input type="color" id="spTitleColour" value="#ffffff" aria-label="Name colour"></span></div>
+      <label class="toggle" id="spOnStandRow"><input type="checkbox" id="spOnStand"> Put the name along the main stand's roof</label>
       <label class="toggle"><input type="checkbox" id="boards"> Advertising boards round the pitch</label>
+      <div class="row"><label for="spNames">Sponsors, one per line</label></div>
+      <textarea id="spNames" rows="5" aria-label="Sponsors, one per line" placeholder="Up to 8 sponsors"></textarea>
+      <p class="hint">Their names go on the boards round the pitch and on any LED ribbons along the tier fronts (add one under Floodlights &amp; screens). Each sponsor gets a panel in its own colours. Naming rights: give the ground a sponsor's name and it goes up on the main stand.</p>
+    </section>
+
+    <section class="group" data-pane="look">
+      <h2>Finishing touches</h2>
       <label class="toggle"><input type="checkbox" id="crowd"> Fill it with a crowd</label>
       <div id="crowdBox">
         <div class="row"><label for="crowdFill">How full</label><output id="o-crowdFill"></output><input type="range" id="crowdFill" min="5" max="100" step="5"></div>
@@ -280,18 +290,23 @@
         <label class="toggle"><input type="checkbox" id="stewards"> Stewards in hi-vis along the front</label>
         <button class="btn small" id="waveBtn">🙌 Start a Mexican wave</button>
       </div>
+      <label class="toggle" id="playersRow"><input type="checkbox" id="players"> Players lined up for kick-off</label>
       <label class="toggle"><input type="checkbox" id="night"> Night match under the lights</label>
+      <div class="row" id="hourRow"><label for="hour">Time of day</label><output id="o-hour"></output><input type="range" id="hour" min="6" max="21" step="0.25"></div>
       <label class="toggle"><input type="checkbox" id="scenery"> Real sky and fields round the ground (untick for a plain model look)</label>
       <label class="toggle"><input type="checkbox" id="seeThrough"> See-through roofs</label>
       <div class="row"><label>Seat colour</label></div>
       <div class="swatches" id="swatches" role="group" aria-label="Seat colour"></div>
       <div class="row"><label for="seatPattern">Seat pattern</label>
         <select id="seatPattern"><option value="solid">One colour</option><option value="bands">Bands of rows</option><option value="tiers">Alternate tiers</option><option value="mosaic">Scattered mosaic</option></select></div>
+      <div class="row"><label for="seatText">Letters in the seats</label><input type="text" id="seatText" maxlength="24" placeholder="e.g. UNITED" aria-label="Letters spelt out in the seats"></div>
+      <div class="row" id="seatTextAtRow"><label for="seatTextAt">On the</label><select id="seatTextAt" aria-label="Stand with letters in its seats"></select></div>
       <div class="row" id="seat2Row"><label for="seat2">Second colour</label><input type="color" id="seat2" value="#f2f2f2"></div>
     </section>
     <section class="readout" aria-live="polite" data-pane="results">
       <div class="cap"><div class="big" id="cap">0</div><div class="lbl">Capacity (estimate)</div><div class="mix" id="mix"></div><div class="like" id="like"></div></div>
       <div class="metrics" id="metrics"></div>
+      <div class="architect" id="architect"></div>
       <div class="safety" id="safety"></div>
       <div class="breakdown" id="breakdown"></div>
       <p class="foot">Capacity allows 5% for stairs and entrances on seated tiers and 10% for gangways on terraces. Sightline uses the C-value: how far each fan's eye sits above the eye line of the person in front, aimed at the nearest edge of play (the top of a raised ring or cage), or the set distance into the floor. A seat is restricted view when a pillar sits within 12° of its line to the centre of play. Emptying time assumes every exit flows at the set rate at once.</p>
@@ -301,6 +316,7 @@
 
   <main class="stage">
     <div class="view" id="view">
+      <p class="stadium-title" id="stadiumTitle" hidden></p>
       <div class="cams" role="group" aria-label="Camera">
         <button data-cam="aerial" aria-pressed="true">Aerial</button>
         <button data-cam="plan" aria-pressed="false">Plan</button>

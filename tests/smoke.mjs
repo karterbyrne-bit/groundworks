@@ -190,6 +190,28 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   for (const mount of ["ribbon", "roof", "ribbon"]) { await page.locator("#screens .screen").last().locator('[data-sf="mount"]').selectOption(mount); await page.waitForTimeout(300); }
   check(errors.length === 0 && (await cap()) > 0, "screens and LED ribbons can be added and changed");
 
+  // naming rights and sponsors
+  await page.fill("#spTitle", "Kestrel Bank Arena"); await page.fill("#spNames", "ACME\nNORTHLINE"); await page.waitForTimeout(400);
+  const sp = await page.evaluate(() => window.__gw.state().sponsors);
+  check(sp.title === "Kestrel Bank Arena" && sp.names.join() === "ACME,NORTHLINE" && (await page.locator("#stadiumTitle").textContent()) === "Kestrel Bank Arena", "the ground can be named and given sponsors");
+  await page.fill("#spTitle", "<b>Bad</b>"); await page.waitForTimeout(200);
+  check(!(await page.evaluate(() => window.__gw.state().sponsors.title)).includes("<"), "markup is stripped from names");
+  await page.fill("#spTitle", ""); await page.evaluate(() => document.activeElement.blur());
+
+  // letters in the seats, players on the pitch, the time of day
+  const plain = await page.evaluate(() => window.__gw.last().total);
+  await page.fill("#seatText", "UNITED"); await page.waitForTimeout(400); await page.waitForFunction(() => !window.__gw.busy());
+  const st0 = await page.evaluate(() => window.__gw.state().seatText);
+  check(st0.text === "UNITED" && !!st0.at && (await page.evaluate(() => window.__gw.last().total)) === plain && errors.length === 0, "letters can be spelt out in the seats without changing the capacity");
+  await page.fill("#seatText", ""); await page.evaluate(() => document.activeElement.blur());
+  if (await page.locator("#players").isVisible()){ await page.check("#players"); await page.waitForTimeout(300); check(errors.length === 0 && (await page.evaluate(() => window.__gw.state().players)), "players can line up for kick-off"); await page.uncheck("#players"); }
+  await page.evaluate(() => { const el = document.getElementById("hour"); el.value = "19.5"; el.dispatchEvent(new Event("input", {bubbles:true})); });
+  check((await page.evaluate(() => window.__gw.state().hour)) === 19.5 && /7:30 pm/.test(await page.locator("#o-hour").textContent()), "the time of day can be set");
+  // architect's notes
+  await page.click('#panes [data-pane="results"]');
+  check(/Architect's notes/.test(await page.locator("#architect").textContent()) && await page.locator("#architect .score").count() === 5, "the architect's notes score the design");
+  await page.click('#panes [data-pane="look"]');
+
   // memory stays flat: picking colour after colour mustn't leave old materials behind
   const memBefore = await page.evaluate(() => window.__gw.memory());
   for (let i = 0; i < 25; i++){ await page.evaluate(i => { const el = document.querySelector('input[type=color][data-p]'); el.value = "#" + (0x204060 + i*0x050301).toString(16); el.dispatchEvent(new Event("input", {bubbles:true})); }, i); await page.waitForTimeout(40); }

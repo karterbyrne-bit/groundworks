@@ -41,6 +41,8 @@ function sweepMats(){
   SIGN_USED.clear();
   for (const k in faceMats) if (k !== S.seat + S.sport){ faceMats[k].dispose(); delete faceMats[k]; }
   for (const k in boardTex) if (k !== S.seat + S.sport){ boardTex[k].dispose(); delete boardTex[k]; }
+  for (const k in adMats) if (!ADS_USED.has(k)){ adMats[k].map.dispose(); adMats[k].dispose(); delete adMats[k]; }
+  ADS_USED.clear();
 }
 const fmt = n => Math.round(n).toLocaleString("en-GB");
 /* Seats from the end of a row to its first gangway, where the row ends at the end of a stand (a gangway at one end only). */
@@ -103,6 +105,19 @@ function altRow(i, j, k){
   if (p === "tiers") return k % 2 === 1;
   const h = Math.sin(i*12.9898 + j*78.233 + k*37.719)*43758.5453; return (h - Math.floor(h)) < 0.28;
 }
+/* Lettering spelt out in the seats (a club's name or initials in a second colour, as many grounds do). The text is
+   drawn small onto a grid of one cell per seat and row, and each seat looks up whether it's part of a letter. */
+const letterGrids = {};
+function letterGrid(text, cols, rows){
+  const k = text + "|" + cols + "|" + rows; if (letterGrids[k]) return letterGrids[k];
+  const c = document.createElement("canvas"); c.width = cols; c.height = rows; const g = c.getContext("2d");
+  const size = Math.max(4, Math.floor(rows*0.82)); g.font = `900 ${size}px 'Arial Black', 'Arial', sans-serif`;
+  const w = g.measureText(text).width || 1, sx = Math.min(1, cols*0.92/w);
+  g.setTransform(sx, 0, 0, 1, cols/2, rows/2); g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "#000"; g.fillText(text, 0, rows*0.04);
+  const a = g.getImageData(0, 0, cols, rows).data, on = (col, row) => col >= 0 && row >= 0 && col < cols && row < rows && a[(row*cols + col)*4 + 3] > 110;
+  if (Object.keys(letterGrids).length > 12) for (const x in letterGrids) delete letterGrids[x];
+  return (letterGrids[k] = on);
+}
 /* A crowd: one small figure per seat (sampled on very big grounds), in club colours with a few gaps. */
 /* The crowd: one person per seat or standing place (thinned out for very big grounds), each a body and a head. Home fans
    mostly wear the club's colours, with a sprinkling of jackets, coats and away shirts; the away end is a block in its own
@@ -164,6 +179,32 @@ function addCrowd(recs, F){
   const ph = Float32Array.from(order, i => phase[i]), live = ph.findIndex(x => x !== x);
   CROWD = {bodies, heads, phase:ph, n: live < 0 ? c : live, base:[bodies.instanceMatrix.array.slice(0, c*16), heads.instanceMatrix.array.slice(0, c*16)], lo:0, hi:0};
 }
+/* Players lined up for kick-off: the home side in the club's colours, the away side in the away colours (or white or
+   black, whichever stands out more), keepers in their own kits, and a referee with the ball on the centre spot. */
+const KICKOFF = {
+  football:[[-.93,0,1],[-.62,-.6],[-.66,-.2],[-.66,.2],[-.62,.6],[-.32,-.62],[-.34,-.2],[-.34,.2],[-.32,.62],[-.06,-.14],[-.02,.12]],
+  rugby:[[-.08,-.5],[-.08,0],[-.08,.5],[-.12,-.25],[-.12,.25],[-.16,-.6],[-.16,.6],[-.2,0],[-.3,-.1],[-.38,-.25],[-.5,-.62],[-.46,-.4],[-.46,.4],[-.5,.62],[-.8,0]]
+};
+function addPlayers(F, sp){
+  const lineup = KICKOFF[sp]; if (!lineup) return;
+  const home = new THREE.Color(S.seat), A = S.away || {}, lum = c => 0.3*c.r + 0.59*c.g + 0.11*c.b;
+  const away = A.on && A.colour ? new THREE.Color(A.colour) : new THREE.Color(lum(home) > 0.5 ? 0x15181c : 0xf4f4f0);
+  const mats = {}, mat = c => { const k = c.getHexString(); return mats[k] || (mats[k] = new THREE.MeshStandardMaterial({color:c.clone(), roughness:.7})); };
+  const shorts = c => lum(c) > 0.5 ? new THREE.Color(0x1d2228) : new THREE.Color(0xf4f4f0);
+  const body = new THREE.BoxGeometry(0.5, 0.75, 0.3), legs = new THREE.BoxGeometry(0.42, 0.85, 0.26), head = new THREE.BoxGeometry(0.24, 0.27, 0.25);
+  const skins = [0xf1c7a6, 0xc68a62, 0x6f4a32, 0xe0ac86, 0x9d6a46];
+  let seed = 3; const rnd = () => { seed = (seed*16807) % 2147483647; return seed/2147483647; };
+  const person = (x, z, shirt, short, face) => {
+    for (const [geo, c, y] of [[legs, short, 0.43], [body, shirt, 1.23], [head, new THREE.Color(skins[face % skins.length]), 1.75]]){
+      const m = new THREE.Mesh(geo, mat(c)); m.position.set(x, y, z); m.rotation.y = Math.atan2(-x, -z) + (rnd() - .5)*.6; m.castShadow = true; m.userData.stadium = true; group.add(m); } };
+  const hx = F.W/2, hz = F.H/2;
+  lineup.forEach(([fx, fz, gk], i) => {
+    person(fx*hx + (rnd() - .5), fz*hz + (rnd() - .5), gk ? new THREE.Color(0x3fbf5a) : home, shorts(home), i);
+    const [gx, gz] = [-fx*hx + (rnd() - .5), -fz*hz + (rnd() - .5)]; person(gx, gz, gk ? new THREE.Color(0xf2c230) : away, shorts(away), i + 2); });
+  person(3, hz*0.28, new THREE.Color(0x111111), new THREE.Color(0x111111), 1); // the referee
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(sp === "rugby" ? 0.15 : 0.11, 12, 8), mat(new THREE.Color(0xffffff)));
+  if (sp === "rugby") ball.scale.set(1, 0.68, 0.68); ball.position.set(0, 0.13, 0); ball.castShadow = true; ball.userData.stadium = true; group.add(ball);
+}
 /* A Mexican wave: a band of fans stands up as it sweeps round the ground, twice and a bit. Only the fans the band has
    reached or just left are moved and sent to the graphics card each frame. Returns false once everyone's sat down. */
 function waveTick(t){
@@ -186,9 +227,11 @@ function waveTick(t){
 const FOG = new THREE.Fog(0xdfe8ec, 1e5, 2e5); scene.fog = FOG;
 const sceneryTex = {};
 function skyTexture(night){
-  const k = night ? "night" : "day"; if (sceneryTex[k]) return sceneryTex[k];
+  const dusk = !night && S.hour != null && 62*Math.sin(Math.PI*(S.hour - 5.5)/15) < 14;
+  const k = night ? "night" : dusk ? "dusk" : "day"; if (sceneryTex[k]) return sceneryTex[k];
   const c = document.createElement("canvas"); c.width = 4; c.height = 512; const g = c.getContext("2d"), gr = g.createLinearGradient(0, 0, 0, 512);
   if (night){ gr.addColorStop(0, "#03060d"); gr.addColorStop(0.55, "#0b1528"); gr.addColorStop(0.85, "#1e2a44"); gr.addColorStop(1, "#33405a"); }
+  else if (dusk){ gr.addColorStop(0, "#2f4f86"); gr.addColorStop(0.5, "#8a8fb8"); gr.addColorStop(0.82, "#f0a878"); gr.addColorStop(1, "#ffd59a"); }
   else { gr.addColorStop(0, "#4f86c6"); gr.addColorStop(0.5, "#8fb6dd"); gr.addColorStop(0.85, "#cddff0"); gr.addColorStop(1, "#e4ecf0"); }
   g.fillStyle = gr; g.fillRect(0, 0, 4, 512);
   const t = new THREE.CanvasTexture(c); t.keep = true; return (sceneryTex[k] = t);
@@ -204,7 +247,7 @@ function grassTexture(){
 function setGroundMap(map){ if (groundMat.map !== map){ groundMat.map = map; groundMat.needsUpdate = true; } }
 function fogReach(){ const real = S && S.scenery !== "model" && camera !== ortho; FOG.near = real ? 650 : 1e5; FOG.far = real ? 3200 : 2e5; }
 function realScenery(night){
-  scene.background = skyTexture(night); FOG.color.set(night ? 0x2a3650 : 0xe1eaef); fogReach();
+  const sky = skyTexture(night); scene.background = sky; FOG.color.set(night ? 0x2a3650 : sky === sceneryTex.dusk ? 0xf0c8a0 : 0xe1eaef); fogReach();
   setGroundMap(grassTexture()); groundMat.color.set(night ? 0x223024 : 0x5a6e4c); plazaMat.color.set(night ? 0x34373a : 0xc4c2ba);
 }
 function plainScenery(){ setGroundMap(null); fogReach(); }
@@ -212,6 +255,14 @@ function plainScenery(){ setGroundMap(null); fogReach(); }
 function applyMood(){
   const night = !!S.night;
   hemi.intensity = night ? 0.16 : 0.75; sun.intensity = night ? 0.06 : 0.9; fill.intensity = night ? 0.04 : 0.25;
+  /* The sun's place in the sky from the time of day: up in the east in the morning, high at lunchtime, low and golden in
+     the evening, with long shadows. Without a time set it stays where it always was. */
+  sun.color.set(0xffffff); hemi.color.set(0xffffff);
+  if (S.hour == null || night) sun.position.set(140, 260, 90);
+  else { const hr = S.hour, elD = Math.max(3, 62*Math.sin(Math.PI*(hr - 5.5)/15)), el = elD*Math.PI/180, az = Math.PI*(hr - 6)/14, R = 320;
+    sun.position.set(R*Math.cos(el)*Math.cos(az), R*Math.sin(el), R*Math.cos(el)*Math.sin(az));
+    const warm = Math.max(0, Math.min(1, (22 - elD)/18)); sun.color.lerp(new THREE.Color(0xffa860), warm); hemi.color.lerp(new THREE.Color(0xffd2a8), warm*0.5);
+    sun.intensity = 0.9 - 0.3*warm; hemi.intensity = 0.75 - 0.2*warm; }
   M.lamp.emissiveIntensity = night ? 2.2 : 0.9; M.band.emissive.set(night ? 0xffc46b : 0x000000); M.band.emissiveIntensity = night ? 0.55 : 0;
   M.board.emissiveIntensity = night ? 1.6 : 0.8; M.screen.emissiveIntensity = night ? 1.4 : 0.7;
   M.window.emissive.set(night ? 0xffc77a : 0x000000); M.window.emissiveIntensity = night ? 0.6 : 0;
@@ -451,6 +502,43 @@ function scoreboardTexture(){
   g.fillStyle = "#ffd65a"; g.font = "bold 26px monospace"; g.fillText("63:12", 256, 172);
   const t = new THREE.CanvasTexture(c); t.keep = true; return (boardTex[k] = t);
 }
+/* ================= sponsors =================
+   Advertising boards round the pitch and LED ribbons along the tier fronts show the sponsors' names, each on a panel in
+   its own colours, glowing a little (more at night). The stadium can carry a sponsor's name too (naming rights). */
+const DEFAULT_SPONSORS = ["GROUNDWORKS", "KESTREL BANK", "NORTHLINE RAIL", "BLUEPEAK", "ORBIT FM", "HARBOUR ALES"];
+const sponsorsOf = () => Object.assign({names:DEFAULT_SPONSORS.slice(), title:"", titleColour:"#ffffff", onStand:true}, S.sponsors || {});
+const AD_PANEL = 7, AD_COLOURS = [["#0b2a5b","#ffffff"],["#ffd23f","#111111"],["#c8102e","#ffffff"],["#111111","#7cf0c8"],["#f4f4f0","#0b2a5b"],["#1f7a3a","#ffffff"],["#5a2ca0","#ffd23f"],["#ff6a13","#ffffff"]];
+const adMats = {}, ADS_USED = new Set();
+function adMaterial(){
+  const names = sponsorsOf().names.map(n => String(n).trim().toUpperCase().slice(0, 24)).filter(Boolean).slice(0, 8), list = names.length ? names : ["YOUR AD HERE"];
+  const key = list.join("|"); ADS_USED.add(key); if (adMats[key]) return adMats[key];
+  const font = "800 54px 'Big Shoulders Display', 'Arial Narrow', sans-serif", W = 512, H = 72, c = document.createElement("canvas"), g = c.getContext("2d");
+  c.width = W*list.length; c.height = H;
+  list.forEach((name, i) => { let h = 0; for (const ch of name) h = (h*31 + ch.charCodeAt(0)) >>> 0; const [bg, fg] = AD_COLOURS[(h + i) % AD_COLOURS.length];
+    g.fillStyle = bg; g.fillRect(i*W, 0, W, H); g.fillStyle = fg; g.font = font; g.textAlign = "center"; g.textBaseline = "middle";
+    const tw = g.measureText(name).width, s2 = Math.min(1, (W - 40)/tw); g.save(); g.translate(i*W + W/2, H/2 + 2); g.scale(s2, 1); g.fillText(name, 0, 0); g.restore(); });
+  const cache = !document.fonts || document.fonts.check(font), t = new THREE.CanvasTexture(c);
+  t.wrapS = THREE.RepeatWrapping; t.repeat.set(1/(AD_PANEL*list.length), 1); t.anisotropy = renderer.capabilities.getMaxAnisotropy(); t.keep = cache;
+  const m = new THREE.MeshStandardMaterial({map:t, emissive:0xffffff, emissiveMap:t, roughness:.45, side:THREE.DoubleSide}); m.keep = cache;
+  if (cache) adMats[key] = m;
+  return m;
+}
+/* One run of adverts: quads {a, b, h, view} in order along the run, where view is a point the readers are looking from,
+   so the names read the right way round from there. */
+function adStrip(quads){
+  const pos = [], uv = []; let acc = 0;
+  for (const q of quads){
+    const dx = q.b[0] - q.a[0], dz = q.b[2] - q.a[2], len = Math.hypot(dx, dz); if (len < 1e-3) continue;
+    const vx = q.view[0] - (q.a[0] + q.b[0])/2, vz = q.view[1] - (q.a[2] + q.b[2])/2, sg = dx*vz - dz*vx >= 0 ? 1 : -1; // left to right for the reader
+    const u0 = acc*sg, u1 = (acc + len)*sg; acc += len;
+    const A = q.a, B = q.b, C = [B[0], B[1] + q.h, B[2]], D = [A[0], A[1] + q.h, A[2]];
+    pos.push(...A, ...B, ...C, ...A, ...C, ...D); uv.push(u0,0, u1,0, u1,1, u0,0, u1,1, u0,1);
+  }
+  if (!pos.length) return;
+  const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); geo.computeVertexNormals();
+  const mat = adMaterial(); mat.emissiveIntensity = S.night ? 1.1 : .4;
+  const mesh = new THREE.Mesh(geo, mat); mesh.receiveShadow = true; mesh.userData.stadium = true; group.add(mesh);
+}
 /* One screen-face material per seat colour, kept between rebuilds rather than made afresh every change. */
 const faceMats = {};
 function screenFace(){
@@ -462,12 +550,14 @@ function drawScreens(plans, bf, anchors){
   const face = screenFace();
   for (const p of plans){
     if (p.kind === "ribbon"){ // LED boards along every tier front of that stand
-      const g = p.g, b = bf("board");
+      const g = p.g, rows = {}; // the sponsors' adverts run along each tier front, read from across the ground
       for (let i=0;i<g.m - (g.closed ? 0 : 1);i++){ const j = (i+1)%g.m, A0 = g.profs[i], B0 = g.profs[j];
         for (let k=g.drawFrom;k<Math.min(A0.length, B0.length);k++){ const a = A0[k], c = B0[k]; if (!a || !c || a.ghost || c.ghost || nRows(a) < 1 || nRows(c) < 1) continue;
           const ya = a.stacked ? a.hF - 1.4 : 0.15, yc = c.stacked ? c.hF - 1.4 : 0.15, hh = a.stacked ? 1.1 : 0.85;
           const pa = [g.o[i][0] + (a.front - .06)*g.v[i][0], g.o[i][1] + (a.front - .06)*g.v[i][1]], pc = [g.o[j][0] + (c.front - .06)*g.v[j][0], g.o[j][1] + (c.front - .06)*g.v[j][1]];
-          quad(b, [pa[0],ya,pa[1]], [pc[0],yc,pc[1]], [pc[0],yc+hh,pc[1]], [pa[0],ya+hh,pa[1]]); } } continue; }
+          (rows[k] = rows[k] || []).push({a:[pa[0],ya,pa[1]], b:[pc[0],yc,pc[1]], h:hh, view:[0, 0]}); } }
+      for (const k in rows) adStrip(rows[k]);
+      continue; }
     if (p.kind === "cube"){
       const m = new THREE.Mesh(new THREE.BoxGeometry(p.w, p.h, p.w*0.8), [face, face, M.screen, M.screen, face, face]); m.position.set(p.x, p.y, p.z); m.userData.stadium = true; group.add(m);
       const top = p.cable || p.y + 30; for (const [sx,sz] of [[1,1],[-1,1],[1,-1],[-1,-1]]){ const x = sx*p.w*0.35, z = sz*p.w*0.3;
@@ -920,6 +1010,13 @@ function build(){
     const wallBase = sty.wall === "concrete" ? "concrete" : sty.wall === "glassClad" ? "glassClad" : "clad_" + cfg.style;
     const wallKey = textured(tint(wallBase, fac.colour), wallBase === "glassClad" ? null : LOOK_TEX[look]); // the wall's colour and real material
     const pillarAt = marks(12), midI = (() => { let best = Math.floor(m/2), bd = Infinity; for (let i=0;i<m;i++){ const d = Math.abs(cum[i] - lenTotal/2); if (d < bd && profs[i].some(p => nRows(p) >= 1 && !p.ghost)){ bd = d; best = i; } } return best; })();
+    /* Seat lettering on this stand: where the text is centred along the stand, and which way the reader's right is. */
+    const ST = S.seatText || {}, lettered = !!(ST.text && ST.at === st.key);
+    let letterAt = null;
+    if (lettered){ let si = midI;
+      if (closed){ let bd = Infinity; for (let i=0;i<m;i++){ const d = -v[i][1]/(Math.hypot(v[i][0], v[i][1]) || 1), x = Math.abs(pt(i, 0)[0]); if (d > 0.9 && x < bd){ bd = x; si = i; } } } // the middle of the main side
+      const a = pt(si, 0), b = pt(nx(si) === 0 && !closed ? si : nx(si), 0), tx = b[0] - a[0], tz = b[1] - a[1], dx = -a[0], dz = -a[1];
+      letterAt = {s0: cum[si], dir: tx*dz - tz*dx >= 0 ? 1 : -1, cols: Math.ceil(Math.min(lenTotal, 150)/0.5)}; }
     const sideMids = (() => { if (!st.sideAt) return []; const by = {}; for (let i=0;i<m;i++){ const s = st.sideAt(i); if (s) (by[s] = by[s] || []).push(i); }
       return Object.entries(by).map(([s, l]) => [l[Math.floor(l.length/2)], s]); })();
     const cap = (s, p, from, to, rail) => {
@@ -1026,6 +1123,7 @@ function build(){
       const fasc = buf(bad && S.trim ? "fasciaBad" : st.sel ? "fasciaSel" : frontKey);
       const seatKey = (tierType === "seated" || tierType === "rail") && tc.seatColour ? tint(tierType, tc.seatColour) : tierType;
       const backKey = seatKey !== tierType ? tint("seatBack", tc.seatColour) : "seatBack";
+      const LG = letterAt && k === st.drawFrom && (tierType === "seated" || tierType === "rail") ? letterGrid(String(ST.text).toUpperCase().slice(0, 24), letterAt.cols, nRows(best)) : null;
       const aisleAt = tierType === "terrace" ? marks(24) : gangMarks(pk, S.design.gangEvery*S.types[tierType].width + S.design.gangWidth, gangEndOf()*S.types[tierType].width + S.design.gangWidth/2);
       const vomAt = !best.stacked && nRows(best) >= 10 ? marks(S.design.exitEvery) : new Set();
       const rowLen = [], recs = []; let frontLen = 0;
@@ -1044,12 +1142,20 @@ function build(){
             const v0 = vomCut(i, n0, j), v1 = vomCut(j1, n1, j), f0 = Math.min(.49, Math.max(gangCut(i), v0)/len), f1 = 1 - Math.min(.49, Math.max(gangCut(j1), v1)/len);
             const E = (d0, y0, d1, y1, f) => { const p = V(i, d0, y0), q = V(j1, d1, y1); return [lerp(p[0],q[0],f), lerp(p[1],q[1],f), lerp(p[2],q[2],f)]; };
             const strip = (key, d0, y0, d1, y1, e0, z0, e1, z1) => quad(buf(key), E(d0,y0,d1,y1,f0), E(d0,y0,d1,y1,f1), E(e0,z0,e1,z1,f1), E(e0,z0,e1,z1,f0));
-            strip(alt ? "seatAlt" : seatKey, a0,h0,a1,h1, a0+T,h0,a1+T,h1);
-            if (j>0) strip("riser", a0,p0.hs[j-1],a1,p1.hs[j-1], a0,h0,a1,h1);
             const b0 = a0+T-.1, b1 = a1+T-.1;
+            if (LG){ // seat by seat, letters in the second colour
+              const segL = (closed && j1 === 0 ? lenTotal : cum[j1]) - cum[i], n = Math.max(1, Math.round((f1 - f0)*len/0.5)), row = nRows(best) - 1 - j;
+              for (let q=0;q<n;q++){ const fa = f0 + (f1 - f0)*q/n, fb = f0 + (f1 - f0)*(q + 1)/n;
+                let ds = cum[i] + (fa + fb)/2*segL - letterAt.s0; if (closed) ds -= Math.round(ds/lenTotal)*lenTotal;
+                const on = LG(Math.floor(letterAt.cols/2 + letterAt.dir*ds/0.5), row);
+                const sq = (key, d0, y0, d1, y1, e0, z0, e1, z1) => quad(buf(key), E(d0,y0,d1,y1,fa), E(d0,y0,d1,y1,fb), E(e0,z0,e1,z1,fb), E(e0,z0,e1,z1,fa));
+                sq(on ? "seatAlt" : seatKey, a0,h0,a1,h1, a0+T,h0,a1+T,h1);
+                if (tierType !== "rail") sq(on ? "seatAltBack" : backKey, b0,h0,b1,h1, b0,h0+.42,b1,h1+.42); } }
+            else strip(alt ? "seatAlt" : seatKey, a0,h0,a1,h1, a0+T,h0,a1+T,h1);
+            if (j>0) strip("riser", a0,p0.hs[j-1],a1,p1.hs[j-1], a0,h0,a1,h1);
             if (tierType === "rail") strip("barrier", b0,h0+.95,b1,h1+.95, b0,h0+1.05,b1,h1+1.05);
             else if (tierType === "terrace"){ if (j>0 && j % S.design.barrierEvery === 0) strip("barrier", a0+.08,h0+.95,a1+.08,h1+.95, a0+.08,h0+1.12,a1+.08,h1+1.12); }
-            else if (tierType !== "bench"){ const bh = tierType === "exec" ? .55 : .42; strip(tierType === "exec" ? "exec" : alt ? "seatAltBack" : backKey, b0,h0,b1,h1, b0,h0+bh,b1,h1+bh); }
+            else if (tierType !== "bench" && !LG){ const bh = tierType === "exec" ? .55 : .42; strip(tierType === "exec" ? "exec" : alt ? "seatAltBack" : backKey, b0,h0,b1,h1, b0,h0+bh,b1,h1+bh); }
             let use = Math.max(0, len - Math.min(len*.49, v0) - Math.min(len*.49, v1)); // exit tunnels take seats out; gangways are already allowed for
             if (p0.slid || p1.slid){ const q0 = pt(i, a0 + T/2 - (p0.slid || 0)), q1 = pt(j1, a1 + T/2 - (p1.slid || 0)); use = Math.min(use, Math.hypot(q1[0]-q0[0], q1[1]-q0[1])); } // a tier slid back keeps its own seats
             rowLen[j] = (rowLen[j]||0) + use; if (j === 0) frontLen += len;
@@ -1306,12 +1412,15 @@ function build(){
       const nv = [v[i][0] + v[j1][0], v[i][1] + v[j1][1]], nl = Math.hypot(nv[0], nv[1]) || 1;
       dressWall(buf, look, wallKey, pt(i, d0), pt(j1, d1), y0, y1, [nv[0]/nl, nv[1]/nl], wallOpt);
     }
-    if (fac.sign && !DRY){ // lettering on the outside wall, or along the roof front facing the play
+    // the stadium's name (naming rights) goes along the main stand's roof front, unless that stand has lettering of its own
+    const SP = sponsorsOf(), named = !fac.sign && SP.title && SP.onStand !== false && st.key === (lay === "bowl" ? "B" : lay === "ring" ? "R0" : "N");
+    const signText = fac.sign || (named ? SP.title : ""), signAt = named ? "roof" : fac.signAt;
+    if (signText && !DRY){ // lettering on the outside wall, or along the roof front facing the play
       let si = midI;
       if (closed){ let bd = -2; for (let i=0;i<m;i++){ if (!info[i]) continue; const d = -v[i][1]/(Math.hypot(v[i][0], v[i][1]) || 1); if (d > bd){ bd = d; si = i; } } if (bd < 0.95) si = -1; }
       const x = si >= 0 ? info[si] : null, R2 = x && RRout ? RRout[si] : null;
       if (x){
-        const mat = signMaterial(String(fac.sign).slice(0, 30), fac.signColour || "#ffffff"), onRoof = fac.signAt === "roof" && roofOn && R2;
+        const mat = signMaterial(String(signText).slice(0, 30), (named ? SP.titleColour : fac.signColour) || "#ffffff"), onRoof = signAt === "roof" && roofOn && R2;
         mat.emissiveIntensity = S.night ? .9 : .35; // a little light keeps it legible in shadow
         const vl = Math.hypot(v[si][0], v[si][1]) || 1, nOut = [v[si][0]/vl, v[si][1]/vl], tg = tangent(si);
         const top = onRoof ? R2.y(0) : roofOn && R2 ? R2.y(1) : x.top;
@@ -1594,8 +1703,9 @@ function build(){
   // pitchside advertising boards
   if (S.boards && !CV && (S.sport === "football" || S.sport === "rugby") && set >= 3){
     const off = Math.min(3, set - 1.2), hx = F.W/2 + off, hz = F.H/2 + off + (S.sport === "football" ? 1 : 0);
-    const Pb = [[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz]];
-    ribbon(buf("board"), Pb, Pb, 0, 0.9, true);
+    const Pb = [[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz]], Po = [[-hx-.04,-hz-.04],[hx+.04,-hz-.04],[hx+.04,hz+.04],[-hx-.04,hz+.04]];
+    ribbon(buf("dark"), Po, Po, 0, 0.9, true); // plain backs; the adverts face the play and the TV cameras across it
+    adStrip(Pb.map((a, i) => { const b = Pb[(i+1)%4]; return {a:[a[0], 0.02, a[1]], b:[b[0], 0.02, b[1]], h:0.86, view:[0, 0]}; }));
   }
   addProps(group, CV ? CV.F2 : F, buf, CV ? CV.sp : undefined);
   for (const key in Bf) if (Bf[key].length){
@@ -1610,6 +1720,7 @@ function build(){
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(Wt, Ht), new THREE.MeshStandardMaterial({map:tex, roughness:1}));
   floor.rotation.x = -Math.PI/2; floor.position.y = 0.02; floor.receiveShadow = true; group.add(floor);
   if (S.crowd !== false) addCrowd(allRecs, F); else CROWD = null;
+  if (S.players) addPlayers(CV ? CV.F2 : F, CV ? CV.sp : S.sport);
   let ext = sext.slice();
   if (poly){
     const xs = poly.map(p => p[0]), zs = poly.map(p => p[1]);

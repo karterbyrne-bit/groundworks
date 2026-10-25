@@ -15,8 +15,10 @@ It's a creative tool. Its checks are loosely based on UK sports-ground guidance 
 - **Sites:** squeeze the ground onto a plot, with hard or soft boundaries; drag its posts or type its exact width, depth and corners. Add roads, rivers, canals, railways, terraced houses and buildings at real sizes; stands are cut back to clear them.
 - **Architecture:** outer skins, an arch, spiral ramp towers, entrance towers, a raised plaza.
 - **Floodlights and screens:** corner masts, lattice pylons or roof-edge lights; screens on any stand, corner or over the centre.
-- **Atmosphere:** a crowd of people in the club's colours with an away end, stewards in hi-vis, how full the ground is, and a Mexican wave; a real sky and fields round the ground (or a plain model look); night matches, see-through roofs, seat colours and patterns.
+- **Name and sponsors:** give the ground a name (naming rights) that goes up along the main stand's roof, and list up to eight sponsors for the advertising boards round the pitch and the LED ribbons along the tier fronts.
+- **Atmosphere:** a crowd of people in the club's colours with an away end, stewards in hi-vis, how full the ground is, and a Mexican wave; a real sky and fields round the ground (or a plain model look); night matches and the time of day (long golden shadows in the evening), see-through roofs, seat colours and patterns, letters spelt out in the seats, and players lined up for kick-off.
 - **Results:** capacity by stand and tier, sightline (C-value), furthest fan, normal emptying time and emergency evacuation time (set by each stand's fire risk), roof cover, restricted-view seats, and checks with one-tap fixes, including rows with a gangway at one end only.
+- **Architect's notes:** a score out of 10 for atmosphere, views, shelter, looks and getting in and out, with notes in plain words, one-tap changes and a rough build cost.
 - **Workflow:** undo/redo, saved designs, compare designs, share links, saved camera views, presentation mode, keyboard shortcuts (press `?`).
 - **Just for fun:** Surprise me builds a random stadium, and the capacity is compared with real grounds.
 - **Works anywhere:** no other websites needed, works offline once visited, and can be installed like an app on a phone.
