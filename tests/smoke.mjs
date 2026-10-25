@@ -38,6 +38,10 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   const cap = () => page.evaluate(() => window.__gw.last().total);
   check((await cap()) > 1000, "default stadium has a capacity");
 
+  await page.click('[data-p="wrestle"]'); await page.waitForTimeout(300);
+  await page.evaluate(() => { const b = document.getElementById("boards"); if (!b.checked){ b.checked = true; b.dispatchEvent(new Event("change")); } });
+  await page.waitForTimeout(300);
+  check(await page.evaluate(() => window.__gw.boards()), "sponsor boards go round a wrestleball pitch");
   for (const p of ["bowl", "leitch", "bullring"]) {
     await page.click(`[data-p="${p}"]`); await page.waitForTimeout(300);
     check((await cap()) > 0, `preset "${p}" builds`);

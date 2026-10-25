@@ -1099,7 +1099,7 @@ const spOf = () => (S.sponsors = Object.assign(sponsorsOf(), S.sponsors || {}));
 $("spTitle").addEventListener("input", e => { spOf().title = cleanName(e.target.value); changed(false, true); });
 $("spTitleColour").addEventListener("input", e => { spOf().titleColour = e.target.value; changed(false, true); });
 $("spOnStand").addEventListener("change", e => { spOf().onStand = e.target.checked; changed(); });
-$("spNames").addEventListener("input", e => { spOf().names = e.target.value.split("\n").map(cleanName).slice(0, 8); changed(false, true); });
+$("spNames").addEventListener("input", e => { spOf().names = e.target.value.split("\n").map(cleanName).slice(0, 8); S.boards = true; changed(false, true); }); // sponsors want to be seen
 const awayOf = () => (S.away = Object.assign({on:false, colour:"#f2f2f2", at:"W"}, S.away || {}));
 $("awayOn").addEventListener("change", e => { awayOf().on = e.target.checked; changed(); });
 $("awayAt").addEventListener("change", e => { awayOf().at = e.target.value; changed(); });
@@ -1386,4 +1386,4 @@ requestAnimationFrame(() => requestAnimationFrame(async () => {
 }));
 window.addEventListener("hashchange", openFromLink);
 /* read-only hook for automated checks */
-window.__gw = {state:() => JSON.parse(JSON.stringify(S)), last:() => LAST, busy:() => pending, crowd:() => { if (!CROWD) return null; const a = CROWD.bodies.instanceMatrix.array; let up = 0; for (let i=0;i<CROWD.n;i++) if (a[i*16+13] > CROWD.base[0][i*16+13] + 0.05) up++; return {n:CROWD.n, standing:up}; }, memory:() => Object.assign({materials:Object.keys(M).length, programs:renderer.info.programs.length}, renderer.info.memory), regions:() => LAST_REGIONS, look:(p, t, stand) => { anim = null; if (stand){ picking = false; setLook(true); } moveCam(new THREE.Vector3(...p), new THREE.Vector3(...t), true); invalidate(); }};
+window.__gw = {state:() => JSON.parse(JSON.stringify(S)), last:() => LAST, busy:() => pending, boards:() => { let n = 0; group.traverse(o => { if (o.userData.ads) n++; }); return n > 0; }, crowd:() => { if (!CROWD) return null; const a = CROWD.bodies.instanceMatrix.array; let up = 0; for (let i=0;i<CROWD.n;i++) if (a[i*16+13] > CROWD.base[0][i*16+13] + 0.05) up++; return {n:CROWD.n, standing:up}; }, memory:() => Object.assign({materials:Object.keys(M).length, programs:renderer.info.programs.length}, renderer.info.memory), regions:() => LAST_REGIONS, look:(p, t, stand) => { anim = null; if (stand){ picking = false; setLook(true); } moveCam(new THREE.Vector3(...p), new THREE.Vector3(...t), true); invalidate(); }};

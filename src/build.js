@@ -537,7 +537,7 @@ function adStrip(quads){
   if (!pos.length) return;
   const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); geo.computeVertexNormals();
   const mat = adMaterial(); mat.emissiveIntensity = S.night ? 1.1 : .4;
-  const mesh = new THREE.Mesh(geo, mat); mesh.receiveShadow = true; mesh.userData.stadium = true; group.add(mesh);
+  const mesh = new THREE.Mesh(geo, mat); mesh.receiveShadow = true; mesh.userData.stadium = true; mesh.userData.ads = true; group.add(mesh);
 }
 /* One screen-face material per seat colour, kept between rebuilds rather than made afresh every change. */
 const faceMats = {};
@@ -1701,8 +1701,12 @@ function build(){
   if (DRY) return result;
 
   // pitchside advertising boards
-  if (S.boards && !CV && (S.sport === "football" || S.sport === "rugby") && set >= 3){
-    const off = Math.min(3, set - 1.2), hx = F.W/2 + off, hz = F.H/2 + off + (S.sport === "football" ? 1 : 0);
+  /* Any rectangular playing area gets them (football, rugby, wrestleball, tennis, a plain floor), about 3 m out from the
+     play, or closer on a tight ground. With seats on the floor they go just inside the front row. */
+  const boardsFit = S.sport === "football" || S.sport === "rugby" || (F.custom && !(F.r > 0) && ["wrestleball","tennis","plain"].includes(S.custom.kind));
+  const bOff = floorRows ? 0.6 : Math.min(3, set - 1.2);
+  if (S.boards && !CV && boardsFit && bOff >= 0.6){
+    const off = bOff, hx = F.W/2 + off, hz = F.H/2 + off + (S.sport === "football" ? 1 : 0);
     const Pb = [[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz]], Po = [[-hx-.04,-hz-.04],[hx+.04,-hz-.04],[hx+.04,hz+.04],[-hx-.04,hz+.04]];
     ribbon(buf("dark"), Po, Po, 0, 0.9, true); // plain backs; the adverts face the play and the TV cameras across it
     adStrip(Pb.map((a, i) => { const b = Pb[(i+1)%4]; return {a:[a[0], 0.02, a[1]], b:[b[0], 0.02, b[1]], h:0.86, view:[0, 0]}; }));
