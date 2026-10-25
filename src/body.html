@@ -75,6 +75,11 @@
         <input type="radio" name="sport" id="sp-custom" value="custom"><label for="sp-custom">Other sports</label>
       </div>
       <p class="hint" id="sportNote"></p>
+      <div id="fieldShapeBox">
+        <div class="row"><label for="fieldShape">Field shape</label><select id="fieldShape" aria-label="Field shape"></select></div>
+        <div class="row" id="fieldMarginRow"><label for="fieldMargin">Grass beyond the pitch corners</label><output id="o-fieldMargin"></output><input type="range" id="fieldMargin" min="0" max="30" step="0.5"></div>
+        <p class="hint" id="fieldShapeHint" hidden>The pitch keeps its size and markings; the field round it, and the stands, follow the new shape. A bowl or a ring of stands (under Layout) follows it best.</p>
+      </div>
       <div id="cricketBox" class="group" hidden>
         <div class="row"><label for="ckL">Boundary, end to end</label><output id="o-ckL"></output><input type="range" id="ckL" min="120" max="190" step="1"></div>
         <div class="row"><label for="ckW">Boundary, side to side</label><output id="o-ckW"></output><input type="range" id="ckW" min="110" max="180" step="1"></div>
@@ -217,7 +222,29 @@
         <div class="row"><label for="gangWidth">Gangway width</label><output id="o-gangWidth"></output><input type="range" id="gangWidth" min="0.6" max="1.8" step="0.05"></div>
         <div class="row"><label for="exitEvery">An exit every</label><output id="o-exitEvery"></output><input type="range" id="exitEvery" min="8" max="60" step="1"></div>
         <div class="row"><label for="exitWidth">Exit width</label><output id="o-exitWidth"></output><input type="range" id="exitWidth" min="1" max="5" step="0.1"></div>
+        <label class="toggle"><input type="checkbox" id="pitchGates"> Emergency gates in the pitch-side wall</label>
+        <div class="row"><label for="emergEvery">Emergency exits at the back of each tier, one every</label><output id="o-emergEvery"></output><input type="range" id="emergEvery" min="0" max="60" step="2"></div>
         <div class="row"><label for="barrierEvery">Crush barrier every</label><output id="o-barrierEvery"></output><input type="range" id="barrierEvery" min="2" max="16" step="1"></div>
+      </div>
+    </details>
+
+    <details class="group" data-pane="rules" open>
+      <summary>Access</summary>
+      <div class="inner">
+        <label class="toggle"><input type="checkbox" id="acOn"> Wheelchair spaces</label>
+        <div id="acRows">
+          <div class="row"><label for="acAt">Where</label><select id="acAt" aria-label="Where the wheelchair platforms go"></select></div>
+          <div class="row"><label for="acPer">Platforms in each stand (each side of a bowl)</label><output id="o-acPer"></output><input type="range" id="acPer" min="1" max="12" step="1"></div>
+          <div class="row"><label for="acLength">Length of each platform</label><output id="o-acLength"></output><input type="range" id="acLength" min="5" max="24" step="1"></div>
+          <p class="hint" id="acSum"></p>
+        </div>
+        <label class="toggle"><input type="checkbox" id="vhOn"> Emergency vehicle access onto the pitch</label>
+        <div id="vhRows">
+          <div class="row"><label for="vhAt">Through the</label><select id="vhAt" aria-label="Stand the vehicle entrance goes through"></select></div>
+          <div class="row"><label for="vhPos">Along the stand</label><output id="o-vhPos"></output><input type="range" id="vhPos" min="-60" max="60" step="1"></div>
+          <div class="row"><label for="vhWidth">Width</label><output id="o-vhWidth"></output><input type="range" id="vhWidth" min="3.5" max="8" step="0.5"></div>
+        </div>
+        <p class="hint">Each wheelchair space comes with a companion seat beside it. The vehicle entrance is 4.5 m high, so an ambulance or fire engine can drive straight onto the pitch.</p>
       </div>
     </details>
 
@@ -269,6 +296,27 @@
       <p class="hint">Put screens on any stand or corner: tucked between the back row and the roof (great on tall, short ends), hung from the roof edge, on top, on legs behind, or as LED ribbons along the tier fronts.</p>
     </section>
 
+    <section class="group" data-pane="look" id="tdBox">
+      <h2>Tunnel and dugouts</h2>
+      <label class="toggle"><input type="checkbox" id="tnOn"> Players' tunnel</label>
+      <div id="tnRows">
+        <div class="row"><label for="tnAt">Comes out of the</label><select id="tnAt" aria-label="Stand the tunnel comes out of"></select></div>
+        <div class="row"><label for="tnPos">Along the stand</label><output id="o-tnPos"></output><input type="range" id="tnPos" min="-40" max="40" step="1"></div>
+        <div class="row"><label for="tnWidth">Width</label><output id="o-tnWidth"></output><input type="range" id="tnWidth" min="3" max="8" step="0.5"></div>
+        <label class="toggle"><input type="checkbox" id="tnExtend"> Extending tunnel out onto the pitch</label>
+        <div class="row colour"><label for="tnColour">Tunnel colour</label><span class="num"><input type="color" id="tnColour" aria-label="Tunnel colour"></span></div>
+      </div>
+      <label class="toggle"><input type="checkbox" id="dgOn"> Dugouts</label>
+      <div id="dgRows">
+        <div class="row"><label for="dgStyle">Style</label><select id="dgStyle" aria-label="Dugout style"></select></div>
+        <div class="row"><label for="dgAt">In front of the</label><select id="dgAt" aria-label="Stand the dugouts are in front of"></select></div>
+        <div class="row"><label for="dgLength">Length of each</label><output id="o-dgLength"></output><input type="range" id="dgLength" min="4" max="24" step="1"></div>
+        <div class="row"><label for="dgGap">Distance from halfway</label><output id="o-dgGap"></output><input type="range" id="dgGap" min="1" max="30" step="0.5"></div>
+        <div class="row colour"><label for="dgColour">Seat colour</label><span class="num"><input type="color" id="dgColour" aria-label="Dugout seat colour"></span></div>
+      </div>
+      <p class="hint">The tunnel and dugouts sunk into a stand take the front rows out there, so the capacity drops a little. Perspex dugouts need about 4 m between the touchline and the stand.</p>
+    </section>
+
     <section class="group" data-pane="look">
       <h2>Name and sponsors</h2>
       <div class="row"><label for="spTitle">Stadium name</label><input type="text" id="spTitle" maxlength="30" placeholder="e.g. Kestrel Bank Arena" aria-label="Stadium name"></div>
@@ -285,8 +333,15 @@
       <label class="toggle"><input type="checkbox" id="crowd"> Fill it with a crowd</label>
       <div id="crowdBox">
         <div class="row"><label for="crowdFill">How full</label><output id="o-crowdFill"></output><input type="range" id="crowdFill" min="5" max="100" step="5"></div>
-        <label class="toggle"><input type="checkbox" id="awayOn"> Away fans in their own colours</label>
-        <div class="row" id="awayRow"><label for="awayAt">Away end</label><span class="num"><select id="awayAt" aria-label="Away end"><option value="W">West end</option><option value="E">East end</option><option value="N">Main stand</option><option value="S">Opposite stand</option></select> <input type="color" id="awayColour" value="#f2f2f2" aria-label="Away colours"></span></div>
+        <label class="toggle"><input type="checkbox" id="awayOn"> An away end, in the away team's colours</label>
+        <div id="awayRows">
+          <div class="row"><label for="awayAt">In the</label><span class="num"><select id="awayAt" aria-label="Away end"></select> <input type="color" id="awayColour" value="#f2f2f2" aria-label="Away colours"></span></div>
+          <div class="row"><label for="awayAnchor">Starting from</label><select id="awayAnchor" aria-label="Where in the stand the away end starts"><option value="middle">The middle of the stand</option><option value="left">Its left-hand end</option><option value="right">Its right-hand end</option></select></div>
+          <div class="row pair"><label for="awayCount">Away allocation</label><span class="num"><input type="number" id="awayCount" min="0" max="30000" step="100" aria-label="Away allocation"> fans</span><small class="note" id="awayNote"></small></div>
+          <div class="row"><label for="awayGap">Empty seats between the fans</label><output id="o-awayGap"></output><input type="range" id="awayGap" min="0" max="20" step="1"></div>
+        </div>
+        <div class="row"><label for="homeAt">Home end</label><select id="homeAt" aria-label="Home end"></select></div>
+        <div class="row" id="homeNameRow"><label for="homeName">Its name</label><input type="text" id="homeName" maxlength="24" placeholder="e.g. THE KOP" aria-label="Home end name"></div>
         <label class="toggle"><input type="checkbox" id="stewards"> Stewards in hi-vis along the front</label>
         <button class="btn small" id="waveBtn">🙌 Start a Mexican wave</button>
       </div>

@@ -124,6 +124,34 @@ function letterGrid(text, cols, rows){
    colours. Stewards in hi-vis stand along the front facing the crowd. Heads take a mix of skin tones, and some wear hats.
    CROWD keeps where everyone is, so a Mexican wave can stand them up and sit them down again. */
 let CROWD = null;
+/* The away end: an allocation of seats in one stand (or one side of a bowl), starting from the middle or either end of it
+   and growing out from there, block by block, the full height of the stand, with a gap of empty seats round it to keep
+   the two sets of fans apart. The home end is a whole stand where the club's most vocal fans stand. */
+const AWAY = {on:false, colour:"#f2f2f2", at:"W", anchor:"middle", count:null, gap:3};
+const awayOf = () => Object.assign({}, AWAY, S.away || {});
+const homeEndOf = () => Object.assign({at:"", name:""}, S.homeEnd || {});
+/* Which rows of seats belong to a stand, or a side of a bowl, and where each sits along it as the fans there see it
+   (u grows to their right). */
+function standRecs(recs, at){
+  const dir = SIDE_DIR[at];
+  let list = recs.filter(r => !r.floor && r.seats > 0 && (r.stand === at || (dir && r.stand === "B" && (r.x*dir[0] + r.z*dir[1]) > 0.55*Math.hypot(r.x, r.z))));
+  if (!list.length) return [];
+  let n = dir; if (!n){ const cx = list.reduce((a, r) => a + r.x, 0)/list.length, cz = list.reduce((a, r) => a + r.z, 0)/list.length, l = Math.hypot(cx, cz) || 1; n = [cx/l, cz/l]; }
+  for (const r of list) r.u = -r.x*n[1] + r.z*n[0];
+  return list;
+}
+function allocateAway(recs){
+  for (const r of recs){ r.away = false; r.empty = false; }
+  const A = awayOf(), out = {seats:0, gap:0}; if (!A.on) return out;
+  const list = standRecs(recs, A.at); if (!list.length) return out;
+  const us = list.map(r => r.u), lo = Math.min(...us), hi = Math.max(...us), u0 = A.anchor === "left" ? lo : A.anchor === "right" ? hi : (lo + hi)/2;
+  const total = recs.reduce((a, r) => a + (r.seats || 0), 0), want = A.count != null ? A.count : Math.min(3000, Math.round(total*0.1));
+  list.sort((a, b) => Math.abs(a.u - u0) - Math.abs(b.u - u0));
+  let edge = 0;
+  for (const r of list){ if (out.seats >= want) break; r.away = true; out.seats += r.seats; edge = Math.max(edge, Math.abs(r.u - u0)); }
+  for (const r of list) if (!r.away && Math.abs(r.u - u0) <= edge + A.gap){ r.empty = true; out.gap += r.seats; }
+  return out;
+}
 const SKIN = [0xf1c7a6, 0xe0ac86, 0xc68a62, 0x9d6a46, 0x6f4a32, 0x4a3022, 0xf5d3b8, 0xd29b74].map(c => new THREE.Color(c));
 const CLOTHES = [0x22262b, 0x2d3a4f, 0x45494d, 0x6b6e70, 0xf4f4f0, 0x3a5a7a, 0x5b4636, 0xd8c9a8, 0x1f2a3a, 0x8a1f1f].map(c => new THREE.Color(c));
 const crowdGeo = {body: new THREE.BoxGeometry(0.44, 1, 0.28), head: new THREE.BoxGeometry(0.2, 0.23, 0.21)}; // a box head is 12 triangles, a ball would be eight times that
@@ -136,7 +164,7 @@ function addCrowd(recs, F){
   const mk = geo => { const m = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({roughness:.85}), n0); m.receiveShadow = true; m.castShadow = false; m.userData.crowd = true; return m; };
   const bodies = mk(crowdGeo.body), heads = mk(crowdGeo.head);
   const club = new THREE.Color(S.seat), club2 = new THREE.Color(S.seat2 || "#f2f2f2"), dark = club.clone().multiplyScalar(0.7);
-  const A = Object.assign({on:false, colour:"#f2f2f2", at:"W"}, S.away || {}), away = new THREE.Color(A.colour), awayDir = {N:-Math.PI/2, S:Math.PI/2, E:0, W:Math.PI}[A.at] || Math.PI;
+  const A = awayOf(), away = new THREE.Color(A.colour), HE = homeEndOf();
   const full = S.crowdFill == null ? 0.93 : Math.max(0, Math.min(1, S.crowdFill));
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), up = new THREE.Vector3(0,1,0), hsc = new THREE.Vector3(1,1,1);
   const phase = [], baseY = [];
@@ -151,12 +179,14 @@ function addCrowd(recs, F){
     const want = (r.seats || 0)/step + carry, n = Math.floor(want); carry = want - n; if (n < 1) continue;
     const dx = r.m1[0]-r.m0[0], dz = r.m1[1]-r.m0[1]; q.setFromAxisAngle(up, Math.atan2(-dz, dx));
     const standing = r.type === "terrace" || r.type === "rail", fill = (r.type === "exec" ? 0.75 : 1)*full, hgt = standing ? 1.35 : 0.62;
-    const a = angle(r.x, r.z), inAway = A.on && Math.abs(Math.atan2(Math.sin(a - awayDir), Math.cos(a - awayDir))) < 0.32;
+    if (r.empty) continue; // the segregation gap round the away end
+    const a = angle(r.x, r.z), inAway = !!r.away, kop = !inAway && HE.at && r.stand === HE.at; // the home end: all in the club's colours, and full
     for (let k=0;k<n && c<n0 - 400;k++){
-      if (rnd() > fill) continue;
+      if (rnd() > (kop ? Math.max(fill, .99) : fill)) continue;
       const f = (k + 0.5 + (rnd()-0.5)*0.3)/n, x = r.m0[0] + dx*f, z = r.m0[1] + dz*f;
       const v = rnd(), shirt = inAway ? (v < .7 ? away : CLOTHES[Math.floor(rnd()*CLOTHES.length)])
         : r.type === "exec" ? CLOTHES[Math.floor(rnd()*4)] // suits and smart coats in the boxes
+        : kop ? (v < .7 ? club : v < .85 ? dark : club2)
         : v < .45 ? club : v < .55 ? dark : v < .62 ? club2 : CLOTHES[Math.floor(rnd()*CLOTHES.length)];
       const head = rnd() < .14 ? (inAway ? away : rnd() < .7 ? club : CLOTHES[0]) : SKIN[Math.floor(rnd()*SKIN.length)]; // a bobble hat or a cap now and then
       const h = hgt*(0.9 + rnd()*0.2), y = lerp(r.h0, r.h1, f) + (standing ? 0.05 + h/2 + 0.35 : 0.42 + h/2) + (rnd()-0.5)*0.05;
@@ -537,8 +567,36 @@ function adStrip(quads){
   if (!pos.length) return;
   const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); geo.computeVertexNormals();
   const mat = adMaterial(); mat.emissiveIntensity = S.night ? 1.1 : .4;
-  const mesh = new THREE.Mesh(geo, mat); mesh.receiveShadow = true; mesh.userData.stadium = true; group.add(mesh);
+  const mesh = new THREE.Mesh(geo, mat); mesh.receiveShadow = true; mesh.userData.stadium = true; mesh.userData.ads = true; group.add(mesh);
 }
+/* ================= players' tunnel and dugouts =================
+   The tunnel comes out of the front of a stand: its front rows are taken out, leaving a walled pit with the dark tunnel
+   mouth at the back, and an optional extending tunnel reaching onto the pitch. Dugouts sit either side of halfway:
+   perspex shelters by the touchline, sunk into the front rows, or simply padded seats in the front rows. */
+const TUNNEL = {on:false, at:"N", pos:0, width:4, extend:true, colour:""};
+const DUGOUTS = {on:false, at:"N", style:"bubble", length:10, gap:5, colour:""};
+const DUGOUT_STYLES = {bubble:"Perspex shelters by the touchline", sunk:"Sunk into the front of the stand", seats:"Padded seats in the front rows"};
+const tunnelOf = () => Object.assign({}, TUNNEL, S.tunnel || {});
+const dugoutsOf = () => Object.assign({}, DUGOUTS, S.dugouts || {});
+/* Emergency vehicle access: a way onto the pitch for an ambulance or fire engine, through a stand (its lower rows taken
+   out for a 4.5 m high opening) at any point along it. */
+const VEHICLE = {on:false, at:"W", pos:22, width:4.5}; // towards a corner, clear of the goal
+const vehicleOf = () => Object.assign({}, VEHICLE, S.vehicle || {});
+/* Wheelchair spaces: level platforms, each space with a companion seat beside it, spread round every stand. */
+const ACCESS = {on:false, at:"back", per:2, length:9};
+const ACCESS_AT = {front:"Front of the lower tier", middle:"Middle of the lower tier, by an entrance", back:"Back of the lower tier", upper:"Front of the top tier",
+  spread:"Spread over several levels (lower tier front and back, top tier front)"};
+const accessOf = () => Object.assign({}, ACCESS, S.access || {});
+/* How many wheelchair spaces guidance asks for, by capacity (after the UK Accessible Stadia guide's table for new grounds). */
+const wheelchairNeed = cap => cap <= 0 ? 0 : cap < 10000 ? Math.max(6, Math.ceil(cap/100)) : cap < 20000 ? 100 + Math.ceil((cap - 10000)*5/1000)
+  : cap < 40000 ? 150 + Math.ceil((cap - 20000)*3/1000) : 210 + Math.ceil((cap - 40000)*2/1000);
+/* How good a stand's facilities are: toilets, food and drink, concourse space and hospitality. */
+const FACILITIES = {basic:"Basic: toilets and a tea bar", good:"Good: wide concourses, plenty of food, drink and toilets", premium:"Premium: lounges, restaurants and padded seats"};
+const facilitiesOf = cfg => FACILITIES[cfg && cfg.facilities] ? cfg.facilities : "good";
+/* How fans get into a tier's seats: from the middle (exit tunnels, or vomitories, partway up), from the back, or from the
+   front. Auto keeps the old behaviour: a deep tier at ground level from the middle, everything else from the back. */
+const ENTRY = {auto:"Automatic", middle:"From the middle (exit tunnels partway up)", back:"From the back", front:"From the front"};
+const hasDugouts = () => S.sport === "football" || S.sport === "rugby" || (S.sport === "custom" && ["wrestleball", "plain"].includes(S.custom.kind));
 /* One screen-face material per seat colour, kept between rebuilds rather than made afresh every change. */
 const faceMats = {};
 function screenFace(){
@@ -795,7 +853,7 @@ let PRE = false;
 function build(){
   let alignTop = null, roofNeedMax = 0;
   if (S.roofAlign && !PRE){ PRE = true; const d0 = DRY; DRY = true; try { alignTop = build().roofNeedMax; } finally { DRY = d0; PRE = false; } }
-  const F = field(), L = S.limits, lay = layoutOf(), shape = S.cornerShape || "curved", groundRoof = !!(S.groundRoof && S.groundRoof.on);
+  const F = field(), L = S.limits, lay = layoutOf(), shape = F.pitch ? "curved" : S.cornerShape || "curved", groundRoof = !!(S.groundRoof && S.groundRoof.on);
   focusY = F.focusY || 0;
   focusIn = S.focusIn != null ? Math.max(0, Math.min(S.focusIn, maxFocusIn(F))) : defaultFocusIn(F);
   const floorRows = F.custom ? Math.max(0, Math.round(S.custom.floor || 0)) : 0;
@@ -804,7 +862,7 @@ function build(){
   const hard = hardStop(), set = Math.max(S.setback, floorNeed, hard);
   const standSet = cfg => Math.max(floorNeed, hard, cfg && cfg.dist != null ? cfg.dist : S.setback);
   const CV = convertView();
-  const radius = (F.custom || F.noStands) ? (F.r > 0 ? F.r : S.corner) : S.corner;
+  const radius = F.pitch ? F.r : (F.custom || F.noStands) ? (F.r > 0 ? F.r : S.corner) : S.corner; // a shaped field sets its own curve
   const poly = S.plot.on && S.plot.pts ? S.plot.pts : null;
   const site = (Array.isArray(S.site) ? S.site : []).filter(f => SITE_KINDS[f.kind] && f.length > 0 && f.width > 0);
   const obstacles = site.map(f => ({f, poly:featurePoly(f, 1)})); // stands keep a metre clear of roads, water and buildings
@@ -821,7 +879,7 @@ function build(){
   /* Every check result has a category (geometry note, viewing issue, rule break), a key so a fix can test it worked, and an optional fix. */
   const issue = (text, key, cat, extra) => issues.push(Object.assign({text, key, cat}, extra || {}));
   const outline = []; let outerTop = 0;
-  let total=0, minC=Infinity, maxH=0, far=0, farRef=null, restricted=0, slowest=0, slowestEm=0, curRef = null;
+  let wheelchair = 0, total=0, minC=Infinity, maxH=0, far=0, farRef=null, restricted=0, slowest=0, slowestEm=0, curRef = null;
   const bounds = [-(F.W/2+set), F.W/2+set, -(F.H/2+set), F.H/2+set];
   const focus = F.home || [0,0];
   const farFrom = (x,z,y) => {
@@ -831,7 +889,7 @@ function build(){
     if (dd > far){ far = dd; farRef = curRef; }
   };
   const grow = (x,z) => { outline.push([x,z]); bounds[0] = Math.min(bounds[0], x); bounds[1] = Math.max(bounds[1], x); bounds[2] = Math.min(bounds[2], z); bounds[3] = Math.max(bounds[3], z); };
-  const regions = [], roofQuads = [], allRecs = [], anchors = [];
+  const regions = [], roofQuads = [], allRecs = [], anchors = [], boardGaps = [];
 
   if (poly){
     const hx = F.W/2+set, hz = F.H/2+set;
@@ -1017,6 +1075,34 @@ function build(){
       if (closed){ let bd = Infinity; for (let i=0;i<m;i++){ const d = -v[i][1]/(Math.hypot(v[i][0], v[i][1]) || 1), x = Math.abs(pt(i, 0)[0]); if (d > 0.9 && x < bd){ bd = x; si = i; } } } // the middle of the main side
       const a = pt(si, 0), b = pt(nx(si) === 0 && !closed ? si : nx(si), 0), tx = b[0] - a[0], tz = b[1] - a[1], dx = -a[0], dz = -a[1];
       letterAt = {s0: cum[si], dir: tx*dz - tz*dx >= 0 ? 1 : -1, cols: Math.ceil(Math.min(lenTotal, 150)/0.5)}; }
+    /* The tunnel and dugouts on this stand, as blocks along it (in metres, as cum measures) whose front rows are cut out
+       (or given padded seats). sideHere finds this stand's middle on the asked-for side: its own middle, or for a bowl
+       the slice facing that way. */
+    const sideHere = at => { if (at === st.key && !st.drawFrom) return midI;
+      const dir = {N:[0,-1], S:[0,1], E:[1,0], W:[-1,0]}[at]; if (st.key !== "B" || !dir) return -1;
+      let bi = -1, bd = Infinity; for (let i=0;i<m;i++){ const vl = Math.hypot(v[i][0], v[i][1]) || 1, q = pt(i, 0), lat = Math.abs(dir[0] ? q[1] : q[0]);
+        if ((v[i][0]*dir[0] + v[i][1]*dir[1])/vl > 0.9 && lat < bd){ bd = lat; bi = i; } } return bi; };
+    const rightAt = si => { const last = !closed && si >= m - 1, a = pt(last ? si - 1 : si, 0), b = pt(last ? si : nx(si), 0);
+      return (b[0] - a[0])*(-a[1]) - (b[1] - a[1])*(-a[0]) >= 0 ? 1 : -1; }; // +1 when going along the stand is to the right, seen from the play
+    const wrapS = d => closed ? d - Math.round(d/lenTotal)*lenTotal : d;
+    const blocks = [], TN = tunnelOf(), DG = dugoutsOf(), pitchy = hasDugouts() && !CV;
+    if (pitchy && TN.on){ const si = sideHere(TN.at); if (si >= 0) blocks.push({kind:"tunnel", si, c: cum[si] + rightAt(si)*TN.pos, hw: TN.width/2}); }
+    if (pitchy && DG.on){ const si = sideHere(DG.at); if (si >= 0)
+      for (const e2 of [-1, 1]) blocks.push({kind: DG.style === "seats" ? "padded" : DG.style === "sunk" ? "dugout" : "bubble", si, c: cum[si] + e2*(DG.gap + DG.length/2), hw: DG.length/2}); }
+    const VH = vehicleOf(); if (VH.on && !CV){ const si = sideHere(VH.at); if (si >= 0) blocks.push({kind:"vehicle", si, c: cum[si] + rightAt(si)*VH.pos, hw: VH.width/2 + .3}); }
+    const AC = accessOf(), acPer = cfg.accessCount != null ? Math.max(0, Math.round(cfg.accessCount)) : AC.per;
+    if (AC.on && acPer > 0){ // spread evenly along the stand's seated length
+      let iL = -1, iR = -1; for (let i=0;i<m;i++) if (profs[i].some((p, k) => k >= st.drawFrom && p && !p.ghost && nRows(p) >= 1)){ if (iL < 0) iL = i; iR = i; }
+      if (iL >= 0){ const a = closed ? 0 : cum[iL], L = closed ? lenTotal : cum[iR] - cum[iL];
+        const nP = closed ? acPer*4 : acPer; // a closed bowl has four sides, each getting its share
+        for (const lv of AC.at === "spread" ? ["back", "front", "upper"] : [AC.at])
+          for (let q=0;q<nP;q++) if (L > AC.length + 4) blocks.push({kind:"access", at:lv, si:midI, c: a + L*(q + .5)/nP, hw: Math.min(AC.length, L/nP - 1)/2, tierTop: lv === "upper"}); } }
+    const cutAt = (s2, j, list) => { for (const b of list) if (b.R && j >= (b.r0 || 0) && j < b.R && Math.abs(wrapS(s2 - b.c)) < b.hw) return b.kind === "padded" ? "padded" : "cut"; return null; };
+    const inCut = (s2, list) => list.some(b => b.R && b.kind !== "padded" && Math.abs(wrapS(s2 - b.c)) < b.hw + 0.6);
+    const ptS = (s2, d) => { let x = closed ? ((s2 % lenTotal) + lenTotal) % lenTotal : Math.max(0, Math.min(cum[m-1], s2)), i = 0;
+      while (i < m - 1 && cum[i+1] <= x) i++; if (!closed && i >= m - 1) i = m - 2;
+      const j = nx(i), segL = (j === 0 ? lenTotal : cum[j]) - cum[i], f = segL > 0 ? (x - cum[i])/segL : 0, a = pt(i, d), b = pt(j, d);
+      return [lerp(a[0], b[0], f), lerp(a[1], b[1], f)]; };
     const sideMids = (() => { if (!st.sideAt) return []; const by = {}; for (let i=0;i<m;i++){ const s = st.sideAt(i); if (s) (by[s] = by[s] || []).push(i); }
       return Object.entries(by).map(([s, l]) => [l[Math.floor(l.length/2)], s]); })();
     const cap = (s, p, from, to, rail) => {
@@ -1123,13 +1209,32 @@ function build(){
       const fasc = buf(bad && S.trim ? "fasciaBad" : st.sel ? "fasciaSel" : frontKey);
       const seatKey = (tierType === "seated" || tierType === "rail") && tc.seatColour ? tint(tierType, tc.seatColour) : tierType;
       const backKey = seatKey !== tierType ? tint("seatBack", tc.seatColour) : "seatBack";
+      // the tunnel, dugouts and vehicle access cut into the lowest tier at ground level; wheelchair platforms go where asked
+      const topK = Math.max(...profs.map(p => p.length)) - 1, lowest = k === st.drawFrom && !best.stacked;
+      const CTl = blocks.filter(b => b.kind === "access" ? (b.tierTop ? k === topK && k > st.drawFrom : lowest) : lowest).map(b => Object.assign({}, b));
+      const CT = CTl.length ? CTl : null;
+      if (CT) for (const b of CT){ const P = pk(b.si) || best, n = nRows(P), low = h => P.hs.filter(y => y < h).length;
+        b.R = b.kind === "tunnel" ? Math.max(3, Math.min(n - 2, low(2.6))) : b.kind === "vehicle" ? Math.max(4, Math.min(n - 1, low(4.7))) : b.kind === "dugout" ? Math.max(2, Math.min(3, low(1.6), n - 2)) : b.kind === "padded" ? Math.min(2, n) : 0;
+        if (b.kind === "access" && n >= 4){ b.r0 = b.at === "front" || b.at === "upper" ? 0 : b.at === "back" ? n - 2 : Math.max(1, Math.floor(n*(tc.entryAt || .42)) - 2); b.R = b.r0 + 2; }
+        b.P = P; b.T = S.types[tierType].row; }
+      // splits a run [fa, fb] of segment i into pieces outside, or inside, a block, about 25 cm at a time
+      const piecesOf = (i, j1, j, fa0, fb0, len) => { if (!CT) return null;
+        const segL = (closed && j1 === 0 ? lenTotal : cum[j1]) - cum[i], n = Math.max(1, Math.ceil((fb0 - fa0)*len/0.25)), out = [];
+        for (let q=0;q<n;q++){ const fa = fa0 + (fb0 - fa0)*q/n, fb = fa0 + (fb0 - fa0)*(q+1)/n, md = cutAt(cum[i] + (fa + fb)/2*segL, j, CT), last = out[out.length-1];
+          if (last && last[2] === md) last[1] = fb; else out.push([fa, fb, md]); }
+        return out.length === 1 && out[0][2] == null ? null : out; };
+      const padKey = tint(tierType === "seated" || tierType === "rail" ? "seated" : "concrete", DG.colour || "#1d2a3a");
       const LG = letterAt && k === st.drawFrom && (tierType === "seated" || tierType === "rail") ? letterGrid(String(ST.text).toUpperCase().slice(0, 24), letterAt.cols, nRows(best)) : null;
       const aisleAt = tierType === "terrace" ? marks(24) : gangMarks(pk, S.design.gangEvery*S.types[tierType].width + S.design.gangWidth, gangEndOf()*S.types[tierType].width + S.design.gangWidth/2);
-      const vomAt = !best.stacked && nRows(best) >= 10 ? marks(S.design.exitEvery) : new Set();
+      const entry = ENTRY[tc.entry] && tc.entry !== "auto" ? tc.entry : !best.stacked && nRows(best) >= 10 ? "middle" : "back";
+      const entryEvery = tc.entryEvery > 0 ? tc.entryEvery : S.design.exitEvery;
+      const vomAt = entry === "middle" && nRows(best) >= 6 ? marks(entryEvery) : new Set();
+      const backAt = entry === "back" && tc.entry === "back" ? marks(entryEvery) : new Set(), frontAt = entry === "front" ? marks(entryEvery) : new Set();
+      const emergAt = S.design.emergEvery > 0 ? marks(S.design.emergEvery) : new Set();
       const rowLen = [], recs = []; let frontLen = 0;
       const gangCut = sl => aisleAt.has(sl) ? S.design.gangWidth/2 + .05 : 0;
-      const vomRows = n => { const j0 = Math.floor(n*0.42); return [j0, Math.min(n, j0 + 4)]; };
-      const vomCut = (sl, n, j) => { if (!vomAt.has(sl) || n < 10) return 0; const [ja, jb] = vomRows(n); return j >= ja && j < jb ? S.design.exitWidth/2 + .3 : 0; };
+      const vomRows = n => { const j0 = Math.max(1, Math.min(n - 5, Math.floor(n*(tc.entryAt || 0.42)))); return [j0, Math.min(n, j0 + 4)]; };
+      const vomCut = (sl, n, j) => { if (!vomAt.has(sl) || n < 6) return 0; const [ja, jb] = vomRows(n); return j >= ja && j < jb ? S.design.exitWidth/2 + .3 : 0; };
       for (let i=0;i<segs;i++){
         const j1 = nx(i), p0 = pk(i), p1 = pk(j1);
         const n0 = p0 && !p0.ghost ? nRows(p0) : 0, n1 = p1 && !p1.ghost ? nRows(p1) : 0, mr = Math.min(n0, n1);
@@ -1143,27 +1248,41 @@ function build(){
             const E = (d0, y0, d1, y1, f) => { const p = V(i, d0, y0), q = V(j1, d1, y1); return [lerp(p[0],q[0],f), lerp(p[1],q[1],f), lerp(p[2],q[2],f)]; };
             const strip = (key, d0, y0, d1, y1, e0, z0, e1, z1) => quad(buf(key), E(d0,y0,d1,y1,f0), E(d0,y0,d1,y1,f1), E(e0,z0,e1,z1,f1), E(e0,z0,e1,z1,f0));
             const b0 = a0+T-.1, b1 = a1+T-.1;
-            if (LG){ // seat by seat, letters in the second colour
-              const segL = (closed && j1 === 0 ? lenTotal : cum[j1]) - cum[i], n = Math.max(1, Math.round((f1 - f0)*len/0.5)), row = nRows(best) - 1 - j;
-              for (let q=0;q<n;q++){ const fa = f0 + (f1 - f0)*q/n, fb = f0 + (f1 - f0)*(q + 1)/n;
-                let ds = cum[i] + (fa + fb)/2*segL - letterAt.s0; if (closed) ds -= Math.round(ds/lenTotal)*lenTotal;
-                const on = LG(Math.floor(letterAt.cols/2 + letterAt.dir*ds/0.5), row);
-                const sq = (key, d0, y0, d1, y1, e0, z0, e1, z1) => quad(buf(key), E(d0,y0,d1,y1,fa), E(d0,y0,d1,y1,fb), E(e0,z0,e1,z1,fb), E(e0,z0,e1,z1,fa));
-                sq(on ? "seatAlt" : seatKey, a0,h0,a1,h1, a0+T,h0,a1+T,h1);
-                if (tierType !== "rail") sq(on ? "seatAltBack" : backKey, b0,h0,b1,h1, b0,h0+.42,b1,h1+.42); } }
-            else strip(alt ? "seatAlt" : seatKey, a0,h0,a1,h1, a0+T,h0,a1+T,h1);
+            let use = Math.max(0, len - Math.min(len*.49, v0) - Math.min(len*.49, v1)); // exit tunnels take seats out; gangways are already allowed for
+            if (p0.slid || p1.slid){ const q0 = pt(i, a0 + T/2 - (p0.slid || 0)), q1 = pt(j1, a1 + T/2 - (p1.slid || 0)); use = Math.min(use, Math.hypot(q1[0]-q0[0], q1[1]-q0[1])); } // a tier slid back keeps its own seats
+            const PC = piecesOf(i, j1, j, f0, f1, len);
+            if (PC || LG){ // piece by piece: around the tunnel and dugouts, and seat by seat where letters are spelt out
+              const segL = (closed && j1 === 0 ? lenTotal : cum[j1]) - cum[i], row = nRows(best) - 1 - j; let used = 0;
+              for (const [fa, fb, md] of PC || [[f0, f1, null]]){
+                if (md === "cut") continue;
+                const bits = LG && md == null ? Math.max(1, Math.round((fb - fa)*len/0.5)) : 1;
+                for (let q=0;q<bits;q++){ const ga = fa + (fb - fa)*q/bits, gb = fa + (fb - fa)*(q + 1)/bits;
+                  let on = false; if (LG && md == null){ let ds = cum[i] + (ga + gb)/2*segL - letterAt.s0; if (closed) ds -= Math.round(ds/lenTotal)*lenTotal; on = LG(Math.floor(letterAt.cols/2 + letterAt.dir*ds/0.5), row); }
+                  const sq = (key, d0, y0, d1, y1, e0, z0, e1, z1) => quad(buf(key), E(d0,y0,d1,y1,ga), E(d0,y0,d1,y1,gb), E(e0,z0,e1,z1,gb), E(e0,z0,e1,z1,ga));
+                  sq(md === "padded" ? padKey : on || (alt && !LG) ? "seatAlt" : seatKey, a0,h0,a1,h1, a0+T,h0,a1+T,h1);
+                  if (j>0) sq("riser", a0,p0.hs[j-1],a1,p1.hs[j-1], a0,h0,a1,h1);
+                  if (tierType === "rail") sq("barrier", b0,h0+.95,b1,h1+.95, b0,h0+1.05,b1,h1+1.05);
+                  else if (tierType === "terrace"){ if (j>0 && j % S.design.barrierEvery === 0) sq("barrier", a0+.08,h0+.95,a1+.08,h1+.95, a0+.08,h0+1.12,a1+.08,h1+1.12); }
+                  else if (tierType !== "bench"){ const bh = md === "padded" ? .62 : tierType === "exec" ? .55 : .42;
+                    sq(md === "padded" ? padKey : tierType === "exec" ? "exec" : on || (alt && !LG) ? "seatAltBack" : backKey, b0,h0,b1,h1, b0,h0+bh,b1,h1+bh); } }
+                const share = (fb - fa)/Math.max(1e-6, f1 - f0), c0 = lerp2(m0, m1, fa), c1 = lerp2(m0, m1, fb); used += use*share;
+                recs.push({j, len:use*share, d:(a0+a1)/2, x:(c0[0]+c1[0])/2, z:(c0[1]+c1[1])/2, i, m0:c0, m1:c1, h0:lerp(h0,h1,fa), h1:lerp(h0,h1,fb), type:tierType}); }
+              rowLen[j] = (rowLen[j]||0) + used; if (j === 0) frontLen += len;
+              continue; }
+            strip(alt ? "seatAlt" : seatKey, a0,h0,a1,h1, a0+T,h0,a1+T,h1);
             if (j>0) strip("riser", a0,p0.hs[j-1],a1,p1.hs[j-1], a0,h0,a1,h1);
             if (tierType === "rail") strip("barrier", b0,h0+.95,b1,h1+.95, b0,h0+1.05,b1,h1+1.05);
             else if (tierType === "terrace"){ if (j>0 && j % S.design.barrierEvery === 0) strip("barrier", a0+.08,h0+.95,a1+.08,h1+.95, a0+.08,h0+1.12,a1+.08,h1+1.12); }
-            else if (tierType !== "bench" && !LG){ const bh = tierType === "exec" ? .55 : .42; strip(tierType === "exec" ? "exec" : alt ? "seatAltBack" : backKey, b0,h0,b1,h1, b0,h0+bh,b1,h1+bh); }
-            let use = Math.max(0, len - Math.min(len*.49, v0) - Math.min(len*.49, v1)); // exit tunnels take seats out; gangways are already allowed for
-            if (p0.slid || p1.slid){ const q0 = pt(i, a0 + T/2 - (p0.slid || 0)), q1 = pt(j1, a1 + T/2 - (p1.slid || 0)); use = Math.min(use, Math.hypot(q1[0]-q0[0], q1[1]-q0[1])); } // a tier slid back keeps its own seats
+            else if (tierType !== "bench"){ const bh = tierType === "exec" ? .55 : .42; strip(tierType === "exec" ? "exec" : alt ? "seatAltBack" : backKey, b0,h0,b1,h1, b0,h0+bh,b1,h1+bh); }
             rowLen[j] = (rowLen[j]||0) + use; if (j === 0) frontLen += len;
             const c0 = lerp2(m0, m1, f0), c1 = lerp2(m0, m1, f1);
             recs.push({j, len:use, d:(a0+a1)/2, x:(m0[0]+m1[0])/2, z:(m0[1]+m1[1])/2, i, m0:c0, m1:c1, h0:lerp(h0,h1,f0), h1:lerp(h0,h1,f1), type:tierType});
           }
           const y00 = p0.stacked ? p0.hF-1.5 : 0, y10 = p1.stacked ? p1.hF-1.5 : 0;
-          quad(fasc, V(i,p0.front,y00), V(j1,p1.front,y10), V(j1,p1.front,p1.hF), V(i,p0.front,p0.hF));
+          const FP = piecesOf(i, j1, 0, 0, 1, Math.hypot(pt(j1,p1.front)[0]-pt(i,p0.front)[0], pt(j1,p1.front)[1]-pt(i,p0.front)[1]) || 1);
+          if (FP){ const Ef = (d0, y0, d1, y1, f) => { const p = V(i, d0, y0), q = V(j1, d1, y1); return [lerp(p[0],q[0],f), lerp(p[1],q[1],f), lerp(p[2],q[2],f)]; };
+            for (const [fa, fb, md] of FP) if (md !== "cut") quad(fasc, Ef(p0.front,y00,p1.front,y10,fa), Ef(p0.front,y00,p1.front,y10,fb), Ef(p0.front,p0.hF,p1.front,p1.hF,fb), Ef(p0.front,p0.hF,p1.front,p1.hF,fa)); }
+          else quad(fasc, V(i,p0.front,y00), V(j1,p1.front,y10), V(j1,p1.front,p1.hF), V(i,p0.front,p0.hF));
           if (tierType === "exec" || front === "glass") quad(buf("glass"), V(i,p0.front,p0.hF), V(j1,p1.front,p1.hF), V(j1,p1.front,p1.hF+1.1), V(i,p0.front,p0.hF+1.1));
           if (front === "concrete" || front === "brick") quad(fasc, V(i,p0.front,p0.hF), V(j1,p1.front,p1.hF), V(j1,p1.front,p1.hF+1), V(i,p0.front,p0.hF+1)); // a solid parapet
           if (p0.stacked && front === "lattice"){ // criss-cross balcony truss
@@ -1208,7 +1327,7 @@ function build(){
         }
         const tg = tangent(s);
         const across = (w, d, y, side) => { const q = pt(s, d); return [q[0] + tg[0]*w*side, y, q[1] + tg[1]*w*side]; };
-        if (aisleAt.has(s)){ // a stepped gangway: two steps to each row where the rake is steep, yellow nosings, a handrail
+        if (aisleAt.has(s) && !(CT && inCut(cum[s], CT))){ // a stepped gangway: two steps to each row where the rake is steep, yellow nosings, a handrail
           const gw = S.design.gangWidth/2, at = (d, y, side) => across(gw, d, y, side), seats = tierType !== "terrace";
           const tread = (d0, d1, y) => { quad(buf("aisle"), at(d0,y,-1), at(d0,y,1), at(d1,y,1), at(d1,y,-1)); quad(buf("barrier"), at(d0,y+.01,-1), at(d0,y+.01,1), at(d0+.07,y+.01,1), at(d0+.07,y+.01,-1)); };
           const riser = (d, y0, y1) => { if (y1 > y0 + .01) quad(buf("riser"), at(d,y0,-1), at(d,y0,1), at(d,y1,1), at(d,y1,-1)); };
@@ -1219,9 +1338,25 @@ function build(){
             bar(buf("steel"), [q0[0], p.hs[j]+.95, q0[1]], [q1[0], p.hs[j+1]+.95, q1[1]], .06);
             if (j % 3 === 0) bar(buf("steel"), [q0[0], p.hs[j], q0[1]], [q0[0], p.hs[j]+.95, q0[1]], .05); }
         }
-        if (vomAt.has(s) && n >= 10){ // an exit tunnel: a pit in the tier with walls, a railing, and the dark tunnel mouth at its back
+        if (aisleAt.has(s) && !p.stacked && S.design.pitchGates !== false && !(CT && inCut(cum[s], CT)) && p.hF > .5){ // an emergency gate in the front wall below the gangway
+          const gw = S.design.gangWidth/2 + .1, at = (d, y, side) => across(gw, d, y, side), gh = Math.min(p.hF, 1.25), df = p.front - .03;
+          quad(buf("dark"), at(df, 0, -1), at(df, 0, 1), at(df, gh, 1), at(df, gh, -1));
+          for (const side of [-1, 1]) bar(buf("emerg"), at(df - .02, 0, side), at(df - .02, gh, side), .07);
+          bar(buf("emerg"), at(df - .02, gh, -1), at(df - .02, gh, 1), .07); }
+        if (emergAt.has(s) && n >= 3){ // an emergency-only exit at the back of the tier: a door through the back wall, a lit sign over it
+          const ew = S.design.exitWidth/2, at = (d, y, side) => across(ew, d, y, side), bk = p.front + n*T - .02, y0 = p.hs[n-1] + .02;
+          quad(buf("void"), at(bk, y0, -1), at(bk, y0, 1), at(bk, y0 + 1.15, 1), at(bk, y0 + 1.15, -1));
+          const c = pt(s, bk - .08); post(buf("emerg"), c[0], c[1], y0 + 1.25, y0 + 1.55, .55); }
+        if (backAt.has(s) && n >= 2){ // an entrance at the back: a doorway through the back wall from the concourse behind
+          const ew = S.design.exitWidth/2, at = (d, y, side) => across(ew, d, y, side), bk = p.front + n*T - .02, y0 = p.hs[n-1] + .02;
+          quad(buf("void"), at(bk, y0, -1), at(bk, y0, 1), at(bk, y0 + 1.15, 1), at(bk, y0 + 1.15, -1)); }
+        if (frontAt.has(s) && !p.stacked){ // an entrance at the front: a gap in the front wall from a walkway along the play
+          const ew = S.design.exitWidth/2 + .1, at = (d, y, side) => across(ew, d, y, side), df = p.front - .03, gh = Math.min(p.hF, 2.1);
+          quad(buf("void"), at(df, 0, -1), at(df, 0, 1), at(df, gh, 1), at(df, gh, -1)); }
+        if (vomAt.has(s) && n >= 6){ // an exit tunnel: a pit in the tier with walls, a railing, and the dark tunnel mouth at its back
           const ew = S.design.exitWidth/2, [ja, jb] = vomRows(n), at = (d, y, side) => across(ew, d, y, side);
           const fl = p.hs[ja], dF = p.front + ja*T, dB = p.front + jb*T, topB = p.hs[Math.min(n-1, jb)];
+          { const c = pt(s, dB - .05); post(buf("emerg"), c[0], c[1], topB - .5, topB - .2, .5); } // the green exit sign over the way out
           quad(buf("riser"), at(dF,fl,-1), at(dF,fl,1), at(dB,fl,1), at(dB,fl,-1));
           quad(buf("void"), at(dB,fl,-1), at(dB,fl,1), at(dB,topB,1), at(dB,topB,-1));
           for (const side of [-1, 1]){
@@ -1237,6 +1372,61 @@ function build(){
         const bp = pt(s, p.front + n*T - T/2); farFrom(bp[0], bp[1], p.hs[n-1] + eye);
         standTop = Math.max(standTop, p.hs[n-1] + 1.2); standBack = Math.max(standBack, p.front + n*T);
       }
+      if (CT) for (const b of CT){ // the tunnel and dugouts themselves
+        const P = b.P, T2 = b.T, n = nRows(P), s0 = b.c - b.hw, s1 = b.c + b.hw, dF = P.front, Q = (s2, d, y) => { const q = ptS(s2, d); return [q[0], y, q[1]]; };
+        const colour = b.kind === "tunnel" ? TN.colour || S.seat : DG.colour || "#1d2a3a";
+        if (b.kind === "tunnel" || b.kind === "vehicle"){ const q = ptS(b.c, 0); boardGaps.push({x:q[0], z:q[1], hw:b.hw + .8}); } // the boards stop either side of it
+        if (b.kind === "vehicle"){ // a tall opening for an ambulance or fire engine, with hazard-striped edges and a painted route out to the pitch
+          const R = b.R, dB = dF + R*T2, top = Math.max(4.6, P.hs[Math.min(n - 1, R)]);
+          quad(buf("road"), Q(s0,0,.03), Q(s1,0,.03), Q(s1,dB,.03), Q(s0,dB,.03));
+          quad(buf("void"), Q(s0,dB,.03), Q(s1,dB,.03), Q(s1,dB,top), Q(s0,dB,top));
+          for (const e2 of [s0, s1]){ for (let j=0;j<R;j++){ const d0 = dF + j*T2; quad(buf("concrete"), Q(e2,d0,0), Q(e2,d0+T2,0), Q(e2,d0+T2,Math.max(P.hs[j]+.45, 0)), Q(e2,d0,Math.max(P.hs[j]+.45, 0))); }
+            for (let y=0;y<4.4;y+=.8) quad(buf("barrier"), Q(e2,dF-.02,y), Q(e2,dF+.25,y), Q(e2,dF+.25,y+.4), Q(e2,dF-.02,y+.4)); }
+          const c = Q(b.c, dB - .05, 4.75); post(buf("emerg"), c[0], c[2], 4.6, 4.95, .7); continue; }
+        if (b.kind === "access" && b.R){ // a level platform with a low rail in front and the blue sign at each end
+          const r0 = b.r0, y = P.hs[Math.min(n - 1, r0)] + .02, d0 = dF + r0*T2, d1 = dF + b.R*T2, yb = P.hs[Math.min(n - 1, b.R)];
+          quad(buf("concrete"), Q(s0,d0,y), Q(s1,d0,y), Q(s1,d1,y), Q(s0,d1,y));
+          if (r0 > 0) quad(buf("riser"), Q(s0,d0,P.hs[r0-1]), Q(s1,d0,P.hs[r0-1]), Q(s1,d0,y), Q(s0,d0,y));
+          if (b.R < n) quad(buf("riser"), Q(s0,d1,y), Q(s1,d1,y), Q(s1,d1,yb), Q(s0,d1,yb));
+          for (const e2 of [s0, s1]) quad(buf("concrete"), Q(e2,d0,y), Q(e2,d1,y), Q(e2,d1,Math.max(y, yb) + .3), Q(e2,d0,y + .3));
+          bar(buf("steel"), Q(s0,d0+.1,y+.85), Q(s1,d0+.1,y+.85), .05);
+          for (const e2 of [s0 + .4, s1 - .4]){ const c = Q(e2, d0 + .1, y + 1.05); post(buf("access"), c[0], c[2], y + .95, y + 1.3, .35); }
+          continue; }
+        if (b.kind === "tunnel" || b.kind === "dugout"){ // a walled pit where the front rows were, with the dark way in at the back
+          const R = b.R, dB = dF + R*T2, yF = .03, top = P.hs[Math.min(n - 1, R)];
+          quad(buf("concrete"), Q(s0,dF,yF), Q(s1,dF,yF), Q(s1,dB,yF), Q(s0,dB,yF));
+          quad(buf("void"), Q(s0,dB,yF), Q(s1,dB,yF), Q(s1,dB,top), Q(s0,dB,top));
+          for (const e2 of [s0, s1]) for (let j=0;j<R;j++){ const d0 = dF + j*T2; quad(buf("concrete"), Q(e2,d0,yF), Q(e2,d0+T2,yF), Q(e2,d0+T2,P.hs[j]+.45), Q(e2,d0,P.hs[j]+.45)); }
+          if (b.kind === "dugout"){ // a bench along the back for the staff and substitutes, and a low perspex screen at the front
+            const db = dB - .55, seat = tint("seated", colour); quad(buf(seat), Q(s0+.2,db,.48), Q(s1-.2,db,.48), Q(s1-.2,db+.5,.48), Q(s0+.2,db+.5,.48));
+            quad(buf(seat), Q(s0+.2,db+.5,.48), Q(s1-.2,db+.5,.48), Q(s1-.2,db+.5,1.1), Q(s0+.2,db+.5,1.1));
+            quad(buf("glass"), Q(s0,dF,yF), Q(s1,dF,yF), Q(s1,dF,1.05), Q(s0,dF,1.05)); }
+          else { // a green exit sign over the tunnel mouth, and the extending tunnel out towards the pitch
+            const c = Q(b.c, dB - .05, top - .35); post(buf("emerg"), c[0], c[2], top - .55, top - .2, .5);
+            if (TN.extend){ const reach = Math.min(8, dF - .6), d1 = dF - reach, w = b.hw + .15, key = tint("fascia", colour);
+              if (reach > 1){ const r0 = b.c - w, r1 = b.c + w, h = 2.5, arc = [[0, h - .5], [.25, h - .15], [.5, h], [.75, h - .15], [1, h - .5]];
+                for (const e2 of [r0, r1]) quad(buf(key), Q(e2,d1,0), Q(e2,dF,0), Q(e2,dF,h - .5), Q(e2,d1,h - .5));
+                for (let q=0;q<arc.length-1;q++){ const [fa, ya] = arc[q], [fb, yb] = arc[q+1], sa = lerp(r0, r1, fa), sb = lerp(r0, r1, fb);
+                  quad(buf(key), Q(sa,d1,ya), Q(sb,d1,yb), Q(sb,dF,yb), Q(sa,dF,ya)); }
+                quad(buf("void"), Q(r0+.15,d1+.02,0), Q(r1-.15,d1+.02,0), Q(r1-.15,d1+.02,h - .6), Q(r0+.15,d1+.02,h - .6)); } } } }
+        else if (b.kind === "bubble"){ // a perspex shelter on the apron, set back from the touchline
+          const D = 2.3, dBk = dF - .4, dFr = dBk - D;
+          if (dFr < 1){ if (!issues.some(x => x.key === "dugouts:fit")){ issue(`The dugouts don't fit between the touchline and the ${st.name.toLowerCase()} (they need about ${(D + 1.4).toFixed(1)} m).`, "dugouts:fit", "geo",
+            {tab:st.key, fix:{label:"Sink them into the stand", run:() => { S.dugouts = Object.assign(dugoutsOf(), {style:"sunk"}); return true; }}}); } continue; }
+          const seat = tint("seated", colour), H = 2.2;
+          quad(buf("dark"), Q(s0,dBk,0), Q(s1,dBk,0), Q(s1,dBk,H), Q(s0,dBk,H));
+          const arc = [[0, H], [.35, H - .15], [.7, H - .55], [1, 1.1]];
+          for (let q=0;q<arc.length-1;q++){ const da = lerp(dBk, dFr, arc[q][0]), db = lerp(dBk, dFr, arc[q+1][0]);
+            quad(buf("roofGlass"), Q(s0,da,arc[q][1]), Q(s1,da,arc[q][1]), Q(s1,db,arc[q+1][1]), Q(s0,db,arc[q+1][1])); }
+          for (const e2 of [s0, s1]) quad(buf("glass"), Q(e2,dBk,0), Q(e2,dFr,0), Q(e2,dFr,1.1), Q(e2,dBk,H));
+          quad(buf("dark"), Q(s0,dBk,.02), Q(s1,dBk,.02), Q(s1,dFr,.02), Q(s0,dFr,.02));
+          quad(buf(seat), Q(s0+.2,dBk-.6,.48), Q(s1-.2,dBk-.6,.48), Q(s1-.2,dBk-.1,.48), Q(s0+.2,dBk-.1,.48));
+          quad(buf(seat), Q(s0+.2,dBk-.12,.48), Q(s1-.2,dBk-.12,.48), Q(s1-.2,dBk-.12,1.15), Q(s0+.2,dBk-.12,1.15));
+          if (S.sport === "football"){ // the technical area: dashed white lines a metre round the dugout, out to a metre from the touchline
+            const line = (sa, da, sb, db) => { const A = Q(sa, da, .045), B = Q(sb, db, .045), L = Math.hypot(B[0]-A[0], B[2]-A[2]) || 1, nx2 = -(B[2]-A[2])/L*.06, nz2 = (B[0]-A[0])/L*.06;
+              for (let t = 0; t < L; t += 1.2){ const u0 = t/L, u1 = Math.min(1, (t + .7)/L), p0 = [lerp(A[0],B[0],u0), lerp(A[2],B[2],u0)], p1 = [lerp(A[0],B[0],u1), lerp(A[2],B[2],u1)];
+                quad(buf("white"), [p0[0]-nx2,.045,p0[1]-nz2], [p1[0]-nx2,.045,p1[1]-nz2], [p1[0]+nx2,.045,p1[1]+nz2], [p0[0]+nx2,.045,p0[1]+nz2]); } };
+            line(s0 - 1, dFr, s0 - 1, 1); line(s1 + 1, dFr, s1 + 1, 1); line(s0 - 1, 1, s1 + 1, 1); } } }
       if (tc.hold === "towers" && !closed && best.stacked){ const live = []; for (let s=0;s<m;s++){ const p = pk(s); if (p && !p.ghost && nRows(p) >= 1) live.push(s); }
         if (live.length >= 2) towerReqs.push({k, live}); }
       if (st.sel && ref){ // one depth handle in the middle, or one per side when a bowl's sides have their own rows
@@ -1247,10 +1437,18 @@ function build(){
           if (p.stacked && si === 0) handles.push({kind:"over", x:pt(hi,p.front)[0], y:p.hF, z:pt(hi,p.front)[1], o:o[hi], v:v[hi], ref, lowerBack:p.lowerBack, lowerBackH:p.lowerBackH}); }); }
       let seats = 0; rowLen.forEach(l => { if (l) seats += capRow(l, tierType); });
       for (const r of recs){ r.seats = rowLen[r.j] ? capRow(rowLen[r.j], tierType) * r.len / rowLen[r.j] : 0; segRecs.push(r); }
+      if (CT) for (const b of CT) if (b.kind === "access" && b.R){ // each space 0.9 m for the wheelchair, 0.7 m for a companion seat
+        const sp = Math.floor(2*b.hw/1.6), P = b.P, y = P.hs[Math.min(nRows(P)-1, b.r0)], m0 = ptS(b.c - b.hw, P.front + (b.r0 + 1)*b.T), m1 = ptS(b.c + b.hw, P.front + (b.r0 + 1)*b.T);
+        wheelchair += sp; seats += sp*2; segRecs.push({j:b.r0, len:2*b.hw, d:P.front + (b.r0 + 1)*b.T, x:(m0[0]+m1[0])/2, z:(m0[1]+m1[1])/2, m0, m1, h0:y, h1:y, type:"seated", seats:sp*2}); }
       byType[tierType] += seats; standSeats += seats; total += seats; kinds.add(TYPES[tierType].short);
       const tr0 = {name: cap1(tierName(kDrawn-1, realCount, above) || "single") + " tier", type:tierType, rows:nRows(best), seats:Math.round(seats), steep, c: isFinite(tierC) ? Math.round(tierC*1000) : null, evac:0, front:best.front, height:best.hB, bad};
       tierRecs.push(tr0);
-      if (seats){ const exits = Math.max(1, Math.round(frontLen / S.design.exitEvery)), mins = seats / (exits * S.design.exitWidth * L.flow);
+      // how far the furthest fan walks along the rows and up or down the gangway to the way in
+      const nT = nRows(best), rise = nT > 1 ? best.hs[nT-1] - best.hs[0] : 0, along = nT*T, maxWalk = L.maxTravel == null ? 30 : L.maxTravel;
+      const walk = entry === "middle" ? Math.max(vomRows(nT)[0], nT - vomRows(nT)[1])/nT*Math.hypot(along, rise) + 8 : Math.hypot(along, rise) + 8;
+      if (seats && tc.entry && tc.entry !== "auto" && walk > maxWalk) issue(`${name}: the furthest fans walk about ${Math.round(walk)} m to get in or out, more than the ${maxWalk} m guidance allows. Bring them in from the middle, or add entrances.`, `walk:${st.name}:${kk}`, "rules",
+        Object.assign({fix:{label:"Bring them in from the middle", run:() => { if (ref){ ref.entry = "middle"; ref.entryAt = .45; } return true; }}}, where));
+      if (seats){ const exits = Math.max(1, Math.round(frontLen / entryEvery)), mins = seats / (exits * S.design.exitWidth * L.flow);
         if (mins > L.maxEvac + 1e-9){ const key = `evac:${st.name}:${kk}`;
           const spacing = []; for (let x = S.design.exitEvery - 1; x >= 8; x--) spacing.push(x);
           const widths = []; for (let x = S.design.exitWidth + 0.2; x <= 5.001; x += 0.2) widths.push(+x.toFixed(1));
@@ -1260,11 +1458,17 @@ function build(){
         /* Emergency evacuation, judged separately: the time allowed depends on the stand's fire risk. A tier at the
            front can also go forward, down its gangways and out onto the play. */
         const risk = fireRiskOf(cfg), lim = L["evac" + cap1(risk)] != null ? L["evac" + cap1(risk)] : {low:8, medium:6, high:2.5}[risk];
-        const forward = best.stacked ? 0 : (aisleAt.size || 1)*S.design.gangWidth, em = seats / ((exits*S.design.exitWidth + forward) * L.flow);
+        /* Emergency-only exits add to the normal ones: gates in the pitch-side wall (the front tier goes down its gangways and
+           out onto the play) and, if asked for, extra doors along the back of every tier. */
+        const gates = S.design.pitchGates !== false && !best.stacked, forward = gates ? (aisleAt.size || 1)*S.design.gangWidth : 0;
+        const extra = S.design.emergEvery > 0 ? Math.max(1, Math.round(frontLen / S.design.emergEvery))*S.design.exitWidth : 0;
+        const em = seats / ((exits*S.design.exitWidth + forward + extra) * L.flow);
         tr0.emerg = em; tr0.risk = risk; slowestEm = Math.max(slowestEm, em);
         if (em > lim + 1e-9 && mins <= L.maxEvac + 1e-9){ const key = `emerg:${st.name}:${kk}`;
           const spacing = []; for (let x = S.design.exitEvery - 1; x >= 8; x--) spacing.push(x);
-          const fixes = [{label:"Add more exits", run:() => searchFix(v2 => { S.design.exitEvery = v2; }, spacing, key)}];
+          const fixes = [{label:"Add emergency exits at the back of the tiers", run:() => searchFix(v2 => { S.design.emergEvery = v2; }, [40, 32, 26, 20, 16, 12, 10, 8], key)},
+            {label:"Add more exits", run:() => searchFix(v2 => { S.design.exitEvery = v2; }, spacing, key)}];
+          if (!gates && !best.stacked) fixes.unshift({label:"Put emergency gates in the pitch-side wall", run:() => { S.design.pitchGates = true; return true; }});
           if (risk !== "low") fixes.push({label:"Build it from concrete and steel (low fire risk)", run:() => { cfg.fire = "low"; return true; }});
           issue(`${name}: in an emergency it takes ${em.toFixed(1)} minutes to get everyone out. With a ${risk} fire risk it should clear in ${lim} minute${lim === 1 ? "" : "s"}.`, key, "rules",
             Object.assign({fix:fixes[0], alts:fixes.slice(1)}, where)); } }
@@ -1414,13 +1618,14 @@ function build(){
     }
     // the stadium's name (naming rights) goes along the main stand's roof front, unless that stand has lettering of its own
     const SP = sponsorsOf(), named = !fac.sign && SP.title && SP.onStand !== false && st.key === (lay === "bowl" ? "B" : lay === "ring" ? "R0" : "N");
-    const signText = fac.sign || (named ? SP.title : ""), signAt = named ? "roof" : fac.signAt;
+    const HEn = homeEndOf(), homeNamed = !fac.sign && !named && HEn.name && HEn.at === st.key; // the home end's name, like the Kop's
+    const signText = fac.sign || (named ? SP.title : homeNamed ? HEn.name : ""), signAt = named || homeNamed ? "roof" : fac.signAt;
     if (signText && !DRY){ // lettering on the outside wall, or along the roof front facing the play
       let si = midI;
       if (closed){ let bd = -2; for (let i=0;i<m;i++){ if (!info[i]) continue; const d = -v[i][1]/(Math.hypot(v[i][0], v[i][1]) || 1); if (d > bd){ bd = d; si = i; } } if (bd < 0.95) si = -1; }
       const x = si >= 0 ? info[si] : null, R2 = x && RRout ? RRout[si] : null;
       if (x){
-        const mat = signMaterial(String(signText).slice(0, 30), (named ? SP.titleColour : fac.signColour) || "#ffffff"), onRoof = signAt === "roof" && roofOn && R2;
+        const mat = signMaterial(String(signText).slice(0, 30), (named ? SP.titleColour : homeNamed ? S.seat : fac.signColour) || "#ffffff"), onRoof = signAt === "roof" && roofOn && R2;
         mat.emissiveIntensity = S.night ? .9 : .35; // a little light keeps it legible in shadow
         const vl = Math.hypot(v[si][0], v[si][1]) || 1, nOut = [v[si][0]/vl, v[si][1]/vl], tg = tangent(si);
         const top = onRoof ? R2.y(0) : roofOn && R2 ? R2.y(1) : x.top;
@@ -1439,7 +1644,7 @@ function build(){
     }
     if (st.sel && st.key in S.stands && lay === "stands" && info[midI]){ const q = pt(midI, info[midI].front);
       handles.push({kind:"dist", x:q[0], y:0.6, z:q[1], o:o[midI], v:v[midI], cfg}); }
-    for (const r of segRecs) allRecs.push(r);
+    for (const r of segRecs){ r.stand = st.key; allRecs.push(r); }
     let rv = 0;
     if (cols.length){ const cosLim = Math.cos(12*Math.PI/180);
       for (const r of segRecs){
@@ -1696,18 +1901,37 @@ function build(){
       {fix: farFixes[0], alts: farFixes.slice(1)});
   }
   const sext = [Math.max(-bounds[0], bounds[1]), Math.max(-bounds[2], bounds[3])];
-  const result = {issues, total, maxH, bounds, covered, minC, slowest, slowestEm, far, farRef, restricted, byType, roofNeedMax};
+  { const AC = accessOf(), need = wheelchairNeed(total); // enough wheelchair spaces for a ground this size
+    if (AC.on && total > 500 && wheelchair < need) issue(`Wheelchair spaces: ${wheelchair}, but guidance asks for about ${need} at a ground holding ${fmt(total)}.`, "access:spaces", "rules",
+      {fix:{label:"Add more wheelchair platforms", run:() => { const at0 = accessOf().at, sizes = [[2,9],[3,9],[4,9],[4,12],[6,12],[6,15],[8,12],[6,18],[8,15],[6,24],[10,15],[8,20],[8,24],[12,18],[12,24]];
+        return searchFix(([per, length, at]) => { S.access = Object.assign(accessOf(), {per, length, at}); }, sizes.map(x => x.concat(at0)).concat(at0 === "spread" ? [] : sizes.map(x => x.concat("spread"))), "access:spaces"); }}}); }
+  const awayAlloc = allocateAway(allRecs);
+  { const A = awayOf(), HE = homeEndOf();
+    if (A.on && !awayAlloc.seats && total) issue("The away end is set on a stand with no seats.", "away:none", "geo", {fix:{label:"Put the away fans in the west end", run:() => { S.away = Object.assign(awayOf(), {at:"W"}); return true; }}});
+    if (A.on && HE.at && HE.at === A.at) issue("The away fans are in the home end. Move one of them.", "away:home", "geo"); }
+  const result = {issues, total, wheelchair, awayAlloc, maxH, bounds, covered, minC, slowest, slowestEm, far, farRef, restricted, byType, roofNeedMax};
   const screenPlans = planScreens(F, anchors, closedAt, outerTop, set, issue);
   if (DRY) return result;
 
   // pitchside advertising boards
-  if (S.boards && !CV && (S.sport === "football" || S.sport === "rugby") && set >= 3){
-    const off = Math.min(3, set - 1.2), hx = F.W/2 + off, hz = F.H/2 + off + (S.sport === "football" ? 1 : 0);
+  /* Any rectangular playing area gets them (football, rugby, wrestleball, tennis, a plain floor), about 3 m out from the
+     play, or closer on a tight ground. With seats on the floor they go just inside the front row. */
+  const FP = pitchOf(F), boardsFit = S.sport === "football" || S.sport === "rugby" || (F.custom && !(FP.r > 0) && ["wrestleball","tennis","plain"].includes(S.custom.kind));
+  const bOff = floorRows ? 0.6 : F.pitch ? Math.min(3, set - 1.2 + Math.min(F.W - FP.W, F.H - FP.H)/2) : Math.min(3, set - 1.2);
+  if (S.boards && !CV && boardsFit && bOff >= 0.6){
+    const off = bOff, hx = FP.W/2 + off, hz = FP.H/2 + off + (S.sport === "football" ? 1 : 0);
     const Pb = [[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz]], Po = [[-hx-.04,-hz-.04],[hx+.04,-hz-.04],[hx+.04,hz+.04],[-hx-.04,hz+.04]];
-    ribbon(buf("dark"), Po, Po, 0, 0.9, true); // plain backs; the adverts face the play and the TV cameras across it
-    adStrip(Pb.map((a, i) => { const b = Pb[(i+1)%4]; return {a:[a[0], 0.02, a[1]], b:[b[0], 0.02, b[1]], h:0.86, view:[0, 0]}; }));
+    // each side runs corner to corner, with a gap where the players' tunnel comes out
+    const runs = (P) => P.flatMap((a, i) => { const b = P[(i+1)%4], dx = b[0]-a[0], dz = b[1]-a[1], L = Math.hypot(dx, dz), cut = [];
+      for (const g of boardGaps){ const t = ((g.x - a[0])*dx + (g.z - a[1])*dz)/(L*L), off = Math.abs((g.x - a[0])*dz - (g.z - a[1])*dx)/L;
+        if (t > 0 && t < 1 && off < 6) cut.push([t - g.hw/L, t + g.hw/L]); }
+      cut.sort((u, w) => u[0] - w[0]); const out = []; let t0 = 0;
+      for (const [u, w] of cut){ if (u > t0) out.push([t0, u]); t0 = Math.max(t0, w); } if (t0 < 1) out.push([t0, 1]);
+      return out.map(([u, w]) => [[a[0] + dx*u, a[1] + dz*u], [a[0] + dx*w, a[1] + dz*w]]); });
+    for (const [a, b] of runs(Po)) quad(buf("dark"), [a[0], 0, a[1]], [b[0], 0, b[1]], [b[0], .9, b[1]], [a[0], .9, a[1]]); // plain backs; the adverts face the play and the TV cameras across it
+    adStrip(runs(Pb).map(([a, b]) => ({a:[a[0], 0.02, a[1]], b:[b[0], 0.02, b[1]], h:0.86, view:[0, 0]})));
   }
-  addProps(group, CV ? CV.F2 : F, buf, CV ? CV.sp : undefined);
+  addProps(group, CV ? CV.F2 : pitchOf(F), buf, CV ? CV.sp : undefined);
   for (const key in Bf) if (Bf[key].length){
     const mesh = meshFrom(Bf[key], M[key], !["roof","roofGlass","glass","roofClosed","aisle","void","glassClad"].includes(key));
     if (TYPES[key.split("_")[0]] || key === "floorSeat") mesh.userData.seat = true;
@@ -1720,7 +1944,7 @@ function build(){
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(Wt, Ht), new THREE.MeshStandardMaterial({map:tex, roughness:1}));
   floor.rotation.x = -Math.PI/2; floor.position.y = 0.02; floor.receiveShadow = true; group.add(floor);
   if (S.crowd !== false) addCrowd(allRecs, F); else CROWD = null;
-  if (S.players) addPlayers(CV ? CV.F2 : F, CV ? CV.sp : S.sport);
+  if (S.players) addPlayers(CV ? CV.F2 : pitchOf(F), CV ? CV.sp : S.sport);
   let ext = sext.slice();
   if (poly){
     const xs = poly.map(p => p[0]), zs = poly.map(p => p[1]);
@@ -1748,7 +1972,9 @@ function build(){
   if (fm === "masts" || fm === "pylons"){
     const mh = Math.max(maxH + 16, 30);
     for (const sx of [-1,1]) for (const sz of [-1,1]){
-      const x = sx*(sext[0]+8), z = sz*(sext[1]+8);
+      // round grounds keep their masts close in, a third of the way round from each end, rather than out at a square's corners
+      const roundish = F.r >= Math.min(F.W, F.H)/2 - 1, a = Math.PI/6;
+      const x = roundish ? sx*(sext[0] + 8)*Math.cos(a) : sx*(sext[0] + 8), z = roundish ? sz*(sext[1] + 8)*Math.sin(a) : sz*(sext[1] + 8);
       if (fm === "pylons") pylon(buf2, x, z, mh);
       else { const mm = new THREE.Mesh(new THREE.CylinderGeometry(.6,1.1,mh,10), M.mast); mm.position.set(x,mh/2,z); mm.castShadow = true; group.add(mm); }
       group.add(lampHead(x, mh + 3, z));
