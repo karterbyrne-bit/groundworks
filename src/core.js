@@ -1,5 +1,20 @@
 /* The playing area for a sport (the design's own by default). Tennis and wrestleball can also be a ground's second sport. */
+/* The field round the pitch can take its own shape: an oval or a circle drawn round the pitch, with a little grass to
+   spare, so the stands (and a bowl) follow it while the pitch keeps its own size and markings in the middle. The pitch's
+   own size stays in F.pitch for the markings, goals, boards and players. */
+const FIELD_SHAPES = {pitch:"Follows the pitch", oval:"Oval round the pitch", round:"Round (a circle round the pitch)"};
+const fieldShapeOf = () => Object.assign({shape:"pitch", margin:2}, S.fieldShape || {});
+const canShapeField = sp => sp === "football" || sp === "rugby" || (sp === "custom" && S.custom.kind !== "bullring");
 function field(sp){
+  const own = !sp || sp === S.sport, F = field0(sp), FS = fieldShapeOf();
+  if (!own || FS.shape === "pitch" || !canShapeField(S.sport) || !F) return F;
+  const W = F.W, H = F.H, m = Math.max(0, FS.margin), pitch = {W, H, r:F.r};
+  if (FS.shape === "round"){ const R = Math.hypot(W/2, H/2) + m; return Object.assign({}, F, {W:2*R, H:2*R, r:R, pitch}); }
+  const lo = Math.min(W, H), R = lo/2*Math.SQRT2 + m, long = Math.max(W, H) - lo + 2*R; // a running-track shape whose round ends clear the pitch corners
+  return Object.assign({}, F, W >= H ? {W:long, H:2*R} : {W:2*R, H:long}, {r:R, pitch});
+}
+const pitchOf = F => F && F.pitch ? Object.assign({}, F, F.pitch, {pitch:null}) : F; // the pitch itself, for its markings and furniture
+function field0(sp){
   sp = sp || S.sport;
   if (sp !== "custom" && KINDS[sp]){ const k = KINDS[sp]; return {W:k.W, H:k.H, r:k.r, custom:true, kind:sp, surface:k.surface, focusY:k.focusY || 0, zones:k.zones, note:k.note}; }
   if (sp === "custom"){
@@ -382,10 +397,10 @@ function drawBaseball(ctx, F, Wt, Ht){
   ctx.strokeStyle = "#ffffff"; ctx.lineWidth = .12;
   ctx.beginPath(); ctx.moveTo(H[0],H[1]); ctx.lineTo(H[0]+100,H[1]); ctx.moveTo(H[0],H[1]); ctx.lineTo(H[0],H[1]+100); ctx.stroke();
 }
-function drawKind(ctx, F, Wt, Ht, lw){
+function drawKind(ctx, F, Wt, Ht, lw, shaped){
   const W = F.W, H = F.H, k = F.kind, line = (x1,z1,x2,z2) => { ctx.beginPath(); ctx.moveTo(x1,z1); ctx.lineTo(x2,z2); ctx.stroke(); };
   const surround = {arena:"#2f3337", court:"#2d4a6b", ice:"#3a3f44", tennis:"#2f6b52", grass:"#3a7335", mat:"#2f3337", sand:"#b89a62"}[F.surface] || "#2f3337";
-  ctx.fillStyle = surround; ctx.fillRect(-Wt/2,-Ht/2,Wt,Ht);
+  if (!shaped){ ctx.fillStyle = surround; ctx.fillRect(-Wt/2,-Ht/2,Wt,Ht); }
   if (k === "wrestleball"){
     const z = F.zones, tot = z.reduce((a,b) => a+b, 0), sc = W/tot;
     let x = -W/2;
@@ -423,7 +438,9 @@ function floorTexture(F, set, sp){
   const lw = Math.max(0.05, 1.6/k);
   ctx.lineWidth = lw; ctx.strokeStyle = "rgba(255,255,255,.92)"; ctx.fillStyle = "rgba(255,255,255,.92)";
   const sport = sp || S.sport;
-  if (F.custom) drawKind(ctx, F, Wt, Ht, lw);
+  if (F.pitch && F.r > 0){ // the field's own outline, a little darker, round the pitch
+    ctx.fillStyle = {grass:"#356f31", sand:"#b89a62", court:"#2d4a6b", tennis:"#2f6b52", ice:"#3a3f44"}[F.surface] || (F.custom ? "#2f3337" : "#356f31"); ctx.fillRect(-Wt/2,-Ht/2,Wt,Ht); }
+  if (F.custom) drawKind(ctx, pitchOf(F), Wt, Ht, lw, !!F.pitch);
   else if (sport === "baseball") drawBaseball(ctx, F, Wt, Ht);
   else if (sport === "cricket"){
     ctx.fillStyle = "#386f33"; ctx.fillRect(-Wt/2,-Ht/2,Wt,Ht);

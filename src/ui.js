@@ -58,6 +58,7 @@ function renderStats(){
     ["Worst sightline", cMM===null ? "n/a" : cMM+" mm", cMM===null ? "" : pill(cMM >= L.minC, "ok", "low")],
     ["Furthest fan to " + D.farName, fmt(D.far)+" m", pill(D.far <= L.maxView, "ok", "far")],
     ["Slowest stand to empty", D.slowest ? D.slowest.toFixed(1) + " min" : "n/a", D.slowest ? pill(D.slowest <= L.maxEvac, "ok", "slow") : ""],
+    ...(D.awayAlloc && D.awayAlloc.seats ? [["Away allocation", `${fmt(D.awayAlloc.seats)} (${(100*D.awayAlloc.seats/Math.max(1, D.total)).toFixed(1)}%)`, ""]] : []),
     ["Slowest emergency evacuation", D.slowestEm ? D.slowestEm.toFixed(1) + " min" : "n/a", D.slowestEm ? pill(!D.issues.some(i => /^emerg:/.test(i.key)), "ok", "slow") : ""]
   ];
   if (D.restricted) items.push(["Restricted view", `${fmt(D.restricted)} seats`, `<span class="pill ${rPct > 5 ? "bad" : "warn"}">${rPct.toFixed(1)}%</span>`]);
@@ -152,6 +153,13 @@ function architectNotes(D){
   if (basic) note("tip", `${basic === fac.length ? "Every stand has" : basic + " stand" + (basic > 1 ? "s have" : " has")} basic facilities. Expect long queues for the toilets and the tea bar at half time.`);
   if (prem) note("good", `${prem === fac.length ? "Every stand has" : prem + " stand" + (prem > 1 ? "s have" : " has")} premium facilities: lounges and restaurants that earn money on non-match days too.`);
   sc.comfort = clamp10(sc.comfort*0.75 + 2.5*(fac.length ? fac.reduce((a, f) => a + (f === "basic" ? 0.3 : f === "premium" ? 1.2 : 0.8), 0)/fac.length : 0.8));
+  // the ends: a home end behind a goal makes the noise; an away end needs room and keeping apart
+  const HE = homeEndOf(), AW = awayOf(), AL = D.awayAlloc || {seats:0};
+  if (HE.at){ const p = D.parts.find(x => x.key === HE.at), terr = p && p.tiers.some(t => t.type === "terrace" || t.type === "rail");
+    note("good", `${HE.name ? HE.name.charAt(0) + HE.name.slice(1).toLowerCase() : "The home end"} is a sea of the club's colours${terr ? ", and standing there makes it louder still" : ""}.`); }
+  if (AW.on && AL.seats){ const share = AL.seats/D.total;
+    if (share < 0.03) note("tip", `The away end holds ${fmt(AL.seats)}, under 3% of the ground. Visiting fans will feel squeezed.`);
+    if (!AW.gap) note("warn", "There's no gap between home and away fans. Leave a few empty seats to keep them apart."); }
   // money: hospitality
   const boxShare = (D.byType.exec || 0)/D.total;
   if (D.total > 25000 && boxShare < 0.01) note("tip", "No executive boxes. At a ground this size, hospitality pays a lot of the bills. Try a ring of boxes between two tiers.", "boxes", "Go to stands");
@@ -317,7 +325,8 @@ function camTarget(mode){
     const dir = new THREE.Vector3(-u[0], 0.55, -u[1]).normalize().multiplyScalar(0.5);
     return {p, t:p.clone().add(dir), look:true};
   }
-  return {p:new THREE.Vector3(R0*1.3, R0*0.95, R0*1.5), t:new THREE.Vector3(0, Math.min(6, R0*0.05), 0)};
+  const R1 = Math.max(R0, D.maxH*0.9); // a small, tall ground needs the camera further out and higher, above the roof
+  return {p:new THREE.Vector3(R1*1.3, Math.max(R1*0.95, D.maxH*1.5), R1*1.5), t:new THREE.Vector3(0, Math.min(6, R0*0.05), 0)};
 }
 function moveCam(p, t, instant){
   controls.minDistance = 0; controls.maxDistance = Infinity;
@@ -1009,7 +1018,7 @@ $("siteAdd").innerHTML = Object.entries(SITE_KINDS).map(([k, v]) => `<button cla
 const siteOf = () => (S.site = Array.isArray(S.site) ? S.site : []);
 let siteDrawn = null;
 function renderSite(){
-  const list = siteOf(); siteDrawn = JSON.stringify(list);
+  const list = Array.isArray(S.site) ? S.site : []; siteDrawn = JSON.stringify(list); // just drawing it mustn't change the design
   if ($("siteList").contains(document.activeElement)) return;
   const num = (i, k, label, v, min, max, step, unit) => `<div class="row pair"><label>${label}</label><span class="num"><input type="number" data-sf2="${k}" data-i="${i}" value="${Math.round(v*10)/10}" min="${min}" max="${max}" step="${step}" aria-label="${label}"> ${unit}</span>
     <input type="range" data-sf2="${k}" data-i="${i}" min="${min}" max="${max}" step="${step}" value="${v}" aria-label="${label}"></div>`;
@@ -1122,6 +1131,9 @@ $("screens").addEventListener("change", e => { const el = e.target; if (!el.data
 for (const id of ["crowd","night","seeThrough","players"]) $(id).addEventListener("change", e => { S[id] = e.target.checked; changed(); });
 $("scenery").addEventListener("change", e => { S.scenery = e.target.checked ? "real" : "model"; changed(); });
 bindRange("crowdFill", v => S.crowdFill = v/100);
+$("fieldShape").innerHTML = Object.entries(FIELD_SHAPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+$("fieldShape").addEventListener("change", e => { S.fieldShape = Object.assign(fieldShapeOf(), {shape:e.target.value}); changed(true); });
+bindRange("fieldMargin", v => { S.fieldShape = Object.assign(fieldShapeOf(), {margin:v}); }, true);
 /* Tunnel and dugouts: which stands they can go in, and their settings. */
 const tdSides = () => isRing() ? ringOf().stands.map((r, i) => ["R" + i, r.name || "Stand " + (i+1)]).filter((x, i) => ringOf().stands[i].tiers.length)
   : SIDES.filter(k => isBowl() || isHybrid() || S.stands[k].tiers.length).map(k => [k, SIDE_NAMES[k].toLowerCase()]);
@@ -1158,10 +1170,15 @@ $("spTitle").addEventListener("input", e => { spOf().title = cleanName(e.target.
 $("spTitleColour").addEventListener("input", e => { spOf().titleColour = e.target.value; changed(false, true); });
 $("spOnStand").addEventListener("change", e => { spOf().onStand = e.target.checked; changed(); });
 $("spNames").addEventListener("input", e => { spOf().names = e.target.value.split("\n").map(cleanName).slice(0, 8); S.boards = true; changed(false, true); }); // sponsors want to be seen
-const awayOf = () => (S.away = Object.assign({on:false, colour:"#f2f2f2", at:"W"}, S.away || {}));
-$("awayOn").addEventListener("change", e => { awayOf().on = e.target.checked; changed(); });
-$("awayAt").addEventListener("change", e => { awayOf().at = e.target.value; changed(); });
-$("awayColour").addEventListener("input", e => { awayOf().colour = e.target.value; changed(false, true); });
+const awaySet = (k, v) => { S.away = Object.assign(awayOf(), {[k]: v}); };
+$("awayOn").addEventListener("change", e => { awaySet("on", e.target.checked); changed(); });
+$("awayAt").addEventListener("change", e => { awaySet("at", e.target.value); changed(); });
+$("awayAnchor").addEventListener("change", e => { awaySet("anchor", e.target.value); changed(); });
+$("awayCount").addEventListener("input", e => { if (e.target.value === "" || isNaN(+e.target.value)) return; awaySet("count", Math.max(0, Math.round(+e.target.value))); changed(false, true); });
+$("awayColour").addEventListener("input", e => { awaySet("colour", e.target.value); changed(false, true); });
+bindRange("awayGap", v => awaySet("gap", v));
+$("homeAt").addEventListener("change", e => { S.homeEnd = Object.assign(homeEndOf(), {at:e.target.value}); changed(); });
+$("homeName").addEventListener("input", e => { S.homeEnd = Object.assign(homeEndOf(), {name:cleanName(e.target.value).toUpperCase()}); changed(false, true); });
 $("stewards").addEventListener("change", e => { S.stewards = e.target.checked; changed(); });
 $("waveBtn").addEventListener("click", () => {
   if (S.crowd === false){ S.crowd = true; changed(); }
@@ -1347,6 +1364,8 @@ function syncUI(){
   const CK = Object.assign({}, CRICKET, S.cricket || {}), BP = Object.assign({}, BALLPARK, S.ballpark || {});
   for (const [id, v] of [["ckL", CK.L], ["ckW", CK.W], ["bpLF", BP.lf], ["bpCF", BP.cf], ["bpRF", BP.rf], ["bpWall", BP.wall], ["bpLFW", BP.lfWall]]){ if (document.activeElement !== $(id)) $(id).value = v; $("o-" + id).textContent = v + " m"; }
   $("customFloor").hidden = !F.custom;
+  { const FS = fieldShapeOf(), can = canShapeField(S.sport); $("fieldShapeBox").hidden = !can; $("fieldShape").value = FS.shape;
+    $("fieldMarginRow").hidden = $("fieldShapeHint").hidden = FS.shape === "pitch"; $("fieldMargin").value = FS.margin; $("o-fieldMargin").textContent = FS.margin + " m"; }
   $("kinds").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.kind === S.custom.kind)));
   $("cornerRow").hidden = lay === "stands" || S.cornerShape === "square" || (F.r > 0 && (F.custom || F.noStands));
   for (const [id, key] of [["nW","W"],["nH","H"],["nR","r"]]) if (document.activeElement !== $(id)) $(id).value = S.custom[key];
@@ -1400,7 +1419,15 @@ function syncUI(){
   $("scenery").checked = S.scenery !== "model"; $("crowd").checked = S.crowd !== false; $("night").checked = !!S.night; $("seeThrough").checked = !!S.seeThrough;
   { const AW = awayOf(), fillPct = Math.round(100*(S.crowdFill == null ? 0.93 : S.crowdFill));
     $("crowdBox").hidden = S.crowd === false; $("crowdFill").value = fillPct; $("o-crowdFill").textContent = fillPct + "%";
-    $("awayOn").checked = AW.on; $("awayRow").hidden = !AW.on; $("awayAt").value = AW.at; if (document.activeElement !== $("awayColour")) $("awayColour").value = AW.colour;
+    const opts = tdSides(), HEs = homeEndOf(), AL = LAST && LAST.awayAlloc;
+    $("awayOn").checked = AW.on; $("awayRows").hidden = !AW.on;
+    $("awayAt").innerHTML = opts.map(([k, n]) => `<option value="${k}"${k === AW.at ? " selected" : ""}>${esc(n)}</option>`).join("");
+    $("awayAnchor").value = AW.anchor; $("awayGap").value = AW.gap; $("o-awayGap").textContent = AW.gap ? AW.gap + " m" : "none";
+    if (document.activeElement !== $("awayCount")) $("awayCount").value = AW.count != null ? AW.count : Math.min(3000, Math.round((LAST ? LAST.total : 0)*0.1/100)*100);
+    $("awayNote").textContent = AL && AW.on ? `${fmt(AL.seats)} seats given to away fans${AL.gap ? `, ${fmt(AL.gap)} left empty to keep the fans apart` : ""}.` : "";
+    if (document.activeElement !== $("awayColour")) $("awayColour").value = AW.colour;
+    $("homeAt").innerHTML = `<option value="">None</option>` + opts.map(([k, n]) => `<option value="${k}"${k === HEs.at ? " selected" : ""}>${esc(n)}</option>`).join("");
+    $("homeNameRow").hidden = !HEs.at; if (document.activeElement !== $("homeName")) $("homeName").value = HEs.name || "";
     $("stewards").checked = S.stewards !== false; }
   $("seeBtn").setAttribute("aria-pressed", String(!!S.seeThrough)); $("nightBtn").setAttribute("aria-pressed", String(!!S.night));
   { const T = S.seatText || {}, opts = seatTextStands();

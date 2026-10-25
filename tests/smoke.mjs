@@ -211,6 +211,23 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   if (await page.locator("#players").isVisible()){ await page.check("#players"); await page.waitForTimeout(300); check(errors.length === 0 && (await page.evaluate(() => window.__gw.state().players)), "players can line up for kick-off"); await page.uncheck("#players"); }
   await page.evaluate(() => { const el = document.getElementById("hour"); el.value = "19.5"; el.dispatchEvent(new Event("input", {bubbles:true})); });
   check((await page.evaluate(() => window.__gw.state().hour)) === 19.5 && /7:30 pm/.test(await page.locator("#o-hour").textContent()), "the time of day can be set");
+  // an away end of a chosen size in a chosen stand, and a home end with its own name
+  await page.click('#panes [data-pane="start"]'); await page.click('[data-p="ot"]'); await page.waitForTimeout(300); await page.click('#panes [data-pane="look"]');
+  if (!(await page.locator("#crowd").isChecked())) await page.check("#crowd");
+  await page.check("#awayOn"); await page.waitForTimeout(300); await page.selectOption("#awayAt", "E"); await page.selectOption("#awayAnchor", "left");
+  await page.fill("#awayCount", "4000"); await page.waitForTimeout(400);
+  const al = await page.evaluate(() => window.__gw.last().awayAlloc);
+  check(al.seats >= 4000 && al.seats < 4300 && al.gap > 0, `the away end gets the seats it's allocated, with a gap round it (${Math.round(al.seats)})`);
+  await page.selectOption("#homeAt", "W"); await page.fill("#homeName", "the kop"); await page.waitForTimeout(300);
+  check((await page.evaluate(() => JSON.stringify(window.__gw.state().homeEnd))) === '{"at":"W","name":"THE KOP"}' && errors.length === 0, "a stand can be the home end, with its own name");
+  await page.uncheck("#awayOn"); await page.selectOption("#homeAt", "");
+  // a round field round a wrestleball pitch
+  await page.click('#panes [data-pane="start"]'); await page.click('[data-p="wrestle"]'); await page.waitForTimeout(300); await page.click('#panes [data-pane="ground"]');
+  await page.selectOption("#fieldShape", "round"); await page.click('label[for="ly-bowl"]'); await page.waitForTimeout(500);
+  const fl = await page.evaluate(() => { const D = window.__gw.last(); return [D.F.W, D.F.H, D.F.pitch && D.F.pitch.W, D.total]; });
+  check(Math.abs(fl[0] - fl[1]) < .01 && fl[0] > 20 && fl[2] === 16.5 && fl[3] > 0 && errors.length === 0, "a wrestleball pitch can sit in a round field, with the bowl following it");
+  await page.selectOption("#fieldShape", "pitch");
+
   // players' tunnel, dugouts in each style, and emergency exits
   await page.click('#panes [data-pane="start"]'); await page.click('[data-p="bowl"]'); await page.waitForTimeout(300); await page.click('#panes [data-pane="look"]');
   const noTunnel = await cap(); await page.check("#tnOn"); await page.waitForTimeout(300);

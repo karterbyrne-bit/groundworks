@@ -124,6 +124,34 @@ function letterGrid(text, cols, rows){
    colours. Stewards in hi-vis stand along the front facing the crowd. Heads take a mix of skin tones, and some wear hats.
    CROWD keeps where everyone is, so a Mexican wave can stand them up and sit them down again. */
 let CROWD = null;
+/* The away end: an allocation of seats in one stand (or one side of a bowl), starting from the middle or either end of it
+   and growing out from there, block by block, the full height of the stand, with a gap of empty seats round it to keep
+   the two sets of fans apart. The home end is a whole stand where the club's most vocal fans stand. */
+const AWAY = {on:false, colour:"#f2f2f2", at:"W", anchor:"middle", count:null, gap:3};
+const awayOf = () => Object.assign({}, AWAY, S.away || {});
+const homeEndOf = () => Object.assign({at:"", name:""}, S.homeEnd || {});
+/* Which rows of seats belong to a stand, or a side of a bowl, and where each sits along it as the fans there see it
+   (u grows to their right). */
+function standRecs(recs, at){
+  const dir = SIDE_DIR[at];
+  let list = recs.filter(r => !r.floor && r.seats > 0 && (r.stand === at || (dir && r.stand === "B" && (r.x*dir[0] + r.z*dir[1]) > 0.55*Math.hypot(r.x, r.z))));
+  if (!list.length) return [];
+  let n = dir; if (!n){ const cx = list.reduce((a, r) => a + r.x, 0)/list.length, cz = list.reduce((a, r) => a + r.z, 0)/list.length, l = Math.hypot(cx, cz) || 1; n = [cx/l, cz/l]; }
+  for (const r of list) r.u = -r.x*n[1] + r.z*n[0];
+  return list;
+}
+function allocateAway(recs){
+  for (const r of recs){ r.away = false; r.empty = false; }
+  const A = awayOf(), out = {seats:0, gap:0}; if (!A.on) return out;
+  const list = standRecs(recs, A.at); if (!list.length) return out;
+  const us = list.map(r => r.u), lo = Math.min(...us), hi = Math.max(...us), u0 = A.anchor === "left" ? lo : A.anchor === "right" ? hi : (lo + hi)/2;
+  const total = recs.reduce((a, r) => a + (r.seats || 0), 0), want = A.count != null ? A.count : Math.min(3000, Math.round(total*0.1));
+  list.sort((a, b) => Math.abs(a.u - u0) - Math.abs(b.u - u0));
+  let edge = 0;
+  for (const r of list){ if (out.seats >= want) break; r.away = true; out.seats += r.seats; edge = Math.max(edge, Math.abs(r.u - u0)); }
+  for (const r of list) if (!r.away && Math.abs(r.u - u0) <= edge + A.gap){ r.empty = true; out.gap += r.seats; }
+  return out;
+}
 const SKIN = [0xf1c7a6, 0xe0ac86, 0xc68a62, 0x9d6a46, 0x6f4a32, 0x4a3022, 0xf5d3b8, 0xd29b74].map(c => new THREE.Color(c));
 const CLOTHES = [0x22262b, 0x2d3a4f, 0x45494d, 0x6b6e70, 0xf4f4f0, 0x3a5a7a, 0x5b4636, 0xd8c9a8, 0x1f2a3a, 0x8a1f1f].map(c => new THREE.Color(c));
 const crowdGeo = {body: new THREE.BoxGeometry(0.44, 1, 0.28), head: new THREE.BoxGeometry(0.2, 0.23, 0.21)}; // a box head is 12 triangles, a ball would be eight times that
@@ -136,7 +164,7 @@ function addCrowd(recs, F){
   const mk = geo => { const m = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({roughness:.85}), n0); m.receiveShadow = true; m.castShadow = false; m.userData.crowd = true; return m; };
   const bodies = mk(crowdGeo.body), heads = mk(crowdGeo.head);
   const club = new THREE.Color(S.seat), club2 = new THREE.Color(S.seat2 || "#f2f2f2"), dark = club.clone().multiplyScalar(0.7);
-  const A = Object.assign({on:false, colour:"#f2f2f2", at:"W"}, S.away || {}), away = new THREE.Color(A.colour), awayDir = {N:-Math.PI/2, S:Math.PI/2, E:0, W:Math.PI}[A.at] || Math.PI;
+  const A = awayOf(), away = new THREE.Color(A.colour), HE = homeEndOf();
   const full = S.crowdFill == null ? 0.93 : Math.max(0, Math.min(1, S.crowdFill));
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), up = new THREE.Vector3(0,1,0), hsc = new THREE.Vector3(1,1,1);
   const phase = [], baseY = [];
@@ -151,12 +179,14 @@ function addCrowd(recs, F){
     const want = (r.seats || 0)/step + carry, n = Math.floor(want); carry = want - n; if (n < 1) continue;
     const dx = r.m1[0]-r.m0[0], dz = r.m1[1]-r.m0[1]; q.setFromAxisAngle(up, Math.atan2(-dz, dx));
     const standing = r.type === "terrace" || r.type === "rail", fill = (r.type === "exec" ? 0.75 : 1)*full, hgt = standing ? 1.35 : 0.62;
-    const a = angle(r.x, r.z), inAway = A.on && Math.abs(Math.atan2(Math.sin(a - awayDir), Math.cos(a - awayDir))) < 0.32;
+    if (r.empty) continue; // the segregation gap round the away end
+    const a = angle(r.x, r.z), inAway = !!r.away, kop = !inAway && HE.at && r.stand === HE.at; // the home end: all in the club's colours, and full
     for (let k=0;k<n && c<n0 - 400;k++){
-      if (rnd() > fill) continue;
+      if (rnd() > (kop ? Math.max(fill, .99) : fill)) continue;
       const f = (k + 0.5 + (rnd()-0.5)*0.3)/n, x = r.m0[0] + dx*f, z = r.m0[1] + dz*f;
       const v = rnd(), shirt = inAway ? (v < .7 ? away : CLOTHES[Math.floor(rnd()*CLOTHES.length)])
         : r.type === "exec" ? CLOTHES[Math.floor(rnd()*4)] // suits and smart coats in the boxes
+        : kop ? (v < .7 ? club : v < .85 ? dark : club2)
         : v < .45 ? club : v < .55 ? dark : v < .62 ? club2 : CLOTHES[Math.floor(rnd()*CLOTHES.length)];
       const head = rnd() < .14 ? (inAway ? away : rnd() < .7 ? club : CLOTHES[0]) : SKIN[Math.floor(rnd()*SKIN.length)]; // a bobble hat or a cap now and then
       const h = hgt*(0.9 + rnd()*0.2), y = lerp(r.h0, r.h1, f) + (standing ? 0.05 + h/2 + 0.35 : 0.42 + h/2) + (rnd()-0.5)*0.05;
@@ -823,7 +853,7 @@ let PRE = false;
 function build(){
   let alignTop = null, roofNeedMax = 0;
   if (S.roofAlign && !PRE){ PRE = true; const d0 = DRY; DRY = true; try { alignTop = build().roofNeedMax; } finally { DRY = d0; PRE = false; } }
-  const F = field(), L = S.limits, lay = layoutOf(), shape = S.cornerShape || "curved", groundRoof = !!(S.groundRoof && S.groundRoof.on);
+  const F = field(), L = S.limits, lay = layoutOf(), shape = F.pitch ? "curved" : S.cornerShape || "curved", groundRoof = !!(S.groundRoof && S.groundRoof.on);
   focusY = F.focusY || 0;
   focusIn = S.focusIn != null ? Math.max(0, Math.min(S.focusIn, maxFocusIn(F))) : defaultFocusIn(F);
   const floorRows = F.custom ? Math.max(0, Math.round(S.custom.floor || 0)) : 0;
@@ -832,7 +862,7 @@ function build(){
   const hard = hardStop(), set = Math.max(S.setback, floorNeed, hard);
   const standSet = cfg => Math.max(floorNeed, hard, cfg && cfg.dist != null ? cfg.dist : S.setback);
   const CV = convertView();
-  const radius = (F.custom || F.noStands) ? (F.r > 0 ? F.r : S.corner) : S.corner;
+  const radius = F.pitch ? F.r : (F.custom || F.noStands) ? (F.r > 0 ? F.r : S.corner) : S.corner; // a shaped field sets its own curve
   const poly = S.plot.on && S.plot.pts ? S.plot.pts : null;
   const site = (Array.isArray(S.site) ? S.site : []).filter(f => SITE_KINDS[f.kind] && f.length > 0 && f.width > 0);
   const obstacles = site.map(f => ({f, poly:featurePoly(f, 1)})); // stands keep a metre clear of roads, water and buildings
@@ -1588,13 +1618,14 @@ function build(){
     }
     // the stadium's name (naming rights) goes along the main stand's roof front, unless that stand has lettering of its own
     const SP = sponsorsOf(), named = !fac.sign && SP.title && SP.onStand !== false && st.key === (lay === "bowl" ? "B" : lay === "ring" ? "R0" : "N");
-    const signText = fac.sign || (named ? SP.title : ""), signAt = named ? "roof" : fac.signAt;
+    const HEn = homeEndOf(), homeNamed = !fac.sign && !named && HEn.name && HEn.at === st.key; // the home end's name, like the Kop's
+    const signText = fac.sign || (named ? SP.title : homeNamed ? HEn.name : ""), signAt = named || homeNamed ? "roof" : fac.signAt;
     if (signText && !DRY){ // lettering on the outside wall, or along the roof front facing the play
       let si = midI;
       if (closed){ let bd = -2; for (let i=0;i<m;i++){ if (!info[i]) continue; const d = -v[i][1]/(Math.hypot(v[i][0], v[i][1]) || 1); if (d > bd){ bd = d; si = i; } } if (bd < 0.95) si = -1; }
       const x = si >= 0 ? info[si] : null, R2 = x && RRout ? RRout[si] : null;
       if (x){
-        const mat = signMaterial(String(signText).slice(0, 30), (named ? SP.titleColour : fac.signColour) || "#ffffff"), onRoof = signAt === "roof" && roofOn && R2;
+        const mat = signMaterial(String(signText).slice(0, 30), (named ? SP.titleColour : homeNamed ? S.seat : fac.signColour) || "#ffffff"), onRoof = signAt === "roof" && roofOn && R2;
         mat.emissiveIntensity = S.night ? .9 : .35; // a little light keeps it legible in shadow
         const vl = Math.hypot(v[si][0], v[si][1]) || 1, nOut = [v[si][0]/vl, v[si][1]/vl], tg = tangent(si);
         const top = onRoof ? R2.y(0) : roofOn && R2 ? R2.y(1) : x.top;
@@ -1613,7 +1644,7 @@ function build(){
     }
     if (st.sel && st.key in S.stands && lay === "stands" && info[midI]){ const q = pt(midI, info[midI].front);
       handles.push({kind:"dist", x:q[0], y:0.6, z:q[1], o:o[midI], v:v[midI], cfg}); }
-    for (const r of segRecs) allRecs.push(r);
+    for (const r of segRecs){ r.stand = st.key; allRecs.push(r); }
     let rv = 0;
     if (cols.length){ const cosLim = Math.cos(12*Math.PI/180);
       for (const r of segRecs){
@@ -1874,17 +1905,21 @@ function build(){
     if (AC.on && total > 500 && wheelchair < need) issue(`Wheelchair spaces: ${wheelchair}, but guidance asks for about ${need} at a ground holding ${fmt(total)}.`, "access:spaces", "rules",
       {fix:{label:"Add more wheelchair platforms", run:() => { const at0 = accessOf().at, sizes = [[2,9],[3,9],[4,9],[4,12],[6,12],[6,15],[8,12],[6,18],[8,15],[6,24],[10,15],[8,20],[8,24],[12,18],[12,24]];
         return searchFix(([per, length, at]) => { S.access = Object.assign(accessOf(), {per, length, at}); }, sizes.map(x => x.concat(at0)).concat(at0 === "spread" ? [] : sizes.map(x => x.concat("spread"))), "access:spaces"); }}}); }
-  const result = {issues, total, wheelchair, maxH, bounds, covered, minC, slowest, slowestEm, far, farRef, restricted, byType, roofNeedMax};
+  const awayAlloc = allocateAway(allRecs);
+  { const A = awayOf(), HE = homeEndOf();
+    if (A.on && !awayAlloc.seats && total) issue("The away end is set on a stand with no seats.", "away:none", "geo", {fix:{label:"Put the away fans in the west end", run:() => { S.away = Object.assign(awayOf(), {at:"W"}); return true; }}});
+    if (A.on && HE.at && HE.at === A.at) issue("The away fans are in the home end. Move one of them.", "away:home", "geo"); }
+  const result = {issues, total, wheelchair, awayAlloc, maxH, bounds, covered, minC, slowest, slowestEm, far, farRef, restricted, byType, roofNeedMax};
   const screenPlans = planScreens(F, anchors, closedAt, outerTop, set, issue);
   if (DRY) return result;
 
   // pitchside advertising boards
   /* Any rectangular playing area gets them (football, rugby, wrestleball, tennis, a plain floor), about 3 m out from the
      play, or closer on a tight ground. With seats on the floor they go just inside the front row. */
-  const boardsFit = S.sport === "football" || S.sport === "rugby" || (F.custom && !(F.r > 0) && ["wrestleball","tennis","plain"].includes(S.custom.kind));
-  const bOff = floorRows ? 0.6 : Math.min(3, set - 1.2);
+  const FP = pitchOf(F), boardsFit = S.sport === "football" || S.sport === "rugby" || (F.custom && !(FP.r > 0) && ["wrestleball","tennis","plain"].includes(S.custom.kind));
+  const bOff = floorRows ? 0.6 : F.pitch ? Math.min(3, set - 1.2 + Math.min(F.W - FP.W, F.H - FP.H)/2) : Math.min(3, set - 1.2);
   if (S.boards && !CV && boardsFit && bOff >= 0.6){
-    const off = bOff, hx = F.W/2 + off, hz = F.H/2 + off + (S.sport === "football" ? 1 : 0);
+    const off = bOff, hx = FP.W/2 + off, hz = FP.H/2 + off + (S.sport === "football" ? 1 : 0);
     const Pb = [[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz]], Po = [[-hx-.04,-hz-.04],[hx+.04,-hz-.04],[hx+.04,hz+.04],[-hx-.04,hz+.04]];
     // each side runs corner to corner, with a gap where the players' tunnel comes out
     const runs = (P) => P.flatMap((a, i) => { const b = P[(i+1)%4], dx = b[0]-a[0], dz = b[1]-a[1], L = Math.hypot(dx, dz), cut = [];
@@ -1896,7 +1931,7 @@ function build(){
     for (const [a, b] of runs(Po)) quad(buf("dark"), [a[0], 0, a[1]], [b[0], 0, b[1]], [b[0], .9, b[1]], [a[0], .9, a[1]]); // plain backs; the adverts face the play and the TV cameras across it
     adStrip(runs(Pb).map(([a, b]) => ({a:[a[0], 0.02, a[1]], b:[b[0], 0.02, b[1]], h:0.86, view:[0, 0]})));
   }
-  addProps(group, CV ? CV.F2 : F, buf, CV ? CV.sp : undefined);
+  addProps(group, CV ? CV.F2 : pitchOf(F), buf, CV ? CV.sp : undefined);
   for (const key in Bf) if (Bf[key].length){
     const mesh = meshFrom(Bf[key], M[key], !["roof","roofGlass","glass","roofClosed","aisle","void","glassClad"].includes(key));
     if (TYPES[key.split("_")[0]] || key === "floorSeat") mesh.userData.seat = true;
@@ -1909,7 +1944,7 @@ function build(){
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(Wt, Ht), new THREE.MeshStandardMaterial({map:tex, roughness:1}));
   floor.rotation.x = -Math.PI/2; floor.position.y = 0.02; floor.receiveShadow = true; group.add(floor);
   if (S.crowd !== false) addCrowd(allRecs, F); else CROWD = null;
-  if (S.players) addPlayers(CV ? CV.F2 : F, CV ? CV.sp : S.sport);
+  if (S.players) addPlayers(CV ? CV.F2 : pitchOf(F), CV ? CV.sp : S.sport);
   let ext = sext.slice();
   if (poly){
     const xs = poly.map(p => p[0]), zs = poly.map(p => p[1]);
@@ -1937,7 +1972,9 @@ function build(){
   if (fm === "masts" || fm === "pylons"){
     const mh = Math.max(maxH + 16, 30);
     for (const sx of [-1,1]) for (const sz of [-1,1]){
-      const x = sx*(sext[0]+8), z = sz*(sext[1]+8);
+      // round grounds keep their masts close in, a third of the way round from each end, rather than out at a square's corners
+      const roundish = F.r >= Math.min(F.W, F.H)/2 - 1, a = Math.PI/6;
+      const x = roundish ? sx*(sext[0] + 8)*Math.cos(a) : sx*(sext[0] + 8), z = roundish ? sz*(sext[1] + 8)*Math.sin(a) : sz*(sext[1] + 8);
       if (fm === "pylons") pylon(buf2, x, z, mh);
       else { const mm = new THREE.Mesh(new THREE.CylinderGeometry(.6,1.1,mh,10), M.mast); mm.position.set(x,mh/2,z); mm.castShadow = true; group.add(mm); }
       group.add(lampHead(x, mh + 3, z));

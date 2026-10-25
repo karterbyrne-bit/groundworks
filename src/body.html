@@ -75,6 +75,11 @@
         <input type="radio" name="sport" id="sp-custom" value="custom"><label for="sp-custom">Other sports</label>
       </div>
       <p class="hint" id="sportNote"></p>
+      <div id="fieldShapeBox">
+        <div class="row"><label for="fieldShape">Field shape</label><select id="fieldShape" aria-label="Field shape"></select></div>
+        <div class="row" id="fieldMarginRow"><label for="fieldMargin">Grass beyond the pitch corners</label><output id="o-fieldMargin"></output><input type="range" id="fieldMargin" min="0" max="30" step="0.5"></div>
+        <p class="hint" id="fieldShapeHint" hidden>The pitch keeps its size and markings; the field round it, and the stands, follow the new shape. A bowl or a ring of stands (under Layout) follows it best.</p>
+      </div>
       <div id="cricketBox" class="group" hidden>
         <div class="row"><label for="ckL">Boundary, end to end</label><output id="o-ckL"></output><input type="range" id="ckL" min="120" max="190" step="1"></div>
         <div class="row"><label for="ckW">Boundary, side to side</label><output id="o-ckW"></output><input type="range" id="ckW" min="110" max="180" step="1"></div>
@@ -328,8 +333,15 @@
       <label class="toggle"><input type="checkbox" id="crowd"> Fill it with a crowd</label>
       <div id="crowdBox">
         <div class="row"><label for="crowdFill">How full</label><output id="o-crowdFill"></output><input type="range" id="crowdFill" min="5" max="100" step="5"></div>
-        <label class="toggle"><input type="checkbox" id="awayOn"> Away fans in their own colours</label>
-        <div class="row" id="awayRow"><label for="awayAt">Away end</label><span class="num"><select id="awayAt" aria-label="Away end"><option value="W">West end</option><option value="E">East end</option><option value="N">Main stand</option><option value="S">Opposite stand</option></select> <input type="color" id="awayColour" value="#f2f2f2" aria-label="Away colours"></span></div>
+        <label class="toggle"><input type="checkbox" id="awayOn"> An away end, in the away team's colours</label>
+        <div id="awayRows">
+          <div class="row"><label for="awayAt">In the</label><span class="num"><select id="awayAt" aria-label="Away end"></select> <input type="color" id="awayColour" value="#f2f2f2" aria-label="Away colours"></span></div>
+          <div class="row"><label for="awayAnchor">Starting from</label><select id="awayAnchor" aria-label="Where in the stand the away end starts"><option value="middle">The middle of the stand</option><option value="left">Its left-hand end</option><option value="right">Its right-hand end</option></select></div>
+          <div class="row pair"><label for="awayCount">Away allocation</label><span class="num"><input type="number" id="awayCount" min="0" max="30000" step="100" aria-label="Away allocation"> fans</span><small class="note" id="awayNote"></small></div>
+          <div class="row"><label for="awayGap">Empty seats between the fans</label><output id="o-awayGap"></output><input type="range" id="awayGap" min="0" max="20" step="1"></div>
+        </div>
+        <div class="row"><label for="homeAt">Home end</label><select id="homeAt" aria-label="Home end"></select></div>
+        <div class="row" id="homeNameRow"><label for="homeName">Its name</label><input type="text" id="homeName" maxlength="24" placeholder="e.g. THE KOP" aria-label="Home end name"></div>
         <label class="toggle"><input type="checkbox" id="stewards"> Stewards in hi-vis along the front</label>
         <button class="btn small" id="waveBtn">🙌 Start a Mexican wave</button>
       </div>
