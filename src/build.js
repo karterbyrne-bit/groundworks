@@ -1301,7 +1301,18 @@ function build(){
       const entry = ENTRY[tc.entry] && tc.entry !== "auto" ? tc.entry : !best.stacked && nRows(best) >= 10 ? "middle" : "back";
       const entryEvery = tc.entryEvery > 0 ? tc.entryEvery : S.design.exitEvery;
       const vomAt = entry === "middle" && nRows(best) >= 6 ? marks(entryEvery) : new Set();
-      const backAt = entry === "back" && tc.entry === "back" ? marks(entryEvery) : new Set(), frontAt = entry === "front" ? marks(entryEvery) : new Set();
+      /* Where fans come in, a level walkway runs the length of the tier (about 1.2 m wide): along the back, along the front,
+         or across the tier just in front of the exit tunnels. The entrances sit at the heads (or feet) of the gangways, so
+         everyone walks along the walkway to their gangway and on to their row. */
+      const walkRows = n => { const k = Math.max(1, Math.ceil(1.15/T)); if (n < k + 3) return null;
+        if (entry === "back" && tc.entry === "back") return [n - k, n];
+        if (entry === "front") return [0, k];
+        if (entry === "middle" && vomAt.size){ const ja = vomRows(n)[0]; return ja - k >= 1 ? [ja - k, ja] : null; }
+        return null; };
+      const atAisles = every => { const list = [...aisleAt].sort((a, b) => a - b); if (!list.length) return marks(every);
+        const step = S.design.gangEvery*S.types[tierType].width + S.design.gangWidth, k = Math.max(1, Math.round(every/step)), out = new Set();
+        list.forEach((s2, q) => { if (q % k === Math.floor((list.length - 1)/2) % k) out.add(s2); }); return out; };
+      const backAt = entry === "back" && tc.entry === "back" ? atAisles(entryEvery) : new Set(), frontAt = entry === "front" ? atAisles(entryEvery) : new Set();
       const emergAt = S.design.emergEvery > 0 ? marks(S.design.emergEvery) : new Set();
       const rowLen = [], recs = []; let frontLen = 0;
       const gangCut = sl => aisleAt.has(sl) ? S.design.gangWidth/2 + .05 : 0;
@@ -1320,6 +1331,16 @@ function build(){
             const E = (d0, y0, d1, y1, f) => { const p = V(i, d0, y0), q = V(j1, d1, y1); return [lerp(p[0],q[0],f), lerp(p[1],q[1],f), lerp(p[2],q[2],f)]; };
             const strip = (key, d0, y0, d1, y1, e0, z0, e1, z1) => quad(buf(key), E(d0,y0,d1,y1,f0), E(d0,y0,d1,y1,f1), E(e0,z0,e1,z1,f1), E(e0,z0,e1,z1,f0));
             const b0 = a0+T-.1, b1 = a1+T-.1;
+            const WR = walkRows(n0);
+            if (WR && j >= WR[0] && j < WR[1]){ // the walkway: level, the full length of the tier, with a yellow line along its edge
+              if (j === WR[0]){ const k = WR[1] - WR[0], Ea = (d0, y0, d1, y1, f) => E(d0, y0, d1, y1, f);
+                quad(buf("aisle"), Ea(a0,h0,a1,h1,0), Ea(a0,h0,a1,h1,1), Ea(a0+k*T,h0,a1+k*T,h1,1), Ea(a0+k*T,h0,a1+k*T,h1,0));
+                quad(buf("barrier"), Ea(a0,h0+.01,a1,h1+.01,0), Ea(a0,h0+.01,a1,h1+.01,1), Ea(a0+.1,h0+.01,a1+.1,h1+.01,1), Ea(a0+.1,h0+.01,a1+.1,h1+.01,0));
+                if (j > 0) quad(buf("riser"), Ea(a0,p0.hs[j-1],a1,p1.hs[j-1],0), Ea(a0,p0.hs[j-1],a1,p1.hs[j-1],1), Ea(a0,h0,a1,h1,1), Ea(a0,h0,a1,h1,0));
+                const top0 = p0.hs[Math.min(n0 - 1, WR[1] - 1)], top1 = p1.hs[Math.min(n1 - 1, WR[1] - 1)]; // up to the row behind it
+                if (top0 > h0 + .02) quad(buf("riser"), Ea(a0+k*T,h0,a1+k*T,h1,0), Ea(a0+k*T,h0,a1+k*T,h1,1), Ea(a0+k*T,top1,a1+k*T,top1,1), Ea(a0+k*T,top0,a1+k*T,top0,0)); }
+              if (j === 0) frontLen += len;
+              continue; }
             let use = Math.max(0, len - Math.min(len*.49, v0) - Math.min(len*.49, v1)); // exit tunnels take seats out; gangways are already allowed for
             if (p0.slid || p1.slid){ const q0 = pt(i, a0 + T/2 - (p0.slid || 0)), q1 = pt(j1, a1 + T/2 - (p1.slid || 0)); use = Math.min(use, Math.hypot(q1[0]-q0[0], q1[1]-q0[1])); } // a tier slid back keeps its own seats
             const PC = piecesOf(i, j1, j, f0, f1, len);
@@ -1427,9 +1448,13 @@ function build(){
           const ew = S.design.exitWidth/2, at = (d, y, side) => across(ew, d, y, side), bk = p.front + n*T - .02, y0 = p.hs[n-1] + .02;
           quad(buf("void"), at(bk, y0, -1), at(bk, y0, 1), at(bk, y0 + 1.15, 1), at(bk, y0 + 1.15, -1));
           const c = pt(s, bk - .08); post(buf("emerg"), c[0], c[1], y0 + 1.25, y0 + 1.55, .55); }
-        if (backAt.has(s) && n >= 2){ // an entrance at the back: a doorway through the back wall from the concourse behind
-          const ew = S.design.exitWidth/2, at = (d, y, side) => across(ew, d, y, side), bk = p.front + n*T - .02, y0 = p.hs[n-1] + .02;
-          quad(buf("void"), at(bk, y0, -1), at(bk, y0, 1), at(bk, y0 + 1.15, 1), at(bk, y0 + 1.15, -1)); }
+        if (backAt.has(s) && n >= 2){ // an entrance at the back, at the head of a gangway: a doorway from the concourse onto the walkway
+          const ew = S.design.exitWidth/2, WR = walkRows(n), y0 = (WR ? p.hs[WR[0]] : p.hs[n-1]) + .02, bk = p.front + n*T - .02, cb = buf("concrete");
+          const at = (d, y, side, w) => across(w, d, y, side);
+          quad(buf("void"), at(bk, y0, -1, ew), at(bk, y0, 1, ew), at(bk, y0 + 2.1, 1, ew), at(bk, y0 + 2.1, -1, ew));
+          for (const side of [-1, 1]) quad(cb, at(bk - .05, y0, side, ew), at(bk - .05, y0, side, ew + .35), at(bk - .05, y0 + 2.5, side, ew + .35), at(bk - .05, y0 + 2.5, side, ew));
+          quad(cb, at(bk - .05, y0 + 2.1, -1, ew), at(bk - .05, y0 + 2.1, 1, ew), at(bk - .05, y0 + 2.5, 1, ew), at(bk - .05, y0 + 2.5, -1, ew));
+          const c = pt(s, bk - .12); post(buf("access"), c[0], c[1], y0 + 2.15, y0 + 2.4, .5); } // a sign with the entrance number
         if (frontAt.has(s) && !p.stacked){ // an entrance at the front: a gap in the front wall from a walkway along the play
           const ew = S.design.exitWidth/2 + .1, at = (d, y, side) => across(ew, d, y, side), df = p.front - .03, gh = Math.min(p.hF, 2.1);
           quad(buf("void"), at(df, 0, -1), at(df, 0, 1), at(df, gh, 1), at(df, gh, -1)); }

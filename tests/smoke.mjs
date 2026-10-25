@@ -63,7 +63,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   // bowls with parts left out and their own rows on each side, and one roof over the whole ground
   const last = () => page.evaluate(() => { const L = window.__gw.last(); return {total:L.total, covered:L.covered, issues:L.issues.length}; });
   await page.click('[data-p="horseshoe"]'); await page.waitForTimeout(300);
-  check((await cap()) > 20000 && !(await last()).issues, 'preset "horseshoe" builds with no warnings');
+  check((await cap()) > 18000 && !(await last()).issues, 'preset "horseshoe" builds with no warnings');
   await page.click('[data-p="bowl"]'); await page.waitForTimeout(300);
   const fullBowl = await cap();
   await page.click('#panes [data-pane="stands"]');
