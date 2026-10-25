@@ -124,6 +124,24 @@ function letterGrid(text, cols, rows){
    colours. Stewards in hi-vis stand along the front facing the crowd. Heads take a mix of skin tones, and some wear hats.
    CROWD keeps where everyone is, so a Mexican wave can stand them up and sit them down again. */
 let CROWD = null;
+/* In the view from a seat, the fans right round you are left out, so you see the play rather than the backs of heads. */
+let crowdClear = null;
+const nearEye = (x, y, z) => { if (!crowdClear) return false; const dx = x - crowdClear[0], dz = z - crowdClear[2], dy = y - crowdClear[1];
+  if (Math.hypot(dx, dz) < 3) return Math.abs(dy) < 3;                                          // your neighbours
+  const l = Math.hypot(crowdClear[0], crowdClear[2]) || 1, ux = -crowdClear[0]/l, uz = -crowdClear[2]/l; // towards the play
+  const along = dx*ux + dz*uz, across = Math.abs(dz*ux - dx*uz);
+  return along > 0 && along < 15 && across < 2 + along*0.5 && dy < 1.5 && dy > -9; };           // and a wedge of rows in front of you
+function clearCrowdNear(eye){
+  crowdClear = eye;
+  const m4 = new THREE.Matrix4(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
+  for (const mesh of group.children.filter(m => m.userData.crowd && m.isInstancedMesh)){ // bodies, heads, flags and their poles
+    for (const [i, arr] of mesh.userData.hid || []) mesh.setMatrixAt(i, m4.fromArray(arr)); // bring back whoever was cleared last time
+    mesh.userData.hid = [];
+    if (eye) for (let i=0;i<mesh.count;i++){ mesh.getMatrixAt(i, m4); const e = m4.elements;
+      if (nearEye(e[12], e[13], e[14])){ mesh.userData.hid.push([i, e.slice()]); mesh.setMatrixAt(i, zero); } }
+    mesh.instanceMatrix.needsUpdate = true; }
+  invalidate();
+}
 /* The away end: an allocation of seats in one stand (or one side of a bowl), starting from the middle or either end of it
    and growing out from there, block by block, the full height of the stand, with a gap of empty seats round it to keep
    the two sets of fans apart. The home end is a whole stand where the club's most vocal fans stand. */
@@ -192,6 +210,7 @@ function addCrowd(recs, F){
         : v < .45 ? club : v < .55 ? dark : v < .62 ? club2 : CLOTHES[Math.floor(rnd()*CLOTHES.length)];
       const head = kop && HE.tifo ? shirt : rnd() < .14 ? (inAway ? away : rnd() < .7 ? club : CLOTHES[0]) : SKIN[Math.floor(rnd()*SKIN.length)]; // a bobble hat or a cap now and then; cards held over faces
       const h = hgt*(0.9 + rnd()*0.2), y = lerp(r.h0, r.h1, f) + (standing ? 0.05 + h/2 + 0.35 : 0.42 + h/2) + (rnd()-0.5)*0.05;
+      if (nearEye(x, y, z)) continue; // cleared for the view from a seat
       place(x, y, z, h, widen*(0.9 + rnd()*0.2), shirt, head, a);
       if ((kop && HE.flags && !HE.tifo && rnd() < .05) || (inAway && HE.flags && rnd() < .03)) flags.push([x, y + h/2 + 1.25, z, inAway ? (rnd() < .6 ? away : club2.clone().lerp(away, .3)) : rnd() < .55 ? club : club2, q.clone()]);
     }
@@ -2076,7 +2095,7 @@ function build(){
   drawSheets();
   for (const key in Bf) if (Bf[key].length){
     const mesh = meshFrom(Bf[key], M[key], !["roof","roofGlass","glass","roofClosed","aisle","void","glassClad"].includes(key));
-    if (TYPES[key.split("_")[0]] || key === "floorSeat") mesh.userData.seat = true;
+    if (TYPES[key.split("_")[0]] || key === "floorSeat"){ mesh.userData.seat = true; mesh.userData.kind = key.split("_")[0]; }
     mesh.userData.stadium = true;
     group.add(mesh);
   }

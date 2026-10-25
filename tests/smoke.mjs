@@ -134,6 +134,15 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(nTiers === tiers0 + 4 && nTiers > 4 && (await cap()) > tiersCap, `a stand can have more than four tiers (${nTiers})`);
   check(errors.length === 0, "tall stands build without errors");
   await page.click('#panes [data-pane="start"]');
+  // the view from a terrace: standing eye height, with the fans just in front cleared out of the way
+  { await page.click('#panes [data-pane="start"]'); await page.click('[data-p="leitch"]'); await page.waitForTimeout(400);
+    const spot = await page.evaluate(() => { const reg = window.__gw.regions().find(r => r.profs.some(pp => pp.some(x => x.type === "terrace"))); if (!reg) return null;
+      const i = Math.floor(reg.o.length/2), pr = reg.profs[i].find(x => x.type === "terrace"), j = Math.floor(pr.hs.length*0.4), d = pr.front + (j + .5)*pr.T;
+      return [reg.o[i][0] + d*reg.v[i][0], pr.hs[j], reg.o[i][1] + d*reg.v[i][1]]; });
+    if (spot){ await page.evaluate(([x, y, z]) => window.__gw.seat(x, y, z, true), spot); await page.waitForTimeout(300);
+      check(errors.length === 0, "the view from a terrace is at standing height with the fans in front cleared");
+      await page.click('[data-cam="aerial"]'); await page.waitForTimeout(300); }
+    await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300); }
   // a famous kind of stand, and saving a stand to reuse
   await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="W"]'); await page.waitForTimeout(200);
   { const d = page.locator("details[data-standlib]"); if (!(await d.evaluate(x => x.open))) await d.locator("summary").click(); }
