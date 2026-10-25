@@ -616,7 +616,7 @@ function tierBlocks(arr, above, base, bySide, ends){
       ${bySide ? "" : `<div class="row"><label>Type</label><select data-p="${pre}type" aria-label="Seating type">${Object.entries(TYPES).map(([v,o]) => `<option value="${v}"${v===tr.type?" selected":""}>${o.label}</option>`).join("")}</select></div>`}
       ${bySide ? sideRowsBox(tr, pre) : pair(isT ? "Steps" : "Rows", pre + "rows", tr.rows, 1, 90, 1, "", `${depth.toFixed(1)} m deep`)}
       <div class="row"><label class="toggle"><input type="checkbox" data-p="${pre}auto"${tr.auto ? " checked" : ""}> Auto steepness</label><output id="o-rk-${k}"></output>
-        ${tr.auto ? "" : `<input type="range" data-p="${pre}rake" min="8" max="45" step="1" value="${tr.rake}" aria-label="Steepness in degrees">`}</div>
+        ${tr.auto ? "" : `<input type="range" data-p="${pre}rake" min="8" max="60" step="1" value="${tr.rake}" aria-label="Steepness in degrees">`}</div>
       ${stacked ? `${pair("Projects forward over the tier below", pre + "over", tr.over || 0, -15, 40, 0.5, "m", "Negative sets it back instead.")}
       ${pair("Height above the tier below", pre + "gap", tr.gap == null ? 3 : tr.gap, 1.5, 40, 0.5, "m")}
 ` : ""}
@@ -719,6 +719,14 @@ function renderEditor(){
       </div>
       <div class="row"><label for="sty">Architecture</label><select id="sty" data-act-change="style">${Object.entries(eras).map(([era, list]) => `<optgroup label="${era}">${list.map(([v,o]) => `<option value="${v}"${v===cfg.style?" selected":""}>${o.label}</option>`).join("")}</optgroup>`).join("")}</select></div>
       <p class="hint">${sty.note} Picking a style brings in its own tiers, overhangs, roof and façade; everything stays editable.</p>
+      <details class="sub" data-standlib data-more="lib"${openMore.has("lib") ? " open" : ""}><summary>Famous stands and my stands</summary><div class="inner">
+        <div class="row"><label for="standPre">Start this stand from</label><select id="standPre" aria-label="Start this stand from"><option value="">Pick a stand…</option>
+          <optgroup label="Famous kinds of stand">${Object.entries(STAND_PRESETS).map(([k, v]) => `<option value="p:${k}">${esc(v.label)}</option>`).join("")}</optgroup>
+          ${readStands().length ? `<optgroup label="My stands">${readStands().map((x, i) => `<option value="m:${i}">${esc(x.name)}</option>`).join("")}</optgroup>` : ""}</select></div>
+        <p class="hint">It keeps this stand's place, length and name, and brings in the tiers, roof and walls. Undo if you liked it better before.</p>
+        <div class="saverow"><input type="text" id="standName" maxlength="30" placeholder="Name this stand" aria-label="Name for this stand"><button class="btn small" data-act="saveStand">Save to my stands</button></div>
+        ${readStands().length ? `<ul class="savelist">${readStands().map((x, i) => `<li><span>${esc(x.name)}</span><button class="mini" data-act="delStand" data-i="${i}">Delete</button></li>`).join("")}</ul>` : ""}
+      </div></details>
       ${ring ? "" : `<div class="scales"><span>Quick size:</span>${Object.entries(SCALES).map(([k,v]) => `<button class="btn small" data-act="scale" data-scale="${k}">${v.label}</button>`).join("")}</div>`}
       ${(side && layoutOf() === "stands") || (above && SIDE_ENDS[tab]) ? `<details class="sub" open><summary>${above ? "Length" : "Position and length"}</summary><div class="inner">
         ${above ? "" : check("Same distance from the play as the other stands", "distSame", cfg.dist == null)}
@@ -829,6 +837,8 @@ $("editor").addEventListener("input", e => {
 });
 $("editor").addEventListener("change", e => {
   const el = e.target;
+  if (el.id === "standPre" && el.value){ const [kind, key] = el.value.split(":"), from = kind === "p" ? STAND_PRESETS[key] && STAND_PRESETS[key].cfg() : (readStands()[+key] || {}).cfg;
+    if (from){ applyStandCfg(clone(from)); flash(`<b>${esc(kind === "p" ? STAND_PRESETS[key].label : readStands()[+key].name)}.</b> ${kind === "p" ? esc(STAND_PRESETS[key].note) : ""}`, UNDO); } return; }
   if (el.dataset.wrap){ renderEditor(); return; } // runs and notes depend on how far it wraps
   if (el.dataset.corner){ const cc = S.corners[el.dataset.corner], f = el.dataset.cf; cc[f] = el.type === "checkbox" ? el.checked : el.value; renderEditor(); changed(); return; }
   if (el.dataset.actChange === "style"){ applyStyle(cfgForTab(), el.value, isHybrid() && tab === "B"); renderEditor(); changed(); return; }
@@ -879,6 +889,11 @@ $("editor").addEventListener("click", e => {
   if (act === "mirror"){ const m2 = clone(cfg); [m2.run0, m2.run1, m2.wrap0, m2.wrap1] = [cfg.run1, cfg.run0, cfg.wrap1, cfg.wrap0]; // the opposite stand runs the other way round
     S.stands[OPPOSITE[tab]] = m2; flash(`<b>Copied</b> to the ${SIDE_NAMES[OPPOSITE[tab]].toLowerCase()}.`, UNDO); }
   if (act === "seeOutside"){ goCam("exterior"); return; }
+  if (act === "saveStand"){ const nm = cleanName($("standName").value || "").trim() || "My stand " + (readStands().length + 1), list = readStands();
+    const keep = clone(cfg); for (const k of ["dist","run0","run1","wrap0","wrap1","name","share","removed","varyRows"]) delete keep[k];
+    list.unshift({name:nm, cfg:keep}); writeStands(list.slice(0, 40)); flash(`<b>Saved “${esc(nm)}”</b> to your stands. Pick it from <b>Start this stand from</b> on any stand, in any design.`); renderEditor(); return; }
+  if (act === "delStand"){ const list = readStands(), gone = list.splice(+b.dataset.i, 1)[0]; writeStands(list);
+    flash(`<b>Deleted “${esc(gone ? gone.name : "")}”.</b>`, {label:"Undo", run:() => { const l2 = readStands(); l2.splice(+b.dataset.i, 0, gone); writeStands(l2); renderEditor(); }}); renderEditor(); return; }
   if (act === "copy"){ clipboard = clone(cfg); say("<b>Copied.</b> Pick another stand and paste."); renderEditor(); return; }
   if (act === "paste" && clipboard){ const c2 = clone(clipboard); if (isHybrid() && tab === "B") c2.tiers = c2.tiers.slice(0,1); Object.assign(cfg, c2); }
   if (act === "reset"){ const fresh = mk(cfg.style); if (isHybrid()) fresh.tiers = tab === "B" ? fresh.tiers.slice(0,1) : fresh.tiers.slice(1); Object.assign(cfg, fresh); }
@@ -1228,6 +1243,19 @@ document.querySelectorAll("#presets button").forEach(b => b.addEventListener("cl
 }));
 
 /* ================= saved designs ================= */
+/* My stands: single stands saved to reuse in any design, kept in this browser like saved designs. */
+const STANDS_KEY = "groundworks-stands";
+function readStands(){ try { const l = JSON.parse(localStorage.getItem(STANDS_KEY)); return Array.isArray(l) ? l.filter(x => x && x.cfg && Array.isArray(x.cfg.tiers)) : []; } catch(e) { return []; } }
+function writeStands(list){ try { localStorage.setItem(STANDS_KEY, JSON.stringify(list)); } catch(e) { flash("<b>Couldn't save:</b> this browser isn't allowing storage here."); } }
+/* Bring a stand's tiers, roof and walls onto the stand being edited, keeping its place, length and name. */
+function applyStandCfg(from){
+  const cfg = cfgForTab(), keep = {}; for (const k of ["dist","run0","run1","wrap0","wrap1","name","share","removed","varyRows"]) if (cfg[k] !== undefined) keep[k] = cfg[k];
+  for (const k of Object.keys(cfg)) delete cfg[k]; Object.assign(cfg, from, keep);
+  if (isHybrid() && tab === "B") cfg.tiers = cfg.tiers.slice(0, 1);
+  if ((isBowl() || (isHybrid() && tab === "B")) && cfg.roof && cfg.roof.shape === "gable") cfg.roof.shape = "slope";
+  if (S.bowl.varyRows && cfg === S.bowl) for (const tr of cfg.tiers) if (!tr.sideRows){ tr.sideRows = {N:tr.rows, S:tr.rows, E:tr.rows, W:tr.rows}; tr.sideType = {N:tr.type, S:tr.type, E:tr.type, W:tr.type}; }
+  renderEditor(); changed(true);
+}
 function readSaves(){ try { return JSON.parse(localStorage.getItem(SAVES_KEY)) || []; } catch(e) { return []; } }
 function writeSaves(list){ try { localStorage.setItem(SAVES_KEY, JSON.stringify(list)); } catch(e) { flash("<b>Couldn't save:</b> this browser isn't allowing storage here."); } }
 function renderSaves(){

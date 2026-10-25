@@ -134,6 +134,17 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(nTiers === tiers0 + 4 && nTiers > 4 && (await cap()) > tiersCap, `a stand can have more than four tiers (${nTiers})`);
   check(errors.length === 0, "tall stands build without errors");
   await page.click('#panes [data-pane="start"]');
+  // a famous kind of stand, and saving a stand to reuse
+  await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="W"]'); await page.waitForTimeout(200);
+  { const d = page.locator("details[data-standlib]"); if (!(await d.evaluate(x => x.open))) await d.locator("summary").click(); }
+  await page.selectOption("#standPre", "p:yellowwall"); await page.waitForTimeout(400);
+  check((await page.evaluate(() => window.__gw.state().stands.W.tiers[0].type)) === "terrace" && errors.length === 0, "a stand can start from a famous kind of stand");
+  await page.fill("#standName", "Big end"); await page.click('[data-act="saveStand"]'); await page.waitForTimeout(300);
+  await page.click('[data-tab="E"]'); await page.waitForTimeout(200);
+  { const d = page.locator("details[data-standlib]"); if (!(await d.evaluate(x => x.open))) await d.locator("summary").click(); }
+  await page.selectOption("#standPre", "m:0"); await page.waitForTimeout(400);
+  check((await page.evaluate(() => window.__gw.state().stands.E.tiers[0].type)) === "terrace", "a saved stand can be put on another side");
+  await page.click('#panes [data-pane="start"]');
   // cricket and baseball: rings of stands
   await page.click('#panes [data-pane="start"]');
   for (const p of ["lords", "classicpark", "ballpark"]){ await page.click(`[data-p="${p}"]`);
