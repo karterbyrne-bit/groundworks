@@ -113,6 +113,7 @@ details .inner{padding:4px 12px 12px;display:flex;flex-direction:column;gap:10px
 .cams button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .cams button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .tip{position:absolute;left:max(12px, env(safe-area-inset-left,0px));bottom:10px;right:12px;font-family:var(--f-mono);font-size:11px;color:var(--muted);margin:0}
+.tip:not(:empty){right:auto;max-width:calc(100% - 24px);background:color-mix(in srgb, var(--panel) 82%, transparent);padding:3px 8px;border-radius:6px;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
 .tip b{color:var(--ink);font-weight:500}
 
 .readout{background:var(--panel);border-top:1px solid var(--line);padding-block:14px 16px;max-height:46vh;overflow-y:auto;

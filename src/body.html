@@ -213,6 +213,7 @@
       <div class="inner">
         <div id="typeSizes" class="group"></div>
         <div class="row"><label for="gangEvery">Seats between gangways</label><output id="o-gangEvery"></output><input type="range" id="gangEvery" min="10" max="50" step="1"></div>
+        <div class="row"><label for="gangEnd">Seats from a row's end to its first gangway</label><output id="o-gangEnd"></output><input type="range" id="gangEnd" min="4" max="30" step="1"></div>
         <div class="row"><label for="gangWidth">Gangway width</label><output id="o-gangWidth"></output><input type="range" id="gangWidth" min="0.6" max="1.8" step="0.05"></div>
         <div class="row"><label for="exitEvery">An exit every</label><output id="o-exitEvery"></output><input type="range" id="exitEvery" min="8" max="60" step="1"></div>
         <div class="row"><label for="exitWidth">Exit width</label><output id="o-exitWidth"></output><input type="range" id="exitWidth" min="1" max="5" step="0.1"></div>
@@ -272,7 +273,15 @@
       <h2>Finishing touches</h2>
       <label class="toggle"><input type="checkbox" id="boards"> Advertising boards round the pitch</label>
       <label class="toggle"><input type="checkbox" id="crowd"> Fill it with a crowd</label>
+      <div id="crowdBox">
+        <div class="row"><label for="crowdFill">How full</label><output id="o-crowdFill"></output><input type="range" id="crowdFill" min="5" max="100" step="5"></div>
+        <label class="toggle"><input type="checkbox" id="awayOn"> Away fans in their own colours</label>
+        <div class="row" id="awayRow"><label for="awayAt">Away end</label><span class="num"><select id="awayAt" aria-label="Away end"><option value="W">West end</option><option value="E">East end</option><option value="N">Main stand</option><option value="S">Opposite stand</option></select> <input type="color" id="awayColour" value="#f2f2f2" aria-label="Away colours"></span></div>
+        <label class="toggle"><input type="checkbox" id="stewards"> Stewards in hi-vis along the front</label>
+        <button class="btn small" id="waveBtn">🙌 Start a Mexican wave</button>
+      </div>
       <label class="toggle"><input type="checkbox" id="night"> Night match under the lights</label>
+      <label class="toggle"><input type="checkbox" id="scenery"> Real sky and fields round the ground (untick for a plain model look)</label>
       <label class="toggle"><input type="checkbox" id="seeThrough"> See-through roofs</label>
       <div class="row"><label>Seat colour</label></div>
       <div class="swatches" id="swatches" role="group" aria-label="Seat colour"></div>

@@ -20,9 +20,15 @@
   var gl = hasWebGL();
   function fail(err){
     if (!gl) return card("This device can't show the 3D view", "Groundworks needs 3D graphics (WebGL). Try an up-to-date Chrome, Safari, Firefox or Edge, and check hardware acceleration is switched on.", false);
+    if (!started && typeof THREE === "undefined") return card3d();
     if (!started) return card("Groundworks couldn't start", "Something went wrong while loading. Reloading usually fixes it. If it keeps happening, start with a fresh design: your saved designs are kept.", true);
     if (window.gwToast) window.gwToast("<b>Something went wrong.</b> Your design is saved. If anything looks odd, reload the page.");
   }
+  /* The 3D engine is packed into this page, so it's missing only when the page itself didn't arrive in full
+     (patchy signal, or a work network cutting it off). Say so plainly rather than leaving a blank screen. */
+  function card3d(){ card("Couldn't load the 3D view", "Part of the page didn't arrive, which can happen on a patchy connection or a work network. Check your signal and reload. Your saved designs are safe.", false); }
+  window.gwNo3D = card3d;
+  window.addEventListener("load", function(){ setTimeout(function(){ if (!started && !shown && typeof THREE === "undefined") card3d(); }, 1500); });
   window.addEventListener("error", function(e){ if (e && e.message && !/ResizeObserver loop/.test(e.message)) fail(e.error || e.message); });
   window.addEventListener("unhandledrejection", function(e){ fail(e.reason); });
   window.gwStarted = function(){ started = true; document.documentElement.classList.add("ready"); };

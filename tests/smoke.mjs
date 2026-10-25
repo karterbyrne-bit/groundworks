@@ -122,6 +122,14 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.click('#panes [data-pane="ground"]'); await page.check("#plotOn"); await page.waitForTimeout(300);
   await page.locator("#plotExact summary").click(); await page.fill("#plotW", "260"); await page.press("#plotW", "Enter"); await page.waitForTimeout(300);
   check((await page.evaluate(() => { const xs = window.__gw.state().plot.pts.map(p => p[0]); return Math.max(...xs) - Math.min(...xs); })) === 260, "the plot can be set to an exact width");
+  // as many tiers as you like: no stopping at four
+  await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="N"]'); await page.waitForTimeout(200);
+  const tiersCap = await cap(), tiers0 = await page.evaluate(() => window.__gw.state().stands.N.tiers.length);
+  for (let i = 0; i < 4; i++){ await page.click('[data-act="addTier"]'); await page.waitForTimeout(250); }
+  const nTiers = await page.evaluate(() => window.__gw.state().stands.N.tiers.length);
+  check(nTiers === tiers0 + 4 && nTiers > 4 && (await cap()) > tiersCap, `a stand can have more than four tiers (${nTiers})`);
+  check(errors.length === 0, "tall stands build without errors");
+  await page.click('#panes [data-pane="start"]');
   // cricket and baseball: rings of stands
   await page.click('#panes [data-pane="start"]');
   for (const p of ["lords", "classicpark", "ballpark"]){ await page.click(`[data-p="${p}"]`);
@@ -214,6 +222,17 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(!(await bad.evaluate(() => window.__gw.state().seat.includes("<"))), "a tampered link is refused");
   await bad.close();
 
+  // a damaged design code is refused with a message, and the current design is left alone
+  const keep = await page.evaluate(() => JSON.stringify(window.__gw.state()));
+  await page.click('#panes [data-pane="start"]');
+  await page.evaluate(() => { const d = document.getElementById("codeBox").closest("details"); if (d) d.open = true; });
+  const halfDesign = await page.evaluate(() => { const st = window.__gw.state(); delete st.stands.N.tiers; st.bowl.tiers = [{type:"seated"}]; return btoa(JSON.stringify(st)); });
+  for (const [code, what] of [[halfDesign, "half a design"], [halfDesign.slice(0, halfDesign.length >> 1), "a code cut off part way"]]){
+    await page.fill("#codeBox", code); await page.click("#importBtn"); await page.waitForTimeout(300);
+    check((await page.evaluate(() => JSON.stringify(window.__gw.state()))) === keep && /look right/.test(await page.locator(".toast").last().textContent()), `${what} is refused with a message`);
+  }
+  await page.fill("#codeBox", ""); await page.evaluate(() => document.activeElement.blur());
+
   await page.keyboard.press("?");
   check(await page.locator("#help").evaluate(d => d.open), "? opens help");
   await page.keyboard.press("Escape");
@@ -237,6 +256,19 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.click("[data-fresh]");
   await page.waitForFunction(() => document.documentElement.classList.contains("ready"));
   check((await page.evaluate(() => window.__gw.last().total)) > 0, "Start with a fresh design recovers");
+  await ctx.close();
+}
+
+// if the 3D engine doesn't arrive (a page cut off on a patchy connection), say so instead of showing a blank screen
+{
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(60000);
+  await page.route(base, async route => { const parts = readFileSync(new URL("index.html", root), "utf8").split("<script>");
+    parts[2] = parts[2].slice(parts[2].indexOf("</script>")); await route.fulfill({contentType:"text/html", body:parts.join("<script>")}); });
+  await page.goto(base);
+  await page.waitForSelector("#fatal:not([hidden])");
+  check(/3D view/.test(await page.locator("#fatal h2").textContent()), "a missing 3D engine shows a 'couldn't load the 3D view' card");
   await ctx.close();
 }
 

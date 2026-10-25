@@ -162,10 +162,16 @@ function heightAt(prof, d){
     if (d >= p.front && d <= p.front + n*p.T) return p.hs[Math.min(n-1, Math.floor((d - p.front)/p.T))]; }
   return 0;
 }
+/* Tiers are named from the bottom: lower, middle, upper for up to three, then lower, second, third and so on to the top. */
+const ORDINALS = ["first","second","third","fourth","fifth","sixth","seventh","eighth","ninth","tenth"];
+const ordinal = i => ORDINALS[i] || (i + 1) + (((i + 1) % 100 >= 11 && (i + 1) % 100 <= 13) ? "th" : ["th","st","nd","rd"][(i + 1) % 10] || "th");
 function tierName(k, n, above){
-  if (above) return n === 1 ? "upper" : (n === 2 ? ["middle","upper"] : ["second","third","top"])[k];
-  return n === 1 ? "" : (n === 2 ? ["lower","upper"] : ["lower","middle","upper"])[k];
+  if (above) return n === 1 ? "upper" : n === 2 ? ["middle","upper"][k] : k === n - 1 ? "top" : ordinal(k + 1);
+  if (n === 1) return "";
+  if (n <= 3) return (n === 2 ? ["lower","upper"] : ["lower","middle","upper"])[k];
+  return k === 0 ? "lower" : k === n - 1 ? "top" : ordinal(k);
 }
+const MAX_TIERS = 20; // as many as you like; this just keeps a phone from grinding to a halt
 const cap1 = s => s.charAt(0).toUpperCase() + s.slice(1);
 /* site polygon helpers */
 const cross = (a,b) => a[0]*b[1] - a[1]*b[0];

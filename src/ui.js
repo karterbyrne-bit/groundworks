@@ -8,15 +8,15 @@ function mergeParts(parts){
     if (!ex){ merged.push(Object.assign({}, p, {tiers:(p.tiers || []).map(t => Object.assign({}, t))})); continue; }
     ex.seats += p.seats;
     for (const t of p.tiers || []){ const et = ex.tiers.find(x => x.name === t.name && x.type === t.type);
-      if (et){ et.seats += t.seats; et.rows = Math.max(et.rows, t.rows); et.steep = Math.max(et.steep, t.steep); et.evac = Math.max(et.evac, t.evac); if (t.c != null) et.c = et.c == null ? t.c : Math.min(et.c, t.c); }
+      if (et){ et.seats += t.seats; et.rows = Math.max(et.rows, t.rows); et.steep = Math.max(et.steep, t.steep); et.evac = Math.max(et.evac, t.evac); et.emerg = Math.max(et.emerg || 0, t.emerg || 0); if (t.c != null) et.c = et.c == null ? t.c : Math.min(et.c, t.c); }
       else ex.tiers.push(Object.assign({}, t)); } }
   return merged;
 }
 function tierTable(tiers, total){
   if (!tiers || !tiers.length) return "";
   const L = S.limits;
-  return `<table class="tiers"><thead><tr><th>Tier</th><th>Seating</th><th>Rows</th><th>Places</th><th>Share</th><th>Steepest</th><th>Sightline</th><th>Empties</th></tr></thead><tbody>${
-    tiers.map(t => `<tr${t.bad ? ' class="bad"' : ""}><td>${esc(t.name)}</td><td>${TYPES[t.type].short}</td><td>${t.rows}</td><td>${fmt(t.seats)}</td><td>${total ? Math.round(100*t.seats/total) : 0}%</td><td>${t.steep ? Math.round(t.steep) + "°" : "flat"}</td><td>${t.c == null ? "–" : `<span class="${t.c < L.minC ? "lo" : ""}">${t.c} mm</span>`}</td><td>${t.evac ? `<span class="${t.evac > L.maxEvac ? "lo" : ""}">${t.evac.toFixed(1)} min</span>` : "–"}</td></tr>`).join("")}</tbody></table>`;
+  return `<table class="tiers"><thead><tr><th>Tier</th><th>Seating</th><th>Rows</th><th>Places</th><th>Share</th><th>Steepest</th><th>Sightline</th><th>Empties</th><th>Emergency</th></tr></thead><tbody>${
+    tiers.map(t => `<tr${t.bad ? ' class="bad"' : ""}><td>${esc(t.name)}</td><td>${TYPES[t.type].short}</td><td>${t.rows}</td><td>${fmt(t.seats)}</td><td>${total ? Math.round(100*t.seats/total) : 0}%</td><td>${t.steep ? Math.round(t.steep) + "°" : "flat"}</td><td>${t.c == null ? "–" : `<span class="${t.c < L.minC ? "lo" : ""}">${t.c} mm</span>`}</td><td>${t.evac ? `<span class="${t.evac > L.maxEvac ? "lo" : ""}">${t.evac.toFixed(1)} min</span>` : "–"}</td><td>${t.emerg ? `<span class="${t.emerg > (L["evac" + cap1(t.risk)] || 8) ? "lo" : ""}" title="${t.risk} fire risk">${t.emerg.toFixed(1)} min</span>` : "–"}</td></tr>`).join("")}</tbody></table>`;
 }
 document.getElementById("breakdown").addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.bd){ if (d.open) openBd.add(d.dataset.bd); else openBd.delete(d.dataset.bd); } }, true);
 /* Real grounds to compare against, so a number like 41,000 means something. Capacities are rounded. */
@@ -57,7 +57,8 @@ function renderStats(){
     ["Under cover", roofPct+"%", ""],
     ["Worst sightline", cMM===null ? "n/a" : cMM+" mm", cMM===null ? "" : pill(cMM >= L.minC, "ok", "low")],
     ["Furthest fan to " + D.farName, fmt(D.far)+" m", pill(D.far <= L.maxView, "ok", "far")],
-    ["Slowest stand to empty", D.slowest ? D.slowest.toFixed(1) + " min" : "n/a", D.slowest ? pill(D.slowest <= L.maxEvac, "ok", "slow") : ""]
+    ["Slowest stand to empty", D.slowest ? D.slowest.toFixed(1) + " min" : "n/a", D.slowest ? pill(D.slowest <= L.maxEvac, "ok", "slow") : ""],
+    ["Slowest emergency evacuation", D.slowestEm ? D.slowestEm.toFixed(1) + " min" : "n/a", D.slowestEm ? pill(!D.issues.some(i => /^emerg:/.test(i.key)), "ok", "slow") : ""]
   ];
   if (D.restricted) items.push(["Restricted view", `${fmt(D.restricted)} seats`, `<span class="pill ${rPct > 5 ? "bad" : "warn"}">${rPct.toFixed(1)}%</span>`]);
   document.getElementById("metrics").innerHTML = items.map(([k,v,p]) => `<div class="metric"><div class="k">${k}</div><div class="v">${v}${p}</div></div>`).join("");
@@ -240,7 +241,7 @@ function setOrtho(on){
   to.position.copy(from.position); to.up.copy(from.up);
   if (on){ const dist = from.position.distanceTo(controls.target), h = dist*Math.tan(persp.fov*Math.PI/360), a = view.clientWidth/Math.max(1, view.clientHeight);
     ortho.left = -h*a; ortho.right = h*a; ortho.top = h; ortho.bottom = -h; ortho.zoom = 1; ortho.updateProjectionMatrix(); }
-  camera = to; controls.object = to; controls.update(); invalidate();
+  camera = to; controls.object = to; controls.update(); fogReach(); invalidate();
   document.getElementById("orthoBtn").setAttribute("aria-pressed", String(on));
 }
 document.getElementById("orthoBtn").addEventListener("click", () => setOrtho(camera !== ortho));
@@ -384,14 +385,17 @@ function resize(){ const w = view.clientWidth, h = view.clientHeight; if (!w || 
 new ResizeObserver(resize).observe(view);
 /* The frame loop stops altogether once nothing has moved for half a second, so a stadium left on screen uses no power.
    Anything that changes the view (a touch, a key, a camera move or a rebuild) wakes it again. */
-var awake = false, idle = 0; // var: invalidate() can call wake() before this line has run
+var awake = false, idle = 0;
+/* Things that move on their own for a while (a Mexican wave). Each is called every frame until it returns false. */
+var TICKERS = new Set(); // var: invalidate() can call wake() before this line has run
 function wake(){ idle = 0; if (!awake){ awake = true; requestAnimationFrame(loop); } }
 function loop(now){
   if (anim){ const k = Math.min(1, (now - anim.start)/850), e = 1 - Math.pow(1-k, 3);
     camera.position.lerpVectors(anim.p0, anim.p, e); controls.target.lerpVectors(anim.t0, anim.t, e);
     if (k===1){ anim = null; applyLimits(); } }
   const moved = controls.update(); constrain();
-  if (moved || anim || dirty > 0){ renderer.render(scene, camera); if (dirty > 0) dirty--; idle = 0; }
+  let ticked = false; for (const f of TICKERS){ ticked = true; if (!f(now)) TICKERS.delete(f); }
+  if (moved || anim || ticked || dirty > 0){ renderer.render(scene, camera); if (dirty > 0) dirty--; idle = 0; }
   else idle++;
   if (idle > 30 && !controls.autoRotate && !document.hidden){ awake = false; return; }
   requestAnimationFrame(loop);
@@ -399,6 +403,8 @@ function loop(now){
 for (const ev of ["pointerdown", "pointermove", "wheel", "keydown", "touchstart"]) addEventListener(ev, wake, {passive:true, capture:true});
 function applyTheme(fromMood){
   if (S && S.night && fromMood !== true){ applyMood(); return; }
+  if (S && S.scenery !== "model"){ realScenery(false); invalidate(); return; }
+  plainScenery();
   const cs = getComputedStyle(document.documentElement);
   scene.background = new THREE.Color(cs.getPropertyValue("--scene").trim() || "#dde5de");
   groundMat.color.set(cs.getPropertyValue("--ground").trim() || "#c3cbc0");
@@ -610,8 +616,11 @@ function renderEditor(){
       ${above ? `<p class="hint">These tiers sit on top of the lower bowl and follow its shape. Remove them all to leave just the bowl here, with or without a roof.${bowlGone(tab) ? " The lower bowl is left out on this side, so they start at ground level." : ""}</p>` : ""}
       ${bowl || ring ? bowlShapeBlock() : ""}
       ${tierBlocks(cfg.tiers, above, "", (bowl || ring) && S.bowl.varyRows, !bowl && !ring)}
-      ${cfg.tiers.length < 4 ? `<button class="btn small" data-act="addTier">Add a tier</button>` : ""}
+      ${cfg.tiers.length < MAX_TIERS ? `<button class="btn small" data-act="addTier">Add a tier</button>` : `<p class="hint">${MAX_TIERS} tiers is as high as it goes.</p>`}
       ${ring ? "" : roofBlock(cfg, bowl)}
+      <details class="sub"><summary>Fire risk</summary><div class="inner">
+        ${pick("Fire risk", "fire", cfg.fire || "auto", FIRE_RISKS)}
+        <p class="hint">Sets how quickly this stand has to clear in an emergency: ${S.limits.evacLow} minutes for low risk, ${S.limits.evacMedium} for medium, ${S.limits.evacHigh} for high. Worked out from its style, this one counts as <b>${fireRiskOf(cfg)}</b>.</p></div></details>
       ${ring ? "" : `<details class="sub" open><summary>Outside walls</summary><div class="inner">
         ${pick("Look", "facade.look", FACADE_LOOKS[fac.look] ? fac.look : sty.look || "plain", FACADE_LOOKS)}
         ${colourPick("Wall colour", "facade.colour", fac.colour, "#" + (sty.clad || 0x888888).toString(16).padStart(6, "0"))}
@@ -735,10 +744,10 @@ $("editor").addEventListener("click", e => {
       renderEditor(); changed(); } return; }
   const act = b.dataset.act, cfg = cfgForTab(), arr = tiersEditable();
   const say = m => flash(m);
-  if (act === "addTier"){ if (arr.length >= 4) return say("<b>Four tiers is the most a stand can have.</b>");
-    const k = arr.length; arr.push(t("seated", [18,14,12,10][k], 22 + 4*k, true, k ? {over:3, gap:3.6} : {})); }
+  if (act === "addTier"){ if (arr.length >= MAX_TIERS) return say(`<b>${MAX_TIERS} tiers is as high as a stand goes.</b>`);
+    const k = arr.length; arr.push(t("seated", [18,14,12][k] || 10, Math.min(34, 22 + 4*k), true, k ? {over: k > 1 ? -2 : 3, gap:3.6} : {})); }
   if (act === "removeTier"){ arr.splice(+b.dataset.k, 1); if (!arr.length && (isBowl() || (isHybrid() && tab === "B"))) arr.push(t("seated",16,22)); }
-  if (act === "addBoxes"){ if (arr.length >= 4) return say("<b>Four tiers is the most a stand can have.</b> Remove one first.");
+  if (act === "addBoxes"){ if (arr.length >= MAX_TIERS) return say(`<b>${MAX_TIERS} tiers is as high as a stand goes.</b> Remove one first.`);
     const at = Math.min(1, arr.length); arr.splice(at, 0, t("exec", 4, 22, true, at || isHybrid() ? {over:2, gap:3.6} : {})); }
   if (act === "toggleRoof"){ cfg.roof = cfg.roof.shape === "none" ? STYLES[cfg.style].roof() : Object.assign({}, cfg.roof, {shape:"none"}); if (cfg.roof.shape === "none" && STYLES[cfg.style].roof().shape === "none" && b.textContent.includes("+")) cfg.roof = R("slope"); }
   if (act === "clearColour"){ const parts = b.dataset.cp.split("."), tr = parts.slice(0, -1).reduce((o, k) => o[k], b.dataset.cp.startsWith("cc.") ? {cc:{tiers:S.cornerCustom}} : targetObj()); delete tr[parts[parts.length-1]]; }
@@ -810,13 +819,15 @@ function syncSizes(){
   const g = S.design;
   const so = (id, txt, over) => { $(id).value = g[id]; $("o-"+id).textContent = txt; $("o-"+id).classList.toggle("over", !!over); };
   so("gangEvery", g.gangEvery + " seats" + (g.gangEvery > L.maxBetween ? " · breaks rule" : ""), g.gangEvery > L.maxBetween);
+  const ge = g.gangEnd != null ? g.gangEnd : Math.min(14, Math.floor(g.gangEvery/2)), oe = L.maxOneEnd == null ? 14 : L.maxOneEnd;
+  so("gangEnd", ge + " seats" + (ge > oe ? " · breaks rule" : ""), ge > oe); $("gangEnd").value = ge;
   so("gangWidth", g.gangWidth.toFixed(2) + " m" + (g.gangWidth < L.minGang - 1e-9 ? " · breaks rule" : ""), g.gangWidth < L.minGang - 1e-9);
   so("exitEvery", g.exitEvery + " m");
   so("exitWidth", g.exitWidth.toFixed(1) + " m");
   const gap = g.barrierEvery * S.types.terrace.row, gOver = gap > L.barrierGap + 1e-9;
   so("barrierEvery", `${g.barrierEvery} steps (${gap.toFixed(1)} m)` + (gOver ? " · breaks rule" : ""), gOver);
 }
-for (const id of ["gangEvery","gangWidth","barrierEvery","exitEvery","exitWidth"]) $(id).addEventListener("input", e => { S.design[id] = +e.target.value; changed(false, true); });
+for (const id of ["gangEvery","gangEnd","gangWidth","barrierEvery","exitEvery","exitWidth"]) $(id).addEventListener("input", e => { S.design[id] = +e.target.value; changed(false, true); });
 $("limits").innerHTML = LIMIT_FIELDS.map(([k,label,unit,step]) => `<label for="lim-${k}"><span>${label}</span><input type="number" id="lim-${k}" data-lim="${k}" step="${step}"><span>${unit}</span></label>`).join("");
 $("limits").addEventListener("input", e => { const el = e.target; if (!el.dataset.lim || el.value === "" || isNaN(+el.value) || (+el.value <= 0 && el.dataset.lim !== "minC")) return;
   S.limits[el.dataset.lim] = +el.value; S.standard = "custom"; changed(false, true); });
@@ -992,6 +1003,18 @@ $("screens").addEventListener("input", e => { const el = e.target; if (!el.datas
   const out = el.parentElement.querySelector("output"); if (out) out.textContent = el.dataset.sf === "size" ? el.value + " m" : (+el.value === 0 ? "centre" : Math.abs(+el.value) + "% " + (+el.value < 0 ? "left" : "right")); changed(false, true); });
 $("screens").addEventListener("change", e => { const el = e.target; if (!el.dataset.sf || el.tagName !== "SELECT") return; screensOf()[+el.dataset.i][el.dataset.sf] = el.value; renderScreens(); changed(); viewScreen(+el.dataset.i); });
 for (const id of ["crowd","night","seeThrough"]) $(id).addEventListener("change", e => { S[id] = e.target.checked; changed(); });
+$("scenery").addEventListener("change", e => { S.scenery = e.target.checked ? "real" : "model"; changed(); });
+bindRange("crowdFill", v => S.crowdFill = v/100);
+const awayOf = () => (S.away = Object.assign({on:false, colour:"#f2f2f2", at:"W"}, S.away || {}));
+$("awayOn").addEventListener("change", e => { awayOf().on = e.target.checked; changed(); });
+$("awayAt").addEventListener("change", e => { awayOf().at = e.target.value; changed(); });
+$("awayColour").addEventListener("input", e => { awayOf().colour = e.target.value; changed(false, true); });
+$("stewards").addEventListener("change", e => { S.stewards = e.target.checked; changed(); });
+$("waveBtn").addEventListener("click", () => {
+  if (S.crowd === false){ S.crowd = true; changed(); }
+  requestAnimationFrame(() => { const t0 = performance.now(); TICKERS.add(now => waveTick(now - t0)); wake(); });
+  if (camMode === "plan") goCam("aerial");
+});
 $("seeBtn").addEventListener("click", () => { S.seeThrough = !S.seeThrough; changed(); });
 $("nightBtn").addEventListener("click", () => { S.night = !S.night; changed(); });
 $("seatPattern").addEventListener("change", e => { S.seatPattern = e.target.value; changed(); });
@@ -1053,9 +1076,9 @@ $("exportBtn").addEventListener("click", () => {
   try { navigator.clipboard.writeText(code).then(() => flash("<b>Design code copied.</b> Paste it anywhere to keep it."), () => flash("<b>Design code is in the box.</b> Copy it from there.")); } catch(e) { flash("<b>Design code is in the box.</b> Copy it from there."); }
 });
 $("importBtn").addEventListener("click", () => {
-  try { const st = JSON.parse(decodeURIComponent(escape(atob(($("codeBox").value || "").trim())))); if (!safeState(st)) throw 0;
+  try { const st = JSON.parse(decodeURIComponent(escape(atob(($("codeBox").value || "").trim())))); if (!soundState(st)) throw 0;
     openState(st); flash("<b>Design loaded.</b>", UNDO); }
-  catch(e) { flash("<b>That code didn't work.</b> Paste the whole design code, exactly as copied."); }
+  catch(e) { flash("<b>That code doesn't look right.</b> It may have been cut short. Paste the whole design code, exactly as copied. Your current design hasn't changed."); }
 });
 
 /* ================= share links, random stadiums ================= */
@@ -1068,6 +1091,24 @@ function safeState(st){
     if (typeof v === "string"){ if (/[<>"'`\\]/.test(v) || v.length > 200) ok = false; }
     else if (v && typeof v === "object") for (const k in v){ if (/[<>"'`]/.test(k)) { ok = false; return; } walk(v[k], depth + 1); } })(st, 0);
   return ok;
+}
+/* A design code or link can arrive damaged: cut off when it was pasted, or edited by hand. Before opening one, fill in
+   anything a newer version added, check every stand has proper tiers, then try building it out of sight. If any of that
+   fails it's refused, rather than half-loading and freezing the 3D view. */
+function soundState(st){
+  if (!safeState(st)) return false;
+  const num = v => typeof v === "number" && isFinite(v);
+  const tiersOk = a => Array.isArray(a) && a.length <= 40 && a.every(x => x && typeof x === "object" && TYPES[x.type] && num(x.rows) && x.rows >= 0 && x.rows <= 200 && num(x.rake));
+  const standOk = c => !!c && typeof c === "object" && tiersOk(c.tiers) && !!c.roof && typeof c.roof === "object" && typeof c.roof.shape === "string";
+  const trial = x => { try { const r = statsOf(upgradeCorners(clone(x))); return !!r && num(r.total) && num(r.maxH); } catch(e) { return false; } };
+  if (!trial(st)){ for (const k in BASE) if (st[k] === undefined) st[k] = clone(BASE[k]); } // an older design missing something newer
+  if (!standOk(st.bowl) || !SIDES.every(k => standOk(st.stands[k]))) return false;
+  if (!st.ring || !Array.isArray(st.ring.stands) || !st.ring.stands.every(standOk)) return false;
+  if (st.cornerCustom != null && !tiersOk(st.cornerCustom)) return false;
+  if (!st.corners || typeof st.corners !== "object") return false;
+  for (const k in BASE.types) if (!st.types[k] || !num(st.types[k].row)) return false;
+  if (!num(st.setback) || !num(st.corner)) return false;
+  return trial(st);
 }
 const b64u = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const unb64u = str => Uint8Array.from(atob(str.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
@@ -1091,7 +1132,7 @@ $("shareBtn").addEventListener("click", async () => {
 async function openFromLink(){
   const m = location.hash.match(/^#d=([zj][A-Za-z0-9_-]+)$/); if (!m) return false;
   history.replaceState(null, "", location.pathname + location.search);
-  try { const st = await readShareCode(m[1]); if (!safeState(st)) throw 0; openState(st); toast("<b>Opened a shared stadium.</b> Your own design is one Undo away.", UNDO); return true; }
+  try { const st = await readShareCode(m[1]); if (!soundState(st)) throw 0; openState(st); toast("<b>Opened a shared stadium.</b> Your own design is one Undo away.", UNDO); return true; }
   catch(e) { toast("<b>That link didn't contain a design we could open.</b> It may have been cut short when it was copied."); return false; }
 }
 function randomStadium(){
@@ -1179,7 +1220,11 @@ function syncUI(){
   $("skin").value = AR.skin; document.querySelector(`input[name=skinShape][value=${AR.skinShape}]`).checked = true; $("skinShapeRow").hidden = AR.skin === "none";
   for (const k of ["arch","ramps","towers","plaza"]) $("a-"+k).checked = !!AR[k];
   $("flood").value = floodMode(); if (!$("screens").contains(document.activeElement) && screensDrawn !== JSON.stringify(Array.isArray(S.screens) ? S.screens : screenList(LAST && LAST.closedAt))) renderScreens();
-  $("crowd").checked = S.crowd !== false; $("night").checked = !!S.night; $("seeThrough").checked = !!S.seeThrough;
+  $("scenery").checked = S.scenery !== "model"; $("crowd").checked = S.crowd !== false; $("night").checked = !!S.night; $("seeThrough").checked = !!S.seeThrough;
+  { const AW = awayOf(), fillPct = Math.round(100*(S.crowdFill == null ? 0.93 : S.crowdFill));
+    $("crowdBox").hidden = S.crowd === false; $("crowdFill").value = fillPct; $("o-crowdFill").textContent = fillPct + "%";
+    $("awayOn").checked = AW.on; $("awayRow").hidden = !AW.on; $("awayAt").value = AW.at; if (document.activeElement !== $("awayColour")) $("awayColour").value = AW.colour;
+    $("stewards").checked = S.stewards !== false; }
   $("seeBtn").setAttribute("aria-pressed", String(!!S.seeThrough)); $("nightBtn").setAttribute("aria-pressed", String(!!S.night));
   $("seatPattern").value = S.seatPattern || "solid"; $("seat2Row").hidden = (S.seatPattern || "solid") === "solid";
   if (document.activeElement !== $("seat2")) $("seat2").value = S.seat2 || "#f2f2f2";
@@ -1228,4 +1273,4 @@ requestAnimationFrame(() => requestAnimationFrame(async () => {
 }));
 window.addEventListener("hashchange", openFromLink);
 /* read-only hook for automated checks */
-window.__gw = {state:() => JSON.parse(JSON.stringify(S)), last:() => LAST, busy:() => pending, memory:() => Object.assign({materials:Object.keys(M).length, programs:renderer.info.programs.length}, renderer.info.memory), regions:() => LAST_REGIONS, look:(p, t, stand) => { anim = null; if (stand){ picking = false; setLook(true); } moveCam(new THREE.Vector3(...p), new THREE.Vector3(...t), true); invalidate(); }};
+window.__gw = {state:() => JSON.parse(JSON.stringify(S)), last:() => LAST, busy:() => pending, crowd:() => { if (!CROWD) return null; const a = CROWD.bodies.instanceMatrix.array; let up = 0; for (let i=0;i<CROWD.n;i++) if (a[i*16+13] > CROWD.base[0][i*16+13] + 0.05) up++; return {n:CROWD.n, standing:up}; }, memory:() => Object.assign({materials:Object.keys(M).length, programs:renderer.info.programs.length}, renderer.info.memory), regions:() => LAST_REGIONS, look:(p, t, stand) => { anim = null; if (stand){ picking = false; setLook(true); } moveCam(new THREE.Vector3(...p), new THREE.Vector3(...t), true); invalidate(); }};

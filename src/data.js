@@ -36,17 +36,27 @@ const TYPE_FIELDS = {
   terrace:[["row","Step depth","m",0.28,0.55,0.01],["density","People per m²","",2,7,0.1]]
 };
 const STANDARDS = {
-  recommended:{seatRake:34,terraceRake:25,minRow:0.8,minWidth:0.5,maxBetween:28,minGang:1.1,maxDensity:4.7,barrierGap:5,minC:90,maxView:190,flow:66,maxEvac:8},
-  minimum:{seatRake:34,terraceRake:25,minRow:0.7,minWidth:0.46,maxBetween:28,minGang:1.1,maxDensity:4.7,barrierGap:5,minC:60,maxView:190,flow:66,maxEvac:8}
+  recommended:{seatRake:34,terraceRake:25,minRow:0.8,minWidth:0.5,maxBetween:28,maxOneEnd:14,minGang:1.1,maxDensity:4.7,barrierGap:5,minC:90,maxView:190,flow:66,maxEvac:8,evacLow:8,evacMedium:6,evacHigh:2.5},
+  minimum:{seatRake:34,terraceRake:25,minRow:0.7,minWidth:0.46,maxBetween:28,maxOneEnd:14,minGang:1.1,maxDensity:4.7,barrierGap:5,minC:60,maxView:190,flow:66,maxEvac:8,evacLow:8,evacMedium:6,evacHigh:2.5}
 };
 const LIMIT_FIELDS = [
   ["seatRake","Max steepness, seats","°",1],["terraceRake","Max steepness, terraces","°",1],
   ["minRow","Min seated row depth","m",0.01],["minWidth","Min seat width","m",0.01],
-  ["maxBetween","Max seats between gangways","",1],["minGang","Min gangway width","m",0.05],
+  ["maxBetween","Max seats between gangways","",1],["maxOneEnd","Max seats in a row with a gangway at one end only","",1],["minGang","Min gangway width","m",0.05],
   ["maxDensity","Max standing density","/m²",0.1],["barrierGap","Max gap between barriers","m",0.1],
   ["minC","Min sightline (C-value)","mm",5],["maxView","Max viewing distance","m",5],
-  ["flow","Exit flow rate","/m/min",1],["maxEvac","Max time to empty a stand","min",0.5]
+  ["flow","Exit flow rate","/m/min",1],["maxEvac","Max time to empty a stand (normal)","min",0.5],
+  ["evacLow","Emergency evacuation, low fire risk","min",0.5],["evacMedium","Emergency evacuation, medium fire risk","min",0.5],["evacHigh","Emergency evacuation, high fire risk","min",0.5]
 ];
+/* How easily a stand would burn, which sets how fast it has to clear in an emergency. The Green Guide treats this
+   separately from the normal emptying time: from 8 minutes for a low-risk stand (concrete and steel, little to burn)
+   down to 2.5 minutes for a high-risk one (timber, or lots of combustible material). */
+const FIRE_RISKS = {auto:"Work it out from the stand's style", low:"Low (concrete and steel)", medium:"Medium", high:"High (timber or lots to burn)"};
+const fireRiskOf = cfg => {
+  if (cfg && FIRE_RISKS[cfg.fire] && cfg.fire !== "auto") return cfg.fire;
+  const sty = STYLES[cfg && cfg.style] || {}, look = (cfg && cfg.facade && cfg.facade.look) || sty.look;
+  return look === "timber" ? "high" : sty.era === "Traditional" ? "medium" : "low";
+};
 const ROOF_SHAPES = {none:"No roof", slope:"Flat or sloping", gable:"Pitched, with a gable", closed:"Closed over the floor"};
 const ROOF_MATS = {translucent:"Translucent", metal:"Metal sheet", concrete:"Concrete", green:"Painted tin", glass:"Glass"};
 const ROOF_SUPPORTS = {none:"Hidden cantilever", ribs:"Exposed ribs", columns:"Pillars at the front", truss:"Goalpost truss", toptruss:"Big truss along the top", masts:"Masts and cables"};
@@ -198,7 +208,7 @@ const BASE = {
   stands:{N:mk("modern"),S:mk("regular"),E:mk("regular"),W:mk("regular")},
   corners:allCorners("open"), cornerCustom:[t("seated",12,22)],
   types:{seated:{row:0.8,width:0.5},exec:{row:1.05,width:0.6},rail:{row:0.8,width:0.5},bench:{row:0.76,width:0.46},terrace:{row:0.38,density:4.7}},
-  design:{gangEvery:28,gangWidth:1.1,barrierEvery:9,exitEvery:16,exitWidth:2.4},
+  design:{gangEvery:28,gangEnd:14,gangWidth:1.1,barrierEvery:9,exitEvery:16,exitWidth:2.4},
   standard:"minimum", limits:Object.assign({},STANDARDS.minimum),
   plot:{on:false,pts:null,clip:true},
   seat:"#c3322b", lights:true, boards:true, scoreboard:false, trim:true, views:[],
@@ -347,6 +357,7 @@ function migrate(old){
    wrapping halfway in to meet; stands that met in a corner of a bowl meet where they did; a corner with its own tiers
    keeps them as a corner stand; extra length beside an open corner becomes the stand running on past the pitch. */
 function upgradeCorners(s){
+  if (s && s.limits) for (const k in STANDARDS.minimum) if (s.limits[k] == null) s.limits[k] = STANDARDS[s.standard === "recommended" ? "recommended" : "minimum"][k]; // rules added since it was saved
   if (!s || !s.stands || !s.corners || s.cornersV === 2) return s;
   for (const k of SIDES){ const st = s.stands[k]; if (!st) continue;
     for (const e of [0, 1]){ const c = SIDE_ENDS[k][e], m = (s.corners[c] || {}).mode;
