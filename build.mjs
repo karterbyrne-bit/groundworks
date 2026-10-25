@@ -8,8 +8,14 @@ const read = p => readFileSync(new URL(p, import.meta.url), "utf8");
 const src = f => read("./src/" + f);
 const dev = process.argv.includes("--dev"); // unminified, easier to debug
 
+// The app's code, joined in this order into one shared scope: each file can use what the files before it define.
+const FILES = [
+  "data.js", "core.js",
+  "build/basics.js", "build/atmosphere.js", "build/architecture.js", "build/fittings.js", "build/walls.js", "build/roofs-site.js", "build/stadium.js",
+  "ui/readout.js", "ui/camera.js", "ui/stand-editor.js", "ui/ground.js", "ui/saving.js", "ui/welcome.js",
+];
 // if the 3D engine didn't arrive (a page cut off part way), boot.js shows a card instead of the app starting
-const js = "(function(){\nif (typeof THREE === \"undefined\" || !THREE.OrbitControls){ if (window.gwNo3D) window.gwNo3D(); return; }\n" + ["data.js", "core.js", "build.js", "ui.js"].map(src).join("\n") + "\n})();\n";
+const js = "(function(){\nif (typeof THREE === \"undefined\" || !THREE.OrbitControls){ if (window.gwNo3D) window.gwNo3D(); return; }\n" + FILES.map(src).join("\n") + "\n})();\n";
 const css = src("styles.css");
 const body = src("body.html");
 const boot = src("boot.js");

@@ -1,0 +1,100 @@
+/* ================= build ================= */
+let LAST = null, LAST_REGIONS = [], tab = "N";
+/* Who gets a corner. Each stand says how far it wraps round into the corner at each end (0 to 1) and, with separate
+   stands, how far its straight runs past the pitch there. Only one stand can push straight into a corner, and a stand can't
+   run into another's wrap; two wraps that overlap meet in proportion. Whatever is left between them is the corner's gap:
+   left open, or given a corner stand of its own. */
+function cornerPlan(c){
+  const lay = layoutOf(), A = S.stands[c.a], B = S.stands[c.b], on = st => !!(st && st.tiers.length);
+  const w = v => Math.max(0, Math.min(1, +v || 0));
+  let wa = on(A) ? w(A.wrap1) : 0, wb = on(B) ? w(B.wrap0) : 0, ra = 0, rb = 0;
+  if (lay === "stands"){
+    ra = on(A) && !wa ? +A.run1 || 0 : 0; rb = on(B) && !wb ? +B.run0 || 0 : 0;
+    if (ra > 0){ wb = 0; rb = Math.min(rb, 0); }          // the first stand runs straight into the corner: the other stops at the pitch
+    else if (wa > 0) rb = Math.min(rb, 0);                // it wraps in: the other can wrap to meet it, but not push straight in
+    else if (rb > 0) ra = Math.min(ra, 0);
+  }
+  let meet = false;
+  if (wa + wb > 1){ const t = wa + wb; wa /= t; wb /= t; meet = true; }
+  else if (wa + wb > 0.97 && wa > 0 && wb > 0) meet = true;
+  const cc = S.corners[c.key] || {}, lo = wa, hi = 1 - wb;
+  const gap = !meet && hi - lo > 0.04 && ra <= 0 && rb <= 0 ? [lo, hi] : null;
+  return {wa, wb, ra, rb, meet, gap, stand: !!(gap && cc.mode === "stand" && S.cornerCustom.length)};
+}
+/* A tier's row count for fixes: on a bowl with its own rows per side, its deepest side. Setting it trims every side to it. */
+const variesBySide = tr => !!(tr && tr.sideRows && S.bowl.varyRows && S.bowl.tiers.includes(tr));
+const rowsOf = tr => variesBySide(tr) ? Math.max(tr.rows, ...Object.values(tr.sideRows)) : tr.rows;
+function setRows(tr, v){ if (variesBySide(tr)){ for (const k in tr.sideRows) tr.sideRows[k] = Math.min(tr.sideRows[k], v); tr.rows = Math.min(tr.rows, v); } else tr.rows = v; }
+/* A material in a colour picked in the editor: a copy of a shared one, kept for as long as a build uses it.
+   Copies the last build didn't use are freed (see sweepMats), so dragging a colour picker doesn't fill up memory. */
+const M_BASE = new Set(Object.keys(M)), M_USED = new Set();
+function tint(base, hex){
+  if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) return base;
+  const k = base + "_" + hex.slice(1).toLowerCase();
+  if (!M[k]){ M[k] = M[base].clone(); M[k].color.set(hex); if (base === "seatBack") M[k].color.multiplyScalar(0.8); }
+  M_USED.add(k); return k;
+}
+function sweepMats(){
+  for (const k in M) if (!M_BASE.has(k) && !M_USED.has(k)){ M[k].dispose(); delete M[k]; }
+  M_USED.clear();
+  for (const k in signTex) if (!SIGN_USED.has(k)){ const m = signTex[k]; m.map.dispose(); m.edge.dispose(); m.dispose(); delete signTex[k]; }
+  SIGN_USED.clear();
+  for (const k in faceMats) if (k !== S.seat + S.sport){ faceMats[k].dispose(); delete faceMats[k]; }
+  for (const k in boardTex) if (k !== S.seat + S.sport){ boardTex[k].dispose(); delete boardTex[k]; }
+  for (const k in adMats) if (!ADS_USED.has(k)){ adMats[k].map.dispose(); adMats[k].dispose(); delete adMats[k]; }
+  ADS_USED.clear();
+}
+const fmt = n => Math.round(n).toLocaleString("en-GB");
+/* Seats from the end of a row to its first gangway, where the row ends at the end of a stand (a gangway at one end only). */
+const gangEndOf = () => S.design.gangEnd != null ? S.design.gangEnd : Math.min(14, Math.floor(S.design.gangEvery/2));
+const lerp = (a,b,f) => a + (b-a)*f;
+
+/* ---------- bowl pieces ----------
+   Going round the ring, a bowl is eight pieces: the SE corner, the opposite side, the SW corner, the west end and so on.
+   Any of them can be left out (a horseshoe, say), and each side can have its own number of rows, with the corners
+   blending smoothly from one side's depth to the next. */
+const BOWL_PIECES = ["SE","S","SW","W","NW","N","NE","E"];
+const CORNER_AFTER = ["S","W","N","E"], CORNER_BEFORE = ["E","S","W","N"];
+const bowlGone = k => !!(S.bowl.removed && S.bowl.removed[k]);
+function bowlPiece(tag, nc){
+  const tot = 4*(nc+1), tg = ((tag % tot) + tot) % tot, g = Math.min(3, Math.floor(tg/(nc+1))), loc = tg - g*(nc+1);
+  return loc <= nc + 1e-6 ? {key:GROUP_KEY[g], corner:true, f: nc ? Math.min(1, loc/nc) : 0.5, before:CORNER_BEFORE[g], after:CORNER_AFTER[g]}
+    : {key:CORNER_AFTER[g], corner:false};
+}
+const sideRowsOf = (tr, s) => S.bowl.varyRows && tr.sideRows && tr.sideRows[s] != null ? Math.max(0, tr.sideRows[s]) : tr.rows;
+const sideTypeOf = (tr, s) => S.bowl.varyRows && tr.sideType && TYPES[tr.sideType[s]] ? tr.sideType[s] : tr.type;
+const withRows = (tiers, f) => tiers.map((tr,k) => Object.assign({}, tr, {rows:f(tr,k)}));
+const onSide = (tr, s) => Object.assign({}, tr, {type:sideTypeOf(tr, s), rows:sideRowsOf(tr, s)}); // a bowl tier as built on one side
+/* The bowl's tiers at one point round the ring: that side's seating and rows, a blend in a corner, or nothing where it's
+   left out. A corner between two kinds of seating blends the depth and keeps the roomier kind (seats over terracing) all the way round. */
+function bowlTiersAt(tag, nc){
+  const pc = bowlPiece(tag, nc), T = S.bowl.tiers;
+  if (bowlGone(pc.key)) return withRows(T, () => 0);
+  if (!S.bowl.varyRows) return T;
+  if (!pc.corner) return T.map(tr => onSide(tr, pc.key));
+  const a = !bowlGone(pc.before), b = !bowlGone(pc.after), f = (1 - Math.cos(Math.PI*pc.f))/2;
+  return T.map(tr => { if (!(a && b)) return a ? onSide(tr, pc.before) : b ? onSide(tr, pc.after) : tr;
+    // the corner keeps one kind of seating all the way round (the roomier kind, so seats rather than terracing), and the
+    // two kinds meet at a stairway where the corner joins the straight side, not in the middle of the curve
+    const ta = onSide(tr, pc.before), tb = onSide(tr, pc.after), type = !(ta.rows > 0) ? tb.type : !(tb.rows > 0) ? ta.type : S.types[ta.type].row >= S.types[tb.type].row ? ta.type : tb.type;
+    const depth = lerp(ta.rows*S.types[ta.type].row, tb.rows*S.types[tb.type].row, f);
+    return Object.assign({}, tr, {type, rows: depth/S.types[type].row}); });
+}
+const bowlSideTiers = s => bowlGone(s) ? withRows(S.bowl.tiers, () => 0) : S.bowl.tiers.map(tr => onSide(tr, s));
+/* The unbroken stretches of a bowl with parts left out, as ranges round the ring; null when nothing is left out. */
+function bowlRuns(nc){
+  const on = BOWL_PIECES.map(k => !bowlGone(k));
+  if (on.every(Boolean)) return null;
+  const runs = [], start = on.indexOf(false); let cur = null;
+  for (let s=1;s<=8;s++){ const p = (start + s) % 8;
+    if (on[p]){ if (!cur) cur = {from:p}; cur.to = p; }
+    else if (cur){ runs.push(cur); cur = null; } }
+  const tot = 4*(nc+1), range = p => { const g = Math.floor(p/2); return p % 2 ? [g*(nc+1)+nc, (g+1)*(nc+1)] : [g*(nc+1), g*(nc+1)+nc]; };
+  return runs.map(r => ({lo:range(r.from)[0], hi:range(r.to)[1] % tot}));
+}
+/* Distance along a line from o (in steps of v) to where it meets an ellipse round the centre, on the far side. */
+function ellipseHit(o, v, A, B){
+  const a = (v[0]/A)**2 + (v[1]/B)**2, b = 2*(o[0]*v[0]/(A*A) + o[1]*v[1]/(B*B)), c = (o[0]/A)**2 + (o[1]/B)**2 - 1, disc = b*b - 4*a*c;
+  return a > 0 && disc >= 0 ? (-b + Math.sqrt(disc))/(2*a) : null;
+}
+
