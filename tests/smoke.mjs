@@ -22,6 +22,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   const ctx = await browser.newContext({ viewport, hasTouch: name === "phone" });
   const page = await ctx.newPage();
   page.setDefaultTimeout(120000);
+  await page.addInitScript(() => { window.__frames = 0; const raf = window.requestAnimationFrame.bind(window); window.requestAnimationFrame = f => raf(t => { window.__frames++; f(t); }); });
   const errors = [], external = [];
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
@@ -86,14 +87,14 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(bare === 0 && roofed.covered > roofed.total * 0.9, "one roof over the whole ground covers the seats");
   await page.click('#panes [data-pane="start"]');
   await page.click('[data-p="ringroof"]');
-  await page.waitForFunction(() => window.__gw.last().parts.some(p => p.label === "West end"));
+  await page.waitForFunction(() => !window.__gw.busy() && window.__gw.last().parts.some(p => p.label === "West end"));
   const rr = await last();
   check(rr.total > 15000 && rr.covered / rr.total > 0.9 && !rr.issues, 'preset "ringroof" builds under one roof with no warnings');
   await page.click('#panes [data-pane="start"]');
 
   // Ibrox: a deck on towers over an old stand; per-tier looks and lettering; typed plot sizes
   await page.click('[data-p="ibrox"]');
-  await page.waitForFunction(() => window.__gw.last().parts.some(p => p.label === "Main stand") && window.__gw.state().stands.N.tiers.length === 3);
+  await page.waitForFunction(() => !window.__gw.busy() && window.__gw.last().parts.some(p => p.label === "Main stand") && window.__gw.state().stands.N.tiers.length === 3);
   const ib = await last();
   check(ib.total > 20000 && !ib.issues, 'preset "ibrox" builds with no warnings');
   await page.click('[data-p="ot"]'); await page.waitForTimeout(300);
@@ -180,6 +181,17 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(!(await page.evaluate(() => window.__gw.last().issues.some(i => /^Screen/.test(i.text)))), "a new screen is mounted somewhere it fits");
   for (const mount of ["ribbon", "roof", "ribbon"]) { await page.locator("#screens .screen").last().locator('[data-sf="mount"]').selectOption(mount); await page.waitForTimeout(300); }
   check(errors.length === 0 && (await cap()) > 0, "screens and LED ribbons can be added and changed");
+
+  // memory stays flat: picking colour after colour mustn't leave old materials behind
+  const memBefore = await page.evaluate(() => window.__gw.memory());
+  for (let i = 0; i < 25; i++){ await page.evaluate(i => { const el = document.querySelector('input[type=color][data-p]'); el.value = "#" + (0x204060 + i*0x050301).toString(16); el.dispatchEvent(new Event("input", {bubbles:true})); }, i); await page.waitForTimeout(40); }
+  await page.waitForFunction(() => !window.__gw.busy());
+  const memAfter = await page.evaluate(() => window.__gw.memory());
+  check(memAfter.materials <= memBefore.materials + 3 && memAfter.textures <= memBefore.textures + 3, `memory stays flat after many colour changes (${memBefore.materials}→${memAfter.materials} materials)`);
+  // the 3D view goes to sleep when nothing moves
+  await page.waitForTimeout(1500);
+  const framesIdle = await page.evaluate(async () => { const n0 = window.__frames; await new Promise(res => setTimeout(res, 1000)); return window.__frames - n0; });
+  check(framesIdle === 0, `nothing is redrawn while the stadium sits still (${framesIdle} frames in a second)`);
 
   // share link round trip: copy a link, open it in a fresh page, get the same stadium
   const before = await page.evaluate(() => JSON.stringify(window.__gw.state()));

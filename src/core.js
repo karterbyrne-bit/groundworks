@@ -217,19 +217,27 @@ function exitDist(poly, o, v, d0){
 
 /* ================= three.js scene ================= */
 const view = document.getElementById("view");
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
-renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+/* Phones and tablets get a lighter set-up: fewer pixels and a smaller shadow map. Their screens are small enough that
+   it barely shows, and it roughly halves the work for every frame, so they run cooler and last longer. */
+const LIGHT = matchMedia("(pointer: coarse)").matches || Math.min(screen.width, screen.height) < 700;
+const renderer = new THREE.WebGLRenderer({antialias:true, powerPreference: LIGHT ? "low-power" : "default"});
+renderer.setPixelRatio(Math.min(LIGHT ? 1.5 : 2, window.devicePixelRatio || 1));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = LIGHT ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+/* The sun doesn't move with the camera, so shadows are only worked out again when the stadium or the lighting changes,
+   not on every frame while you orbit round. */
+renderer.shadowMap.autoUpdate = false;
 view.insertBefore(renderer.domElement, view.firstChild);
-/* Draw only when something has changed, so an idle stadium doesn't drain a phone or laptop battery. */
+/* Draw only when something has changed, so an idle stadium doesn't drain a phone or laptop battery.
+   invalidate() is for changes to the scene; redraw() is for camera moves, which don't need new shadows. */
 let dirty = 2;
-function invalidate(){ dirty = 2; }
+function redraw(){ dirty = Math.max(dirty, 1); if (typeof wake === "function") wake(); }
+function invalidate(){ dirty = 2; renderer.shadowMap.needsUpdate = true; if (typeof wake === "function") wake(); }
 const scene = new THREE.Scene();
 const persp = new THREE.PerspectiveCamera(42, 1, 0.2, 8000), ortho = new THREE.OrthographicCamera(-50, 50, 50, -50, -4000, 8000);
 let camera = persp;
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.48; controls.autoRotateSpeed = 0.6;
-controls.addEventListener("change", invalidate);
+controls.addEventListener("change", redraw);
 const hemi = new THREE.HemisphereLight(0xffffff, 0x4a554c, 0.75); scene.add(hemi);
 /* A soft sky for shiny things to reflect: glass, metal cladding and steel pick up a bright horizon and a darker ground,
    which is most of what makes them read as glass and metal rather than flat colour. */
@@ -240,7 +248,7 @@ const hemi = new THREE.HemisphereLight(0xffffff, 0x4a554c, 0.75); scene.add(hemi
   const pm = new THREE.PMREMGenerator(renderer); var SKY_ENV = pm.fromEquirectangular(t).texture; SKY_ENV.keep = true; pm.dispose(); t.dispose(); }
 const sun = new THREE.DirectionalLight(0xffffff, 0.9);
 const fill = new THREE.DirectionalLight(0xdfe8ff, 0.25); fill.position.set(-120, 80, -140); scene.add(fill);
-sun.position.set(140, 260, 90); sun.castShadow = true; sun.shadow.mapSize.set(2048,2048); sun.shadow.bias = -0.0004;
+sun.position.set(140, 260, 90); sun.castShadow = true; sun.shadow.mapSize.set(LIGHT ? 1024 : 2048, LIGHT ? 1024 : 2048); sun.shadow.bias = -0.0004;
 scene.add(sun);
 const groundMat = new THREE.MeshStandardMaterial({color:0xc3cbc0, roughness:1});
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(6000,6000), groundMat);

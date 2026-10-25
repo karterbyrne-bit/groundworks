@@ -219,7 +219,7 @@ function camTarget(mode){
 function moveCam(p, t, instant){
   controls.minDistance = 0; controls.maxDistance = Infinity;
   if (instant || reduce){ camera.position.copy(p); controls.target.copy(t); applyLimits(); controls.update(); return; }
-  anim = {p0:camera.position.clone(), t0:controls.target.clone(), p, t, start:performance.now()};
+  anim = {p0:camera.position.clone(), t0:controls.target.clone(), p, t, start:performance.now()}; wake();
 }
 function goCam(mode, instant){
   picking = mode === "seat"; tipOverride = null;
@@ -233,7 +233,7 @@ function goCam(mode, instant){
 }
 document.querySelectorAll("[data-cam]").forEach(b => b.addEventListener("click", () => { goCam(b.dataset.cam); closeMore(); }));
 const spinBtn = document.getElementById("spin");
-spinBtn.addEventListener("click", () => { controls.autoRotate = !controls.autoRotate; spinBtn.setAttribute("aria-pressed", String(controls.autoRotate)); });
+spinBtn.addEventListener("click", () => { controls.autoRotate = !controls.autoRotate; wake(); spinBtn.setAttribute("aria-pressed", String(controls.autoRotate)); });
 /* orthographic / perspective */
 function setOrtho(on){
   const from = camera, to = on ? ortho : persp; if (from === to) return;
@@ -382,14 +382,21 @@ function constrain(){
 function resize(){ const w = view.clientWidth, h = view.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); persp.aspect = w/h; persp.updateProjectionMatrix(); invalidate();
   if (camera === ortho){ const hh = (ortho.top - ortho.bottom)/2; ortho.left = -hh*w/h; ortho.right = hh*w/h; ortho.updateProjectionMatrix(); } }
 new ResizeObserver(resize).observe(view);
+/* The frame loop stops altogether once nothing has moved for half a second, so a stadium left on screen uses no power.
+   Anything that changes the view (a touch, a key, a camera move or a rebuild) wakes it again. */
+var awake = false, idle = 0; // var: invalidate() can call wake() before this line has run
+function wake(){ idle = 0; if (!awake){ awake = true; requestAnimationFrame(loop); } }
 function loop(now){
   if (anim){ const k = Math.min(1, (now - anim.start)/850), e = 1 - Math.pow(1-k, 3);
     camera.position.lerpVectors(anim.p0, anim.p, e); controls.target.lerpVectors(anim.t0, anim.t, e);
     if (k===1){ anim = null; applyLimits(); } }
   const moved = controls.update(); constrain();
-  if (moved || anim || dirty > 0){ renderer.render(scene, camera); if (dirty > 0) dirty--; }
+  if (moved || anim || dirty > 0){ renderer.render(scene, camera); if (dirty > 0) dirty--; idle = 0; }
+  else idle++;
+  if (idle > 30 && !controls.autoRotate && !document.hidden){ awake = false; return; }
   requestAnimationFrame(loop);
 }
+for (const ev of ["pointerdown", "pointermove", "wheel", "keydown", "touchstart"]) addEventListener(ev, wake, {passive:true, capture:true});
 function applyTheme(fromMood){
   if (S && S.night && fromMood !== true){ applyMood(); return; }
   const cs = getComputedStyle(document.documentElement);
@@ -560,6 +567,8 @@ function endControls(cfg, s, e){
 function renderEditor(){
   fixTab(); renderTabs();
   const ed = $("editor"), hyb = isHybrid();
+  // the toggle event comes a moment after a click, so note what's open now in case this redraw beats it
+  ed.querySelectorAll("details[data-more]").forEach(d => { if (d.open) openMore.add(d.dataset.more); else openMore.delete(d.dataset.more); });
   if (!isBowl() && tab === "C"){
     const anyStand = CORNERS.some(c => cornerPlan(c).stand);
     ed.innerHTML = `<p class="hint">A corner is whatever is left between two stands. Each stand sets how far it runs past the pitch or wraps round into the corner (under that stand's <b>Length</b>); here you choose what fills any gap. The shape (curved, angled or right angle) is under Layout.</p>
@@ -1209,7 +1218,7 @@ function changed(moveCam, coalesce){
 }
 
 showPane(pane, true); applyTheme(); renderTypeSizes(); fixTab(); if (isHybrid()) tab = "B"; renderEditor(); renderViews(); renderSaves(); syncUI(); build(); record(); resize(); setLook(false); goCam("aerial", true); setTip();
-requestAnimationFrame(loop);
+wake();
 /* Hand over from the loading screen once the first frame is drawn, then greet first-time visitors. */
 requestAnimationFrame(() => requestAnimationFrame(async () => {
   if (window.gwStarted) window.gwStarted();
@@ -1219,4 +1228,4 @@ requestAnimationFrame(() => requestAnimationFrame(async () => {
 }));
 window.addEventListener("hashchange", openFromLink);
 /* read-only hook for automated checks */
-window.__gw = {state:() => JSON.parse(JSON.stringify(S)), last:() => LAST, regions:() => LAST_REGIONS, look:(p, t, stand) => { anim = null; if (stand){ picking = false; setLook(true); } moveCam(new THREE.Vector3(...p), new THREE.Vector3(...t), true); invalidate(); }};
+window.__gw = {state:() => JSON.parse(JSON.stringify(S)), last:() => LAST, busy:() => pending, memory:() => Object.assign({materials:Object.keys(M).length, programs:renderer.info.programs.length}, renderer.info.memory), regions:() => LAST_REGIONS, look:(p, t, stand) => { anim = null; if (stand){ picking = false; setLook(true); } moveCam(new THREE.Vector3(...p), new THREE.Vector3(...t), true); invalidate(); }};

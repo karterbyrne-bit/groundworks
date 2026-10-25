@@ -25,12 +25,22 @@ function cornerPlan(c){
 const variesBySide = tr => !!(tr && tr.sideRows && S.bowl.varyRows && S.bowl.tiers.includes(tr));
 const rowsOf = tr => variesBySide(tr) ? Math.max(tr.rows, ...Object.values(tr.sideRows)) : tr.rows;
 function setRows(tr, v){ if (variesBySide(tr)){ for (const k in tr.sideRows) tr.sideRows[k] = Math.min(tr.sideRows[k], v); tr.rows = Math.min(tr.rows, v); } else tr.rows = v; }
-/* A material in a colour picked in the editor: a copy of a shared one, made once and kept with them. */
+/* A material in a colour picked in the editor: a copy of a shared one, kept for as long as a build uses it.
+   Copies the last build didn't use are freed (see sweepMats), so dragging a colour picker doesn't fill up memory. */
+const M_BASE = new Set(Object.keys(M)), M_USED = new Set();
 function tint(base, hex){
   if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) return base;
   const k = base + "_" + hex.slice(1).toLowerCase();
   if (!M[k]){ M[k] = M[base].clone(); M[k].color.set(hex); if (base === "seatBack") M[k].color.multiplyScalar(0.8); }
-  return k;
+  M_USED.add(k); return k;
+}
+function sweepMats(){
+  for (const k in M) if (!M_BASE.has(k) && !M_USED.has(k)){ M[k].dispose(); delete M[k]; }
+  M_USED.clear();
+  for (const k in signTex) if (!SIGN_USED.has(k)){ const m = signTex[k]; m.map.dispose(); m.edge.dispose(); m.dispose(); delete signTex[k]; }
+  SIGN_USED.clear();
+  for (const k in faceMats) if (k !== S.seat + S.sport){ faceMats[k].dispose(); delete faceMats[k]; }
+  for (const k in boardTex) if (k !== S.seat + S.sport){ boardTex[k].dispose(); delete boardTex[k]; }
 }
 const fmt = n => Math.round(n).toLocaleString("en-GB");
 const lerp = (a,b,f) => a + (b-a)*f;
@@ -363,7 +373,7 @@ function scoreboardTexture(){
 /* One screen-face material per seat colour, kept between rebuilds rather than made afresh every change. */
 const faceMats = {};
 function screenFace(){
-  const k = S.seat, m = faceMats[k] || (faceMats[k] = new THREE.MeshStandardMaterial({map:scoreboardTexture(), emissive:0xffffff, emissiveMap:scoreboardTexture(), roughness:.4}));
+  const k = S.seat + S.sport, m = faceMats[k] || (faceMats[k] = new THREE.MeshStandardMaterial({map:scoreboardTexture(), emissive:0xffffff, emissiveMap:scoreboardTexture(), roughness:.4}));
   m.keep = true; m.emissiveIntensity = S.night ? 1 : .55; return m;
 }
 function drawScreens(plans, bf, anchors){
@@ -422,20 +432,21 @@ const LOOK_TEX = {brick:"brick", timber:"timber", sheet:"cladding", fins:"claddi
 function textured(key, kind){
   if (!kind) return key; const k = key + "~" + kind;
   if (!M[k]){ M[k] = M[key].clone(); M[k].map = wallTexture(kind); }
-  return k;
+  M_USED.add(k); return k;
 }
 /* Lettering for an outside wall or a roof front, in the club's own words. */
-const signTex = {};
+const signTex = {}, SIGN_USED = new Set();
 function signMaterial(text, colour){
-  const k = text + "|" + colour; if (signTex[k]) return signTex[k];
+  const k = text + "|" + colour; SIGN_USED.add(k); if (signTex[k]) return signTex[k];
   const font = "800 110px 'Big Shoulders Display', 'Arial Narrow', sans-serif", c = document.createElement("canvas"), g = c.getContext("2d");
   g.font = font; c.width = Math.min(4096, Math.ceil(g.measureText(text).width) + 40); c.height = 140;
   g.font = font; g.fillStyle = colour; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, c.width/2, 76);
-  const t = new THREE.CanvasTexture(c); t.keep = true;
+  // kept between builds once the lettering font has loaded; until then made afresh and freed with the build
+  const cache = !document.fonts || document.fonts.check(font), t = new THREE.CanvasTexture(c); t.keep = cache;
   const m = new THREE.MeshStandardMaterial({map:t, transparent:true, alphaTest:.25, roughness:.5, emissive:new THREE.Color(colour), emissiveMap:t, emissiveIntensity:0});
-  m.keep = true; m.aspect = c.width/c.height;
-  m.edge = new THREE.MeshStandardMaterial({map:t, transparent:true, alphaTest:.25, roughness:.6, color:new THREE.Color(0.45, 0.45, 0.45)}); m.edge.keep = true; // the letters' thickness
-  if (!document.fonts || document.fonts.check(font)) signTex[k] = m; // try again once the lettering font has loaded
+  m.keep = cache; m.aspect = c.width/c.height;
+  m.edge = new THREE.MeshStandardMaterial({map:t, transparent:true, alphaTest:.25, roughness:.6, color:new THREE.Color(0.45, 0.45, 0.45)}); m.edge.keep = cache; // the letters' thickness
+  if (cache) signTex[k] = m;
   return m;
 }
 const ACCENTS = new Set(["trim", "band", "lattice"]); // the club colour goes on dressings and stripes, never on glazing frames or steel
@@ -631,6 +642,7 @@ function build(){
     scene.remove(group);
     const shared = new Set(Object.values(M)); // free what this build made, but keep the shared materials and cached textures
     group.traverse(o => { if (o.geometry && !o.geometry.keep) o.geometry.dispose(); for (const m of [].concat(o.material || [])){ if (m.map && m.map.dispose && !m.map.keep) m.map.dispose(); if (!m.keep && !shared.has(m)) m.dispose(); } });
+    sweepMats();
     group = new THREE.Group(); scene.add(group);
   }
   const Bf = {}; const buf = k => (Bf[k] = Bf[k] || []);
