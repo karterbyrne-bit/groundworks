@@ -219,7 +219,11 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   const al = await page.evaluate(() => window.__gw.last().awayAlloc);
   check(al.seats >= 4000 && al.seats < 4300 && al.gap > 0, `the away end gets the seats it's allocated, with a gap round it (${Math.round(al.seats)})`);
   await page.selectOption("#homeAt", "W"); await page.fill("#homeName", "the kop"); await page.waitForTimeout(300);
-  check((await page.evaluate(() => JSON.stringify(window.__gw.state().homeEnd))) === '{"at":"W","name":"THE KOP"}' && errors.length === 0, "a stand can be the home end, with its own name");
+  const he = await page.evaluate(() => window.__gw.state().homeEnd);
+  check(he.at === "W" && he.name === "THE KOP" && errors.length === 0, "a stand can be the home end, with its own name");
+  await page.check("#homeTifo"); await page.fill("#homeTexts", "never walk alone, since 1892"); await page.waitForTimeout(400);
+  check(errors.length === 0 && (await page.evaluate(() => window.__gw.state().homeEnd.texts)) === "NEVER WALK ALONE, SINCE 1892", "the home end can have banners and a card display");
+  await page.uncheck("#homeTifo");
   await page.uncheck("#awayOn"); await page.selectOption("#homeAt", "");
   // a round field round a wrestleball pitch
   await page.click('#panes [data-pane="start"]'); await page.click('[data-p="wrestle"]'); await page.waitForTimeout(300); await page.click('#panes [data-pane="ground"]');

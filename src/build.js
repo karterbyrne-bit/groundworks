@@ -129,7 +129,7 @@ let CROWD = null;
    the two sets of fans apart. The home end is a whole stand where the club's most vocal fans stand. */
 const AWAY = {on:false, colour:"#f2f2f2", at:"W", anchor:"middle", count:null, gap:3};
 const awayOf = () => Object.assign({}, AWAY, S.away || {});
-const homeEndOf = () => Object.assign({at:"", name:""}, S.homeEnd || {});
+const homeEndOf = () => Object.assign({at:"", name:"", flags:true, banners:true, tifo:false, texts:""}, S.homeEnd || {});
 /* Which rows of seats belong to a stand, or a side of a bowl, and where each sits along it as the fans there see it
    (u grows to their right). */
 function standRecs(recs, at){
@@ -141,7 +141,8 @@ function standRecs(recs, at){
   return list;
 }
 function allocateAway(recs){
-  for (const r of recs){ r.away = false; r.empty = false; }
+  for (const r of recs){ r.away = false; r.empty = false; r.home = false; }
+  const HE = homeEndOf(); if (HE.at) for (const r of standRecs(recs, HE.at)) r.home = true; // the stand and its side of the bowl below
   const A = awayOf(), out = {seats:0, gap:0}; if (!A.on) return out;
   const list = standRecs(recs, A.at); if (!list.length) return out;
   const us = list.map(r => r.u), lo = Math.min(...us), hi = Math.max(...us), u0 = A.anchor === "left" ? lo : A.anchor === "right" ? hi : (lo + hi)/2;
@@ -167,7 +168,7 @@ function addCrowd(recs, F){
   const A = awayOf(), away = new THREE.Color(A.colour), HE = homeEndOf();
   const full = S.crowdFill == null ? 0.93 : Math.max(0, Math.min(1, S.crowdFill));
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), up = new THREE.Vector3(0,1,0), hsc = new THREE.Vector3(1,1,1);
-  const phase = [], baseY = [];
+  const phase = [], baseY = [], flags = [];
   let c = 0, carry = 0, seed = 1;
   const rnd = () => { seed = (seed*16807) % 2147483647; return seed/2147483647; };
   const place = (x, y, z, hgt, w, shirt, head, ph) => {
@@ -178,21 +179,30 @@ function addCrowd(recs, F){
   for (const r of recs){
     const want = (r.seats || 0)/step + carry, n = Math.floor(want); carry = want - n; if (n < 1) continue;
     const dx = r.m1[0]-r.m0[0], dz = r.m1[1]-r.m0[1]; q.setFromAxisAngle(up, Math.atan2(-dz, dx));
-    const standing = r.type === "terrace" || r.type === "rail", fill = (r.type === "exec" ? 0.75 : 1)*full, hgt = standing ? 1.35 : 0.62;
+    const standing = r.type === "terrace" || r.type === "rail" || (r.home && r.type !== "exec"), fill = (r.type === "exec" ? 0.75 : 1)*full, hgt = standing ? 1.35 : 0.62;
     if (r.empty) continue; // the segregation gap round the away end
-    const a = angle(r.x, r.z), inAway = !!r.away, kop = !inAway && HE.at && r.stand === HE.at; // the home end: all in the club's colours, and full
+    const a = angle(r.x, r.z), inAway = !!r.away, kop = !inAway && !!r.home; // the home end: all in the club's colours, full and on its feet
     for (let k=0;k<n && c<n0 - 400;k++){
       if (rnd() > (kop ? Math.max(fill, .99) : fill)) continue;
       const f = (k + 0.5 + (rnd()-0.5)*0.3)/n, x = r.m0[0] + dx*f, z = r.m0[1] + dz*f;
       const v = rnd(), shirt = inAway ? (v < .7 ? away : CLOTHES[Math.floor(rnd()*CLOTHES.length)])
         : r.type === "exec" ? CLOTHES[Math.floor(rnd()*4)] // suits and smart coats in the boxes
+        : kop && HE.tifo ? (Math.floor(r.j/3) % 2 ? club2 : club) // a card display: bands of colour held up row by row
         : kop ? (v < .7 ? club : v < .85 ? dark : club2)
         : v < .45 ? club : v < .55 ? dark : v < .62 ? club2 : CLOTHES[Math.floor(rnd()*CLOTHES.length)];
-      const head = rnd() < .14 ? (inAway ? away : rnd() < .7 ? club : CLOTHES[0]) : SKIN[Math.floor(rnd()*SKIN.length)]; // a bobble hat or a cap now and then
+      const head = kop && HE.tifo ? shirt : rnd() < .14 ? (inAway ? away : rnd() < .7 ? club : CLOTHES[0]) : SKIN[Math.floor(rnd()*SKIN.length)]; // a bobble hat or a cap now and then; cards held over faces
       const h = hgt*(0.9 + rnd()*0.2), y = lerp(r.h0, r.h1, f) + (standing ? 0.05 + h/2 + 0.35 : 0.42 + h/2) + (rnd()-0.5)*0.05;
       place(x, y, z, h, widen*(0.9 + rnd()*0.2), shirt, head, a);
+      if ((kop && HE.flags && !HE.tifo && rnd() < .05) || (inAway && HE.flags && rnd() < .03)) flags.push([x, y + h/2 + 1.25, z, inAway ? (rnd() < .6 ? away : club2.clone().lerp(away, .3)) : rnd() < .55 ? club : club2, q.clone()]);
     }
   }
+  // flags held up over the home end (and a few in the away end), each on a short pole above its owner's head
+  if (flags.length){ const fm = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.3, .85), new THREE.MeshStandardMaterial({roughness:.8, side:THREE.DoubleSide}), flags.length);
+    const pm = new THREE.InstancedMesh(new THREE.BoxGeometry(.04, 1.5, .04), new THREE.MeshStandardMaterial({color:0x6b5a44, roughness:.9}), flags.length), fm4 = new THREE.Matrix4(), fq = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
+    flags.forEach(([x, y, z, col, qq], i) => { fq.copy(qq).multiply(new THREE.Quaternion().setFromAxisAngle(up, (rnd() - .5)*1.4));
+      fm4.compose(new THREE.Vector3(x, y, z), fq, one); fm.setMatrixAt(i, fm4); fm.setColorAt(i, col);
+      fm4.compose(new THREE.Vector3(x, y - .3, z), fq, one); pm.setMatrixAt(i, fm4); });
+    for (const mm of [fm, pm]){ mm.userData.crowd = true; group.add(mm); } }
   // stewards in hi-vis along the front of the lowest tiers, every 20 m or so, facing the crowd
   if (F && S.stewards !== false){ const vis = new THREE.Color(0xd8ff1e), front = recs.filter(r => r.j === 0 && !r.floor && r.h0 < 3);
     let run = 0; for (const r of front){ run += r.len || 0; if (run < 20 || c >= n0) continue; run = 0;
@@ -556,7 +566,23 @@ function adMaterial(){
 }
 /* One run of adverts: quads {a, b, h, view} in order along the run, where view is a point the readers are looking from,
    so the names read the right way round from there. */
-function adStrip(quads){
+/* Banners hung over the tier fronts in the home end: long cloth panels in the club's two colours, carrying the fans' own
+   words (or the home end's name), read from across the ground. */
+function bannerMaterial(){
+  const HE = homeEndOf(), texts = String(HE.texts || "").split(",").map(t => t.trim().toUpperCase().slice(0, 24)).filter(Boolean);
+  const list = texts.length ? texts : [HE.name || "HOME END", (sponsorsOf().title || "OUR GROUND").toUpperCase(), "TOGETHER", "SINCE 1888"];
+  const key = "B|" + list.join("|") + S.seat + S.seat2; ADS_USED.add(key); if (adMats[key]) return adMats[key];
+  const font = "800 54px 'Big Shoulders Display', 'Arial Narrow', sans-serif", W = 640, H = 120, c = document.createElement("canvas"), g = c.getContext("2d");
+  c.width = W*list.length; c.height = H;
+  const a = S.seat, b = S.seat2 || "#f2f2f2";
+  list.forEach((t, i) => { const bg = i % 2 ? b : a, fg = i % 2 ? a : b; g.fillStyle = bg; g.fillRect(i*W, 0, W, H); g.fillStyle = fg; g.fillRect(i*W, 8, W, 6); g.fillRect(i*W, H - 14, W, 6);
+    g.font = font; g.textAlign = "center"; g.textBaseline = "middle"; const tw = g.measureText(t).width, sx = Math.min(1, (W - 50)/tw);
+    g.save(); g.translate(i*W + W/2, H/2 + 2); g.scale(sx, 1); g.fillText(t, 0, 0); g.restore(); });
+  const cache = !document.fonts || document.fonts.check(font), t = new THREE.CanvasTexture(c);
+  t.wrapS = THREE.RepeatWrapping; t.repeat.set(1/(9*list.length), 1); t.keep = cache;
+  const m = new THREE.MeshStandardMaterial({map:t, roughness:.9, side:THREE.FrontSide}); m.keep = cache; if (cache) adMats[key] = m; return m;
+}
+function adStrip(quads, matIn){
   const pos = [], uv = []; let acc = 0;
   for (const q of quads){
     const dx = q.b[0] - q.a[0], dz = q.b[2] - q.a[2], len = Math.hypot(dx, dz); if (len < 1e-3) continue;
@@ -570,7 +596,7 @@ function adStrip(quads){
   }
   if (!pos.length) return;
   const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); geo.computeVertexNormals();
-  const mat = adMaterial(); mat.emissiveIntensity = S.night ? 1.1 : .4;
+  const mat = matIn || adMaterial(); if (!matIn) mat.emissiveIntensity = S.night ? 1.1 : .4;
   const mesh = new THREE.Mesh(geo, mat); mesh.receiveShadow = true; mesh.userData.stadium = true; mesh.userData.ads = true; group.add(mesh);
 }
 /* ================= players' tunnel and dugouts =================
@@ -1114,6 +1140,8 @@ function build(){
     /* The tunnel and dugouts on this stand, as blocks along it (in metres, as cum measures) whose front rows are cut out
        (or given padded seats). sideHere finds this stand's middle on the asked-for side: its own middle, or for a bowl
        the slice facing that way. */
+    const HEb = homeEndOf(), heDir = SIDE_DIR[HEb.at], bannerRows = {};
+    const homeHere = i => !!HEb.at && HEb.banners !== false && (HEb.at === st.key || (st.key === "B" && heDir && (v[i][0]*heDir[0] + v[i][1]*heDir[1]) > .55*Math.hypot(v[i][0], v[i][1])));
     const sideHere = at => { if (at === st.key && !st.drawFrom) return midI;
       const dir = {N:[0,-1], S:[0,1], E:[1,0], W:[-1,0]}[at]; if (st.key !== "B" || !dir) return -1;
       let bi = -1, bd = Infinity; for (let i=0;i<m;i++){ const vl = Math.hypot(v[i][0], v[i][1]) || 1, q = pt(i, 0), lat = Math.abs(dir[0] ? q[1] : q[0]);
@@ -1153,14 +1181,13 @@ function build(){
     const cap = (s, p, from, to, rail) => {
       const T = p.T, d1 = p.front + from*T, d2 = p.front + to*T;
       const y1 = p.stacked ? (from === 0 ? p.hF - 1.5 : p.hs[from] - 1.5) : 0, y2 = p.stacked ? p.hs[to-1] - 1.5 : 0;
-      /* the end of a tier: a concrete side wall stepping up with the rows, just proud of them, with a handrail along the top */
-      const yb = d => lerp(y1, y2, (d - d1)/Math.max(1e-6, d2 - d1)), cb = buf("concrete");
-      for (let j=from;j<to;j++){ const a = p.front + j*T, b = a + T, h = p.hs[j] + .15; quad(cb, V(s,a,yb(a)), V(s,b,yb(b)), V(s,b,h), V(s,a,h)); }
+      /* the end of a tier: a solid side wall stepping up with the rows to a little over a metre above them, so nobody stands
+         at an open edge, with a concrete coping and a handrail along the top */
+      const yb = d => lerp(y1, y2, (d - d1)/Math.max(1e-6, d2 - d1)), cb = buf("concrete"), up = rail === false ? .15 : 1.1;
+      for (let j=from;j<to;j++){ const a = p.front + j*T, b = a + T, h = p.hs[j] + up; quad(cb, V(s,a,yb(a)), V(s,b,yb(b)), V(s,b,h), V(s,a,h));
+        if (j > from && p.hs[j] > p.hs[j-1]) quad(cb, V(s,a,p.hs[j-1] + up), V(s,a,p.hs[j] + up), V(s,a,p.hs[j] + up), V(s,a,p.hs[j-1] + up)); }
       if (rail === false) return; // where it meets the next stand, the wall only closes any step between them
-      const hb = buf("steel"), r0 = [d1 + .2, p.hs[from] + 1.1], r1 = [d2 - .2, p.hs[to-1] + 1.1];
-      bar(hb, V(s,r0[0],r0[1]), V(s,r1[0],r1[1]), .06);
-      const posts = Math.max(1, Math.round((to - from)*T/2.5));
-      for (let q=0;q<=posts;q++){ const d = lerp(r0[0], r1[0], q/posts), j = Math.min(to-1, from + Math.floor((d - p.front)/T)); bar(hb, V(s,d,p.hs[j]+.15), V(s,d,lerp(r0[1], r1[1], q/posts)), .05); }
+      bar(buf("steel"), V(s, d1 + .1, p.hs[from] + up + .05), V(s, d2 - .1, p.hs[to-1] + up + .05), .06);
     };
     let kDrawn = 0;
     /* Each tier position is drawn once per kind of seating found there: a corner can have boxes coming in from one stand
@@ -1330,6 +1357,14 @@ function build(){
           else quad(fasc, V(i,p0.front,y00), V(j1,p1.front,y10), V(j1,p1.front,p1.hF), V(i,p0.front,p0.hF));
           if (tierType === "exec" || front === "glass") quad(buf("glass"), V(i,p0.front,p0.hF), V(j1,p1.front,p1.hF), V(j1,p1.front,p1.hF+1.1), V(i,p0.front,p0.hF+1.1));
           if (front === "concrete" || front === "brick") quad(fasc, V(i,p0.front,p0.hF), V(j1,p1.front,p1.hF), V(j1,p1.front,p1.hF+1), V(i,p0.front,p0.hF+1)); // a solid parapet
+          if (homeHere(i) && homeHere(j1) && !CV){ // the home end's banners, hung over the front of every tier
+            const t0 = p0.hF + (p0.stacked ? 1.05 : .75), t1 = p1.hF + (p1.stacked ? 1.05 : .75), dh = Math.min(1.5, Math.max(.8, Math.min(t0, t1) - .2));
+            (bannerRows[k] = bannerRows[k] || []).push({a:V(i, p0.front - .08, t0 - dh), b:V(j1, p1.front - .08, t1 - dh), h:dh, view:[0, 0]}); }
+          if ((front === "plain" || front === "lattice") && tierType !== "exec"){ // a front wall a little under a metre above the front row (more on a balcony), with a coping
+            const up0 = p0.stacked ? 1.05 : .75, up1 = p1.stacked ? 1.05 : .75, Eq = (d0, y0, d1, y1, f) => { const p = V(i, d0, y0), q = V(j1, d1, y1); return [lerp(p[0],q[0],f), lerp(p[1],q[1],f), lerp(p[2],q[2],f)]; };
+            for (const [fa, fb, md] of FP || [[0, 1, null]]) if (md !== "cut"){
+              quad(fasc, Eq(p0.front,p0.hF,p1.front,p1.hF,fa), Eq(p0.front,p0.hF,p1.front,p1.hF,fb), Eq(p0.front,p0.hF+up0,p1.front,p1.hF+up1,fb), Eq(p0.front,p0.hF+up0,p1.front,p1.hF+up1,fa));
+              quad(buf("concrete"), Eq(p0.front,p0.hF+up0,p1.front,p1.hF+up1,fa), Eq(p0.front,p0.hF+up0,p1.front,p1.hF+up1,fb), Eq(p0.front+.25,p0.hF+up0,p1.front+.25,p1.hF+up1,fb), Eq(p0.front+.25,p0.hF+up0,p1.front+.25,p1.hF+up1,fa)); } }
           if (p0.stacked && front === "lattice"){ // criss-cross balcony truss
             const lb = buf(tint("lattice", tc.frontColour)), yA = p0.hF-1.45, yB = p0.hF-0.05, f0 = p0.front-.06, f1 = p1.front-.06;
             quad(lb, V(i,f0,yA), V(i,f0,yA+.14), V(j1,f1,yB), V(j1,f1,yB-.14));
@@ -1681,7 +1716,7 @@ function build(){
     const signText = fac.sign || (named ? SP.title : homeNamed ? HEn.name : ""), signAt = named || homeNamed ? "roof" : fac.signAt;
     if (signText && !DRY){ // lettering on the outside wall, or along the roof front facing the play
       let si = midI;
-      if (closed){ let bd = -2; for (let i=0;i<m;i++){ if (!info[i]) continue; const d = -v[i][1]/(Math.hypot(v[i][0], v[i][1]) || 1); if (d > bd){ bd = d; si = i; } } if (bd < 0.95) si = -1; }
+      if (closed){ let bd = Infinity; si = -1; for (let i=0;i<m;i++){ if (!info[i]) continue; const d = -v[i][1]/(Math.hypot(v[i][0], v[i][1]) || 1), xx = Math.abs(pt(i, 0)[0]); if (d > .95 && xx < bd){ bd = xx; si = i; } } } // the middle of the main side
       const x = si >= 0 ? info[si] : null, R2 = x && RRout ? RRout[si] : null;
       if (x){
         const mat = signMaterial(String(signText).slice(0, 30), (named ? SP.titleColour : homeNamed ? S.seat : fac.signColour) || "#ffffff"), onRoof = signAt === "roof" && roofOn && R2;
@@ -1690,20 +1725,36 @@ function build(){
         const top = onRoof ? R2.y(0) : roofOn && R2 ? R2.y(1) : x.top;
         // big raised letters, as clubs mount their names: about a sixth of the wall's height, never wider than most of the stand
         let h = onRoof ? Math.max(1.4, Math.min(5, top*0.11)) : Math.max(2, Math.min(7, top*0.17)); if (h*mat.aspect > lenTotal*0.7) h = lenTotal*0.7/mat.aspect;
-        const w = h*mat.aspect, mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
-        if (onRoof){ const p = pt(si, R2.inner - .3), yc = R2.y(0) - .3 - h/2, hw = w/2 + 1.5, q = pt(si, R2.inner - .1);
-          quad(buf("roofEdge"), [q[0]-tg[0]*hw, yc - h/2 - .4, q[1]-tg[1]*hw], [q[0]+tg[0]*hw, yc - h/2 - .4, q[1]+tg[1]*hw], [q[0]+tg[0]*hw, R2.y(0), q[1]+tg[1]*hw], [q[0]-tg[0]*hw, R2.y(0), q[1]-tg[1]*hw]);
-          mesh.position.set(p[0], yc, p[1]); mesh.lookAt(p[0] - nOut[0], yc, p[1] - nOut[1]); }
-        else { const p = pt(si, (roofOn && R2 ? R2.outer : x.back) + (look === "fins" ? 1.9 : look === "concrete" ? 1.3 : look === "glass" ? .9 : .7)), yc = look === "sheet" && top > 10 ? top - 4.1 - h*.55 : top - h*1.05; // under the club stripe on metal cladding
-          mesh.position.set(p[0], yc, p[1]); mesh.lookAt(p[0] + nOut[0], yc, p[1] + nOut[1]);
-          for (let l=1;l<=6;l++){ const e = new THREE.Mesh(mesh.geometry, mat.edge), d = l*0.06; // stacked behind the face, so the letters stand off the wall
-            e.position.set(p[0] - nOut[0]*d, yc, p[1] - nOut[1]*d); e.quaternion.copy(mesh.quaternion); e.userData.stadium = true; group.add(e); } }
-        mesh.userData.stadium = true; group.add(mesh);
+        /* The lettering follows the line of the roof front (or the wall) round the stand, so on a curved bowl the ends of a
+           name don't disappear into the roof or the wall. It reads left to right for whoever's looking at it. */
+        const w = h*mat.aspect, wallOff = look === "fins" ? 1.9 : look === "concrete" ? 1.3 : look === "glass" ? .9 : .7;
+        const dOf = (i, extra) => onRoof ? (RRout[i] || R2).inner - .3 - extra : ((roofOn && RRout[i] ? RRout[i].outer : (info[i] || x).back) + wallOff - extra);
+        const seg = s2 => { let xx = closed ? ((s2 % lenTotal) + lenTotal) % lenTotal : Math.max(0, Math.min(cum[m-1], s2)), i = 0;
+          while (i < m - 1 && cum[i+1] <= xx) i++; if (!closed && i >= m - 1) i = m - 2; const j = nx(i), sl = (j === 0 ? lenTotal : cum[j]) - cum[i];
+          return [i, j, sl > 0 ? (xx - cum[i])/sl : 0]; };
+        const P = (s2, extra) => { const [i, j, f] = seg(s2), a = pt(i, dOf(i, extra)), b = pt(j, dOf(j, extra)); return [lerp(a[0], b[0], f), lerp(a[1], b[1], f)]; };
+        const yRoof = s2 => { const [i, j, f] = seg(s2); return lerp((RRout[i] || R2).y(0), (RRout[j] || R2).y(0), f); };
+        const c0 = cum[si], q0 = P(c0 - 1, 0), q1 = P(c0 + 1, 0), stretch = Math.max(.3, Math.hypot(q1[0]-q0[0], q1[1]-q0[1])/2), span = w/stretch; // metres along the stand's own line
+        const right = rightAt(si)*(onRoof ? 1 : -1), N = Math.max(8, Math.ceil(w/0.6)), ycWall = look === "sheet" && top > 10 ? top - 4.1 - h*.55 : top - h*1.05;
+        const yc = s2 => onRoof ? yRoof(s2) - .3 - h/2 : ycWall;
+        const strip = (material, extra) => { const pos = [], uv = [];
+          for (let q=0;q<N;q++){ const sa = c0 - span/2 + span*q/N, sb = c0 - span/2 + span*(q+1)/N, A = P(sa, extra), B = P(sb, extra), ua = right > 0 ? q/N : 1 - q/N, ub = right > 0 ? (q+1)/N : 1 - (q+1)/N;
+            const ya = yc(sa), yb = yc(sb);
+            pos.push(A[0],ya-h/2,A[1], B[0],yb-h/2,B[1], B[0],yb+h/2,B[1], A[0],ya-h/2,A[1], B[0],yb+h/2,B[1], A[0],ya+h/2,A[1]); uv.push(ua,0, ub,0, ub,1, ua,0, ub,1, ua,1); }
+          const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); geo.computeVertexNormals();
+          material.side = THREE.DoubleSide; const ms = new THREE.Mesh(geo, material); ms.userData.stadium = true; group.add(ms); return ms; };
+        if (onRoof){ // a backing plate the length of the name, following the roof front
+          const pad = 1.5/stretch;
+          for (let q=0;q<N;q++){ const sa = c0 - span/2 - pad + (span + 2*pad)*q/N, sb = c0 - span/2 - pad + (span + 2*pad)*(q+1)/N, A = P(sa, -.2), B = P(sb, -.2);
+            quad(buf("fascia"), [A[0], yc(sa) - h/2 - .4, A[1]], [B[0], yc(sb) - h/2 - .4, B[1]], [B[0], yRoof(sb), B[1]], [A[0], yRoof(sa), A[1]]); } }
+        const mesh = strip(mat, 0);
+        if (!onRoof) for (let l=1;l<=6;l++) strip(mat.edge, l*0.06); // stacked behind the face, so the letters stand off the wall
       }
     }
     if (st.sel && st.key in S.stands && lay === "stands" && info[midI]){ const q = pt(midI, info[midI].front);
       handles.push({kind:"dist", x:q[0], y:0.6, z:q[1], o:o[midI], v:v[midI], cfg}); }
     for (const r of segRecs){ r.stand = st.key; allRecs.push(r); }
+    if (!DRY) for (const k in bannerRows) adStrip(bannerRows[k], bannerMaterial());
     let rv = 0;
     if (cols.length){ const cosLim = Math.cos(12*Math.PI/180);
       for (const r of segRecs){

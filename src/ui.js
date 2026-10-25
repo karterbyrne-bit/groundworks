@@ -1187,6 +1187,9 @@ $("awayCount").addEventListener("input", e => { if (e.target.value === "" || isN
 $("awayColour").addEventListener("input", e => { awaySet("colour", e.target.value); changed(false, true); });
 bindRange("awayGap", v => awaySet("gap", v));
 $("homeAt").addEventListener("change", e => { S.homeEnd = Object.assign(homeEndOf(), {at:e.target.value}); changed(); });
+const heSet = (k, v) => { S.homeEnd = Object.assign(homeEndOf(), {[k]: v}); };
+for (const [id, k] of [["homeFlags","flags"],["homeBanners","banners"],["homeTifo","tifo"]]) $(id).addEventListener("change", e => { heSet(k, e.target.checked); changed(); });
+$("homeTexts").addEventListener("input", e => { heSet("texts", e.target.value.replace(/[<>"'`\\]/g, "").toUpperCase().slice(0, 120)); changed(false, true); });
 $("homeName").addEventListener("input", e => { S.homeEnd = Object.assign(homeEndOf(), {name:cleanName(e.target.value).toUpperCase()}); changed(false, true); });
 $("stewards").addEventListener("change", e => { S.stewards = e.target.checked; changed(); });
 $("waveBtn").addEventListener("click", () => {
@@ -1441,7 +1444,9 @@ function syncUI(){
     $("awayNote").textContent = AL && AW.on ? `${fmt(AL.seats)} seats given to away fans${AL.gap ? `, ${fmt(AL.gap)} left empty to keep the fans apart` : ""}.` : "";
     if (document.activeElement !== $("awayColour")) $("awayColour").value = AW.colour;
     $("homeAt").innerHTML = `<option value="">None</option>` + opts.map(([k, n]) => `<option value="${k}"${k === HEs.at ? " selected" : ""}>${esc(n)}</option>`).join("");
-    $("homeNameRow").hidden = !HEs.at; if (document.activeElement !== $("homeName")) $("homeName").value = HEs.name || "";
+    $("homeRows").hidden = !HEs.at; if (document.activeElement !== $("homeName")) $("homeName").value = HEs.name || "";
+    $("homeFlags").checked = HEs.flags !== false; $("homeBanners").checked = HEs.banners !== false; $("homeTifo").checked = !!HEs.tifo;
+    $("homeTextsRow").hidden = $("homeTexts").hidden = HEs.banners === false; if (document.activeElement !== $("homeTexts")) $("homeTexts").value = HEs.texts || "";
     $("stewards").checked = S.stewards !== false; }
   $("seeBtn").setAttribute("aria-pressed", String(!!S.seeThrough)); $("nightBtn").setAttribute("aria-pressed", String(!!S.night));
   { const T = S.seatText || {}, opts = seatTextStands();

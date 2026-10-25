@@ -348,7 +348,14 @@
           <div class="row"><label for="awayGap">Empty seats between the fans</label><output id="o-awayGap"></output><input type="range" id="awayGap" min="0" max="20" step="1"></div>
         </div>
         <div class="row"><label for="homeAt">Home end</label><select id="homeAt" aria-label="Home end"></select></div>
-        <div class="row" id="homeNameRow"><label for="homeName">Its name</label><input type="text" id="homeName" maxlength="24" placeholder="e.g. THE KOP" aria-label="Home end name"></div>
+        <div id="homeRows">
+          <div class="row"><label for="homeName">Its name</label><input type="text" id="homeName" maxlength="24" placeholder="e.g. THE KOP" aria-label="Home end name"></div>
+          <label class="toggle"><input type="checkbox" id="homeFlags"> Flags waving (a few in the away end too)</label>
+          <label class="toggle"><input type="checkbox" id="homeBanners"> Banners over the front of every tier</label>
+          <div class="row" id="homeTextsRow"><label for="homeTexts">Banner words, separated by commas</label></div>
+          <input type="text" id="homeTexts" maxlength="120" placeholder="e.g. NEVER WALK ALONE, SINCE 1892" aria-label="Banner words" style="width:100%;box-sizing:border-box">
+          <label class="toggle"><input type="checkbox" id="homeTifo"> Card display: the home end holds up bands of colour</label>
+        </div>
         <label class="toggle"><input type="checkbox" id="stewards"> Stewards in hi-vis along the front</label>
         <button class="btn small" id="waveBtn">🙌 Start a Mexican wave</button>
       </div>
