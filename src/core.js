@@ -289,6 +289,7 @@ const M = {
   barrierWood: std({color:0x8a2e24, roughness:.8}),
   column: std({color:0x3c4246, roughness:.5, metalness:.4}),
   lattice: std({color:0x1f3f8f, roughness:.5}),
+  access: new THREE.MeshStandardMaterial({color:0x1f5fbf, emissive:0x0d2f6b, emissiveIntensity:.6, roughness:.4}), // the blue wheelchair sign
   emerg: new THREE.MeshStandardMaterial({color:0x17a34a, emissive:0x0d7a35, emissiveIntensity:.8, roughness:.4}), // emergency exit signs
   board: std({color:0x10233f, roughness:.4, emissive:0x163a6e, emissiveIntensity:.8}),
   site: std({color:0xc0392b, roughness:.6}), handle: std({color:0xffffff, roughness:.5, emissive:0x5a1a14}),

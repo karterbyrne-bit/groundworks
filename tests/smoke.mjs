@@ -221,6 +221,24 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.click('#panes [data-pane="rules"]'); const em0 = await page.evaluate(() => window.__gw.last().slowestEm);
   await page.evaluate(() => { const el = document.getElementById("emergEvery"); el.value = "20"; el.dispatchEvent(new Event("input", {bubbles:true})); }); await page.waitForTimeout(300);
   check((await page.evaluate(() => window.__gw.last().slowestEm)) < em0, "emergency exits at the back of the tiers speed up an evacuation");
+  // wheelchair spaces meet the guidance when switched on; emergency vehicles get a way onto the pitch
+  const beforeAccess = await cap(); await page.check("#acOn"); await page.waitForTimeout(400);
+  const acc = await page.evaluate(() => { const D = window.__gw.last(); return {wc:D.wheelchair, short:D.issues.some(i => i.key === "access:spaces")}; });
+  check(acc.wc > 100 && !acc.short && (await cap()) < beforeAccess, `wheelchair spaces are added to meet the guidance (${acc.wc})`);
+  await page.check("#vhOn"); await page.waitForTimeout(400);
+  check(errors.length === 0 && (await page.evaluate(() => window.__gw.state().vehicle.on)), "an emergency vehicle entrance can go through a stand");
+  await page.uncheck("#acOn"); await page.uncheck("#vhOn");
+  // how fans get into a tier, and each stand's facilities
+  await page.click('#panes [data-pane="stands"]'); await page.waitForTimeout(200);
+  const tierMore = page.locator('.tier[data-k="0"] details[data-more]').first(); if (!(await tierMore.evaluate(d => d.open))) await tierMore.locator("summary").click();
+  const entrySel = page.locator('.tier[data-k="0"] select[data-p$=".entry"]').first();
+  await entrySel.selectOption("back"); await page.waitForTimeout(300); const fromBack = await cap();
+  await page.locator('.tier[data-k="0"] select[data-p$=".entry"]').first().selectOption("middle"); await page.waitForTimeout(300);
+  check((await cap()) < fromBack && await page.locator('.tier[data-k="0"] input[type=range][data-p$=".entryAt"]').count() > 0, "fans can come in from the back, or from the middle at a height you choose");
+  await page.locator('.tier[data-k="0"] select[data-p$=".entry"]').first().selectOption("auto"); await page.waitForTimeout(300);
+  await page.locator('details.sub', {hasText:"Facilities, access and fire risk"}).locator("summary").first().click();
+  await page.locator('select[data-p="facilities"]').selectOption("premium"); await page.waitForTimeout(300);
+  check(errors.length === 0 && /premium/.test(await page.evaluate(() => JSON.stringify(window.__gw.state()))), "a stand's facilities can be chosen");
   await page.click('#panes [data-pane="look"]'); await page.uncheck("#tnOn"); await page.uncheck("#dgOn");
 
   // architect's notes

@@ -223,6 +223,26 @@
       </div>
     </details>
 
+    <details class="group" data-pane="rules" open>
+      <summary>Access</summary>
+      <div class="inner">
+        <label class="toggle"><input type="checkbox" id="acOn"> Wheelchair spaces</label>
+        <div id="acRows">
+          <div class="row"><label for="acAt">Where</label><select id="acAt" aria-label="Where the wheelchair platforms go"></select></div>
+          <div class="row"><label for="acPer">Platforms in each stand (each side of a bowl)</label><output id="o-acPer"></output><input type="range" id="acPer" min="1" max="12" step="1"></div>
+          <div class="row"><label for="acLength">Length of each platform</label><output id="o-acLength"></output><input type="range" id="acLength" min="5" max="24" step="1"></div>
+          <p class="hint" id="acSum"></p>
+        </div>
+        <label class="toggle"><input type="checkbox" id="vhOn"> Emergency vehicle access onto the pitch</label>
+        <div id="vhRows">
+          <div class="row"><label for="vhAt">Through the</label><select id="vhAt" aria-label="Stand the vehicle entrance goes through"></select></div>
+          <div class="row"><label for="vhPos">Along the stand</label><output id="o-vhPos"></output><input type="range" id="vhPos" min="-60" max="60" step="1"></div>
+          <div class="row"><label for="vhWidth">Width</label><output id="o-vhWidth"></output><input type="range" id="vhWidth" min="3.5" max="8" step="0.5"></div>
+        </div>
+        <p class="hint">Each wheelchair space comes with a companion seat beside it. The vehicle entrance is 4.5 m high, so an ambulance or fire engine can drive straight onto the pitch.</p>
+      </div>
+    </details>
+
     <details class="group" id="limitsBox" data-pane="rules" open>
       <summary>Safety rules<small id="limitsSummary"></small></summary>
       <div class="inner">

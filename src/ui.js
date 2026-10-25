@@ -93,6 +93,8 @@ const ARCH_ACTS = {
   roofs:() => { for (const cfg of [S.bowl, ...SIDES.map(k => S.stands[k])]) if (cfg.tiers.length && cfg.roof.shape === "none") cfg.roof = Object.assign(R("slope"), {mat:"metal", reach:1.5}); },
   exits:() => { S.design.exitEvery = Math.max(8, S.design.exitEvery - 4); },
   boxes:() => { showPane("stands"); return "nochange"; },
+  access:() => { S.access = Object.assign(accessOf(), {on:true}); },
+  vehicle:() => { const opts = tdSides(); S.vehicle = Object.assign(vehicleOf(), {on:true, at: opts.some(o => o[0] === "W") ? "W" : (opts[0] || ["N"])[0]}); },
   name:() => { showPane("look"); setTimeout(() => $("spTitle").focus(), 50); return "nochange"; }
 };
 function architectNotes(D){
@@ -140,17 +142,31 @@ function architectNotes(D){
   sc.access = clamp10(10 - Math.max(0, evac - 4)*1.2 - (em ? 3 : 0) - D.issues.filter(i => i.cat === "rules").length*0.8);
   if (evac > L.maxEvac*0.85 && evac <= L.maxEvac) note("tip", `The slowest stand takes ${evac.toFixed(1)} minutes to empty, close to the ${L.maxEvac}-minute limit. A few more exits would give some slack.`, "exits", "Add exits");
   else if (evac && evac < 5) note("good", `Everyone's out within ${evac.toFixed(1)} minutes. Plenty of exits.`);
+  // wheelchair spaces and a way in for emergency vehicles
+  const need = wheelchairNeed(D.total), AC = accessOf();
+  if (!AC.on) note("tip", `No wheelchair spaces yet. A ground this size should have about ${need}. Switch them on under Rules.`, "access", "Add wheelchair spaces");
+  else if ((D.wheelchair || 0) >= need) note("good", `${D.wheelchair} wheelchair spaces, spread round the ground. That meets the guidance.`);
+  if (!vehicleOf().on && (lay === "bowl" || lay === "hybrid" || corners === 4)) note("warn", "There's no way for an ambulance or fire engine to drive onto the pitch. Add an emergency vehicle entrance through one of the stands.", "vehicle", "Add one");
+  // facilities, stand by stand
+  const fac = standCfgs().map(c => facilitiesOf(c)), basic = fac.filter(f => f === "basic").length, prem = fac.filter(f => f === "premium").length;
+  if (basic) note("tip", `${basic === fac.length ? "Every stand has" : basic + " stand" + (basic > 1 ? "s have" : " has")} basic facilities. Expect long queues for the toilets and the tea bar at half time.`);
+  if (prem) note("good", `${prem === fac.length ? "Every stand has" : prem + " stand" + (prem > 1 ? "s have" : " has")} premium facilities: lounges and restaurants that earn money on non-match days too.`);
+  sc.comfort = clamp10(sc.comfort*0.75 + 2.5*(fac.length ? fac.reduce((a, f) => a + (f === "basic" ? 0.3 : f === "premium" ? 1.2 : 0.8), 0)/fac.length : 0.8));
   // money: hospitality
   const boxShare = (D.byType.exec || 0)/D.total;
   if (D.total > 25000 && boxShare < 0.01) note("tip", "No executive boxes. At a ground this size, hospitality pays a lot of the bills. Try a ring of boxes between two tiers.", "boxes", "Go to stands");
+  if (!AC.on || (D.wheelchair || 0) < need) sc.access = clamp10(sc.access - 1.5);
   const overall = (sc.atmosphere + sc.views + sc.comfort + sc.looks + sc.access)/5;
   return {notes, sc, overall};
 }
 /* A very rough idea of what it would cost to build, from typical costs per place for each kind of seating, more for each
    tier stacked higher, plus roofs and the big architectural extras. Only good for comparing designs. */
+/* Every stand's own settings, whatever the layout. */
+const standCfgs = () => isRing() ? ringOf().stands.filter(r => r.tiers.length) : [...(isBowl() || isHybrid() ? [S.bowl] : []), ...(isBowl() ? [] : SIDES.map(k => S.stands[k]).filter(c => c.tiers.length))];
+const cfgOfKey = k => k === "B" ? S.bowl : /^R\d+$/.test(k) ? ringOf().stands[+k.slice(1)] : S.stands[k];
 function buildCost(D){
-  const per = {seated:3800, exec:14000, rail:3300, bench:2400, terrace:1400};
-  let c = 0; for (const p of D.parts) for (const t of p.tiers) c += t.seats * (per[t.type] || 3000) * (1 + Math.max(0, (t.height || 0) - 12)/60);
+  const per = {seated:3800, exec:14000, rail:3300, bench:2400, terrace:1400}, facMul = {basic:.85, good:1, premium:1.35};
+  let c = 0; for (const p of D.parts) for (const t of p.tiers) c += t.seats * (per[t.type] || 3000) * (1 + Math.max(0, (t.height || 0) - 12)/60) * (facMul[facilitiesOf(cfgOfKey(p.key))] || 1);
   c += D.covered * 1700;
   const AR = S.arch || {}; if (AR.arch) c += 45e6; if (AR.skin && AR.skin !== "none") c += D.total*450; if (AR.towers) c += 8e6; if (AR.ramps) c += 6e6;
   if (S.groundRoof && S.groundRoof.on && S.groundRoof.cover === "closed") c += 120e6;
@@ -572,11 +588,14 @@ const colourPick = (label, p, val, def) => `<div class="row colour"><label>${lab
   ${val ? `<button class="mini" data-act="clearColour" data-cp="${p}">Default</button>` : `<small>default</small>`}</span></div>`;
 /* The tier's own look, its length and what holds it up. */
 const openMore = new Set();
-const tierMore = (tr, pre, stacked, ends) => `<details class="sub" data-more="${tab}:${pre}"${openMore.has(tab + ":" + pre) ? " open" : ""}><summary>Look${ends ? ", length" : ""}${stacked ? " and support" : ""}</summary><div class="inner">
+const tierMore = (tr, pre, stacked, ends) => `<details class="sub" data-more="${tab}:${pre}"${openMore.has(tab + ":" + pre) ? " open" : ""}><summary>Look, entrances${ends ? ", length" : ""}${stacked ? " and support" : ""}</summary><div class="inner">
   ${pick("Front", pre + "front", tr.front || "auto", TIER_FRONTS)}
   ${colourPick("Front colour", pre + "frontColour", tr.frontColour)}
   ${tr.type === "seated" || tr.type === "rail" ? colourPick("Seat colour", pre + "seatColour", tr.seatColour) : ""}
   ${ends ? pair("Stops short of the left end", pre + "trim0", tr.trim0 || 0, 0, 80, 1, "m", "Left and right as seen from the play.") + pair("Stops short of the right end", pre + "trim1", tr.trim1 || 0, 0, 80, 1, "m") : ""}
+  ${pick("Fans get in", pre + "entry", ENTRY[tr.entry] ? tr.entry : "auto", ENTRY)}
+  ${tr.entry === "middle" ? pair("How far up the tier", pre + "entryAt", Math.round((tr.entryAt || .42)*100), 15, 85, 5, "%") : ""}
+  ${tr.entry && tr.entry !== "auto" ? pair("One entrance every", pre + "entryEvery", tr.entryEvery || S.design.exitEvery, 8, 60, 1, "m") : ""}
   ${stacked ? pick("Held up by", pre + "support", tr.hold === "towers" ? "towers" : tr.pillars ? "pillars" : "none", TIER_HOLDS) : ""}
 </div></details>`;
 function tierBlocks(arr, above, base, bySide, ends){
@@ -704,7 +723,10 @@ function renderEditor(){
       ${tierBlocks(cfg.tiers, above, "", (bowl || ring) && S.bowl.varyRows, !bowl && !ring)}
       ${cfg.tiers.length < MAX_TIERS ? `<button class="btn small" data-act="addTier">Add a tier</button>` : `<p class="hint">${MAX_TIERS} tiers is as high as it goes.</p>`}
       ${ring ? "" : roofBlock(cfg, bowl)}
-      <details class="sub"><summary>Fire risk</summary><div class="inner">
+      <details class="sub"><summary>Facilities, access and fire risk</summary><div class="inner">
+        ${pick("Facilities", "facilities", facilitiesOf(cfg), FACILITIES)}
+        <p class="hint">Better facilities cost more to build but make for happier fans (see the Architect's notes under Results).</p>
+        ${accessOf().on ? pair("Wheelchair platforms in this stand", "accessCount", cfg.accessCount != null ? cfg.accessCount : accessOf().per, 0, 12, 1, "") : ""}
         ${pick("Fire risk", "fire", cfg.fire || "auto", FIRE_RISKS)}
         <p class="hint">Sets how quickly this stand has to clear in an emergency: ${S.limits.evacLow} minutes for low risk, ${S.limits.evacMedium} for medium, ${S.limits.evacHigh} for high. Worked out from its style, this one counts as <b>${fireRiskOf(cfg)}</b>.</p></div></details>
       ${ring ? "" : `<details class="sub" open><summary>Outside walls</summary><div class="inner">
@@ -755,7 +777,7 @@ function setPath(obj, path, val){
   const parts = path.split("."); if (parts[0] === "cc"){ obj = {tiers:S.cornerCustom}; parts.shift(); }
   let o = obj; for (let i=0;i<parts.length-1;i++) o = o[parts[i]] = o[parts[i]] || {};
   const last = parts[parts.length-1];
-  if (last === "curve" || last === "opening") val = val/100;
+  if (last === "curve" || last === "opening" || last === "entryAt") val = val/100;
   o[last] = val;
 }
 $("editor").addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.more){ if (d.open) openMore.add(d.dataset.more); else openMore.delete(d.dataset.more); } }, true);
@@ -909,6 +931,14 @@ function syncSizes(){
   so("gangEnd", ge + " seats" + (ge > oe ? " · breaks rule" : ""), ge > oe); $("gangEnd").value = ge;
   so("gangWidth", g.gangWidth.toFixed(2) + " m" + (g.gangWidth < L.minGang - 1e-9 ? " · breaks rule" : ""), g.gangWidth < L.minGang - 1e-9);
   so("exitEvery", g.exitEvery + " m");
+  { const AC = accessOf(), VH = vehicleOf(), opts = tdSides(), need = LAST ? wheelchairNeed(LAST.total) : 0, have = LAST ? LAST.wheelchair || 0 : 0;
+    $("acOn").checked = AC.on; $("acRows").hidden = !AC.on; $("acAt").value = AC.at;
+    $("acPer").value = AC.per; $("o-acPer").textContent = AC.per; $("acLength").value = AC.length; $("o-acLength").textContent = `${AC.length} m (${Math.floor(AC.length/1.6)} spaces)`;
+    $("acSum").innerHTML = `<b>${have} wheelchair spaces</b>. Guidance asks for about ${need} at a ground this size.`; $("acSum").classList.toggle("over", have < need);
+    $("vhOn").checked = VH.on; $("vhRows").hidden = !VH.on;
+    $("vhAt").innerHTML = opts.map(([k, n]) => `<option value="${k}"${k === VH.at ? " selected" : ""}>${esc(n)}</option>`).join("");
+    $("vhPos").value = VH.pos; $("o-vhPos").textContent = VH.pos ? `${Math.abs(VH.pos)} m ${VH.pos < 0 ? "left" : "right"}` : "middle";
+    $("vhWidth").value = VH.width; $("o-vhWidth").textContent = VH.width + " m"; }
   $("pitchGates").checked = g.pitchGates !== false; $("emergEvery").value = g.emergEvery || 0; $("o-emergEvery").textContent = g.emergEvery > 0 ? g.emergEvery + " m" : "none";
   so("exitWidth", g.exitWidth.toFixed(1) + " m");
   const gap = g.barrierEvery * S.types.terrace.row, gOver = gap > L.barrierGap + 1e-9;
@@ -1107,6 +1137,16 @@ $("dgStyle").addEventListener("change", e => { dgSet("style", e.target.value); c
 $("dgAt").addEventListener("change", e => { dgSet("at", e.target.value); changed(); });
 $("dgColour").addEventListener("input", e => { dgSet("colour", e.target.value); changed(false, true); });
 bindRange("dgLength", v => dgSet("length", v)); bindRange("dgGap", v => dgSet("gap", v));
+$("acAt").innerHTML = Object.entries(ACCESS_AT).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+const acSet = (k, v) => { S.access = Object.assign(accessOf(), {[k]: v}); }, vhSet = (k, v) => { S.vehicle = Object.assign(vehicleOf(), {[k]: v}); };
+$("acOn").addEventListener("change", e => { acSet("on", e.target.checked);
+  if (e.target.checked){ const is = dryIssues().find(i => i.key === "access:spaces"); if (is && is.fix) is.fix.run(); } // start with enough to meet the guidance
+  changed(); });
+$("acAt").addEventListener("change", e => { acSet("at", e.target.value); changed(); });
+bindRange("acPer", v => acSet("per", v)); bindRange("acLength", v => acSet("length", v));
+$("vhOn").addEventListener("change", e => { vhSet("on", e.target.checked); changed(); });
+$("vhAt").addEventListener("change", e => { vhSet("at", e.target.value); changed(); });
+bindRange("vhPos", v => vhSet("pos", v)); bindRange("vhWidth", v => vhSet("width", v));
 $("pitchGates").addEventListener("change", e => { S.design.pitchGates = e.target.checked; changed(); });
 bindRange("emergEvery", v => S.design.emergEvery = v);
 const clock = h => { const hh = Math.floor(h), mm = Math.round((h - hh)*60); return `${((hh + 11) % 12) + 1}:${String(mm).padStart(2, "0")} ${hh < 12 ? "am" : "pm"}`; };
