@@ -79,11 +79,11 @@ function scoreboardTexture(){
     const lines = S.sport === "cricket" ? [["TOTAL", "245-3"], ["OVERS", "48.2"], ["BATTER 1", "112*"], ["BATTER 2", " 37*"], ["LAST WKT", "88"]]
       : [["AWAY", "0 1 0 2 0 0 1 · 4"], ["HOME", "1 0 0 0 3 1 0 · 5"], ["INNING", "8   OUTS 2"], ["BALLS", "2   STRIKES 1"], ["", ""]];
     lines.forEach(([a, b2], i) => { g.fillStyle = "#cfd8e3"; g.fillText(a, 22, 58 + i*30); g.fillStyle = "#ffd65a"; g.fillText(b2, S.sport === "cricket" ? 300 : 150, 58 + i*30); });
-    const t = new THREE.CanvasTexture(c); t.keep = true; return (boardTex[k] = t); }
+    const t = canvasTex(c); t.keep = true; return (boardTex[k] = t); }
   g.font = "bold 74px sans-serif"; g.fillText("2 – 1", 256, 128);
   g.font = "bold 30px sans-serif"; g.fillText("HOME", 96, 120); g.fillText("AWAY", 416, 120);
   g.fillStyle = "#ffd65a"; g.font = "bold 26px monospace"; g.fillText("63:12", 256, 172);
-  const t = new THREE.CanvasTexture(c); t.keep = true; return (boardTex[k] = t);
+  const t = canvasTex(c); t.keep = true; return (boardTex[k] = t);
 }
 /* ================= sponsors =================
    Advertising boards round the pitch and LED ribbons along the tier fronts show the sponsors' names, each on a panel in
@@ -101,7 +101,7 @@ function adMaterial(){
   list.forEach((name, i) => { let h = 0; for (const ch of name) h = (h*31 + ch.charCodeAt(0)) >>> 0; const [bg, fg] = AD_COLOURS[(h + i) % AD_COLOURS.length];
     g.fillStyle = bg; g.fillRect(i*W, 0, W, H); g.fillStyle = fg; g.font = font; g.textAlign = "center"; g.textBaseline = "middle";
     const tw = g.measureText(name).width, s2 = Math.min(1, (W - 40)/tw); g.save(); g.translate(i*W + W/2, H/2 + 2); g.scale(s2, 1); g.fillText(name, 0, 0); g.restore(); });
-  const cache = !document.fonts || document.fonts.check(font), t = new THREE.CanvasTexture(c);
+  const cache = !document.fonts || document.fonts.check(font), t = canvasTex(c);
   t.wrapS = THREE.RepeatWrapping; t.repeat.set(1/(AD_PANEL*list.length), 1); t.anisotropy = renderer.capabilities.getMaxAnisotropy(); t.keep = cache;
   const m = new THREE.MeshStandardMaterial({map:t, emissive:0xffffff, emissiveMap:t, roughness:.45, side:THREE.FrontSide}); m.keep = cache;
   if (cache) adMats[key] = m;
@@ -121,7 +121,7 @@ function bannerMaterial(){
   list.forEach((t, i) => { const bg = i % 2 ? b : a, fg = i % 2 ? a : b; g.fillStyle = bg; g.fillRect(i*W, 0, W, H); g.fillStyle = fg; g.fillRect(i*W, 8, W, 6); g.fillRect(i*W, H - 14, W, 6);
     g.font = font; g.textAlign = "center"; g.textBaseline = "middle"; const tw = g.measureText(t).width, sx = Math.min(1, (W - 50)/tw);
     g.save(); g.translate(i*W + W/2, H/2 + 2); g.scale(sx, 1); g.fillText(t, 0, 0); g.restore(); });
-  const cache = !document.fonts || document.fonts.check(font), t = new THREE.CanvasTexture(c);
+  const cache = !document.fonts || document.fonts.check(font), t = canvasTex(c);
   t.wrapS = THREE.RepeatWrapping; t.repeat.set(1/(9*list.length), 1); t.keep = cache;
   const m = new THREE.MeshStandardMaterial({map:t, roughness:.9, side:THREE.FrontSide}); m.keep = cache; if (cache) adMats[key] = m; return m;
 }

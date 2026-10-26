@@ -34,7 +34,7 @@ function wallTexture(kind){
     metres = 2; for (let x=0;x<N;x++){ g.fillStyle = shade(0.86 + 0.12*Math.sin(x/N*2*Math.PI*26)); g.fillRect(x, 0, 1, N); } }
   else { // timber boarding, 0.16 m boards
     metres = 3; for (let y=0, i=0; y<N; y+=N/18.75, i++){ g.fillStyle = shade(0.82 + rnd()*0.14); g.fillRect(0, y, N, N/18.75); g.fillStyle = shade(0.6); g.fillRect(0, y, N, 2); } }
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1/metres, 1/metres);
+  const t = canvasTex(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1/metres, 1/metres);
   t.anisotropy = renderer.capabilities.getMaxAnisotropy(); t.keep = true; return (wallTex[kind] = t);
 }
 const LOOK_TEX = {brick:"brick", timber:"timber", sheet:"cladding", fins:"cladding", deco:"concrete", concrete:"concrete", grid:"concrete", plain:"concrete"};
@@ -51,7 +51,7 @@ function signMaterial(text, colour){
   g.font = font; c.width = Math.min(4096, Math.ceil(g.measureText(text).width) + 40); c.height = 140;
   g.font = font; g.fillStyle = colour; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, c.width/2, 76);
   // kept between builds once the lettering font has loaded; until then made afresh and freed with the build
-  const cache = !document.fonts || document.fonts.check(font), t = new THREE.CanvasTexture(c); t.keep = cache;
+  const cache = !document.fonts || document.fonts.check(font), t = canvasTex(c); t.keep = cache;
   const m = new THREE.MeshStandardMaterial({map:t, transparent:true, alphaTest:.25, roughness:.5, emissive:new THREE.Color(colour), emissiveMap:t, emissiveIntensity:0});
   m.keep = cache; m.aspect = c.width/c.height;
   m.edge = new THREE.MeshStandardMaterial({map:t, transparent:true, alphaTest:.25, roughness:.6, color:new THREE.Color(0.45, 0.45, 0.45)}); m.edge.keep = cache; // the letters' thickness

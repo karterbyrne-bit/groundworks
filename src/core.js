@@ -237,13 +237,18 @@ function exitDist(poly, o, v, d0){
 }
 
 /* ================= three.js scene ================= */
+/* Pictures drawn on a canvas (sky, grass, walls, adverts) hold sRGB colours, so three.js is told so. */
+const canvasTex = c => { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
 const view = document.getElementById("view");
 /* Phones and tablets get a lighter set-up: fewer pixels and a smaller shadow map. Their screens are small enough that
    it barely shows, and it roughly halves the work for every frame, so they run cooler and last longer. */
 const LIGHT = matchMedia("(pointer: coarse)").matches || Math.min(screen.width, screen.height) < 700;
 const renderer = new THREE.WebGLRenderer({antialias:true, powerPreference: LIGHT ? "low-power" : "default"});
 renderer.setPixelRatio(Math.min(LIGHT ? 1.5 : 2, window.devicePixelRatio || 1));
-renderer.shadowMap.enabled = true; renderer.shadowMap.type = LIGHT ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+/* Physically based light, filmic tone mapping (bright skies and floodlights roll off softly instead of clipping to white)
+   and proper sRGB colour, so colours picked in the editor come out as picked. */
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
 /* The sun doesn't move with the camera, so shadows are only worked out again when the stadium or the lighting changes,
    not on every frame while you orbit round. */
 renderer.shadowMap.autoUpdate = false;
@@ -259,17 +264,29 @@ let camera = persp;
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.48; controls.autoRotateSpeed = 0.6;
 controls.addEventListener("change", redraw);
-const hemi = new THREE.HemisphereLight(0xffffff, 0x4a554c, 0.75); scene.add(hemi);
+/* Light levels for a day match, the golden evening and a night match, kept in one place so the look can be tuned.
+   They're physical units: the sun is about three times the old numbers, and floodlights don't fade with distance
+   (the real ones are aimed and focused, so the far touchline is lit as well as the near one). */
+const LUX = {exposure:1.15, sun:3.3, fill:0.6, hemi:0.7, env:0.7, eveSun:3.1, eveHemi:0.85, eveEnv:0.8,
+  nightSun:0.08, nightFill:0.05, nightHemi:0.16, nightEnv:0.1, flood:5.5, arena:5.5, arenaHigh:2};
+renderer.toneMappingExposure = LUX.exposure;
+const hemi = new THREE.HemisphereLight(0xffffff, 0x4a554c, LUX.hemi); scene.add(hemi);
 /* A soft sky for shiny things to reflect: glass, metal cladding and steel pick up a bright horizon and a darker ground,
    which is most of what makes them read as glass and metal rather than flat colour. */
 { const c = document.createElement("canvas"); c.width = 16; c.height = 256; const g = c.getContext("2d"), gr = g.createLinearGradient(0, 0, 0, 256);
   gr.addColorStop(0, "#6f93b8"); gr.addColorStop(0.42, "#cfdde8"); gr.addColorStop(0.5, "#eef2f2"); gr.addColorStop(0.53, "#8d948c"); gr.addColorStop(1, "#4b524c");
   g.fillStyle = gr; g.fillRect(0, 0, 16, 256);
-  const t = new THREE.CanvasTexture(c); t.mapping = THREE.EquirectangularReflectionMapping;
+  const t = canvasTex(c); t.mapping = THREE.EquirectangularReflectionMapping;
   const pm = new THREE.PMREMGenerator(renderer); var SKY_ENV = pm.fromEquirectangular(t).texture; SKY_ENV.keep = true; pm.dispose(); t.dispose(); }
-const sun = new THREE.DirectionalLight(0xffffff, 0.9);
-const fill = new THREE.DirectionalLight(0xdfe8ff, 0.25); fill.position.set(-120, 80, -140); scene.add(fill);
-sun.position.set(140, 260, 90); sun.castShadow = true; sun.shadow.mapSize.set(LIGHT ? 1024 : 2048, LIGHT ? 1024 : 2048); sun.shadow.bias = -0.0004;
+/* The same sky lights everything softly too, not just shiny things: concrete, seats and roofs pick up a little blue from
+   above and a little green bounce from the grass, which is what makes daylight look like daylight. */
+scene.environment = SKY_ENV; scene.environmentIntensity = LUX.env;
+const sun = new THREE.DirectionalLight(0xffffff, LUX.sun);
+const fill = new THREE.DirectionalLight(0xdfe8ff, LUX.fill); fill.position.set(-120, 80, -140); scene.add(fill);
+/* Soft-edged shadows: a blurred edge (a smaller blur on phones, which have a smaller shadow map), and a nudge along the
+   surface so big flat roofs and stands don't shadow themselves in stripes. */
+sun.position.set(140, 260, 90); sun.castShadow = true; sun.shadow.mapSize.set(LIGHT ? 1024 : 2048, LIGHT ? 1024 : 2048);
+sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.04; sun.shadow.radius = LIGHT ? 2 : 3.5;
 scene.add(sun);
 const groundMat = new THREE.MeshStandardMaterial({color:0xc3cbc0, roughness:1});
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(6000,6000), groundMat);
@@ -319,7 +336,6 @@ const M = {
   road: std({color:0x3a3d40, roughness:.95}), pavement: std({color:0xbdbcb4, roughness:.95}), water: std({color:0x3f6f8c, roughness:.12, metalness:.15}),
   ballast: std({color:0x857d72, roughness:1}), slate: std({color:0x3c4248, roughness:.75}), outfield: std({color:0x23452c, roughness:.85}), track: std({color:0xb4513a, roughness:.9})
 };
-for (const k of ["window","glass","glassClad","roofGlass","steel","roofEdge","water","mast","bench","cable","column"]) M[k].envMap = SKY_ENV;
 for (const st in STYLES) M["clad_"+st] = std({color:STYLES[st].clad, roughness: [0x8b4636,0x9a4a3a,0x7d3b2c].includes(STYLES[st].clad) ? .95 : .6, metalness: st === "showpiece" ? .3 : .15});
 function setSeatColours(){
   M.seated.color.set(S.seat); M.seatBack.color.set(S.seat).multiplyScalar(0.8); M.rail.color.set(S.seat);
@@ -474,7 +490,7 @@ function floorTexture(F, set, sp){
       drawFootball(ctx);
     }
   }
-  const tex = new THREE.CanvasTexture(c); tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  const tex = canvasTex(c); tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
   return {tex, Wt, Ht};
 }
 function addProps(g, F, buf, sp){

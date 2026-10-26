@@ -1214,7 +1214,7 @@ function build(){
       if (fm === "pylons") pylon(buf2, x, z, mh);
       else { const mm = new THREE.Mesh(new THREE.CylinderGeometry(.6,1.1,mh,10), M.mast); mm.position.set(x,mh/2,z); mm.castShadow = true; group.add(mm); }
       group.add(lampHead(x, mh + 3, z));
-      if (S.night){ const sp = new THREE.SpotLight(0xfff4dc, 1.25, 0, 0.75, 0.6, 1); sp.position.set(x, mh+2, z); sp.target.position.set(-sx*F.W*0.15, 0, -sz*F.H*0.15); group.add(sp); group.add(sp.target); }
+      if (S.night){ const sp = new THREE.SpotLight(0xfff4dc, LUX.flood, 0, 0.75, 0.6, 0); sp.position.set(x, mh+2, z); sp.target.position.set(-sx*F.W*0.15, 0, -sz*F.H*0.15); group.add(sp); group.add(sp.target); }
     }
   }
   for (const key in B2) if (B2[key].length){ const mesh = meshFrom(B2[key], M[key], !["glass","roofGlass"].includes(key)); mesh.userData.stadium = true; group.add(mesh); }
@@ -1222,8 +1222,8 @@ function build(){
   if (handles.length){ const r = Math.max(0.9, Math.max(...sext)*0.012);
     for (const h of handles){ const s2 = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), M.hball); s2.position.set(h.x, h.y, h.z); s2.userData.handle = h; s2.renderOrder = 5; group.add(s2); } }
   if (S.night && (fm === "none" || closedAt)){ // arena rig or roof-mounted lights over the play
-    const pl = new THREE.PointLight(0xfff4dc, 1.3, 0, 1); pl.position.set(0, Math.max(18, (closedAt || maxH) - 2), 0); group.add(pl);
-    const pl2 = new THREE.PointLight(0xfff0d8, 0.5, 0, 1); pl2.position.set(0, Math.max(30, maxH + 10), 0); group.add(pl2); }
+    const pl = new THREE.PointLight(0xfff4dc, LUX.arena, 0, 0); pl.position.set(0, Math.max(18, (closedAt || maxH) - 2), 0); group.add(pl);
+    const pl2 = new THREE.PointLight(0xfff0d8, LUX.arenaHigh, 0, 0); pl2.position.set(0, Math.max(30, maxH + 10), 0); group.add(pl2); }
   applyMood();
   const sc = sun.shadow.camera, half = Math.max(ext[0],ext[1]) + 30;
   sc.left=-half; sc.right=half; sc.top=half; sc.bottom=-half; sc.near=10; sc.far=1400; sc.updateProjectionMatrix();

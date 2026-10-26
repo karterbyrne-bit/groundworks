@@ -15,7 +15,7 @@ function roofLights(anchors, bf, F){
     for (const d of [[0,-1],[0,1],[1,0],[-1,0]]){ let best = null, bd = -Infinity;
       for (const p of lamps){ const l = Math.hypot(p[0], p[2]) || 1, sc = (p[0]*d[0] + p[2]*d[1])/l; if (sc > bd){ bd = sc; best = p; } }
       if (!best || used.has(best) || bd < 0.5) continue; used.add(best);
-      const sp = new THREE.SpotLight(0xfff4dc, 1.1, 0, 1.0, 0.6, 1); sp.position.set(best[0], best[1], best[2]); sp.target.position.set(-best[0]*0.2, 0, -best[2]*0.2); group.add(sp); group.add(sp.target); } }
+      const sp = new THREE.SpotLight(0xfff4dc, LUX.flood*0.9, 0, 1.0, 0.6, 0); sp.position.set(best[0], best[1], best[2]); sp.target.position.set(-best[0]*0.2, 0, -best[2]*0.2); group.add(sp); group.add(sp.target); } }
 }
 /* The surroundings: roads, rivers, canals, railways, terraced houses and buildings, at real sizes, each with a yellow post
    in the middle (drag to move it) and one at its end (drag to turn and stretch it). */
