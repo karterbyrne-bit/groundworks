@@ -67,28 +67,28 @@ function dressWall(buf, look, wallKey, a, b, ya, yb, n, opt){
   const len = Math.hypot(b[0]-a[0], b[1]-a[1]); if (len < 0.5) return;
   opt = opt || {}; const dens = opt.windows == null ? 1 : opt.windows, wsz = opt.winSize || 1, buf0 = buf;
   buf = k => buf0(opt.accent && ACCENTS.has(k) ? tint(k, opt.accent) : k); // trims, bands and fins in the accent colour
-  const tg = [(b[0]-a[0])/len, (b[1]-a[1])/len], lo = Math.min(ya, yb);
+  const tg = [(b[0]-a[0])/len, (b[1]-a[1])/len], lo = Math.min(ya, yb), yl = opt.lift || 0; // over a road, nothing comes below the opening's top
   const P = (f, out) => [a[0] + (b[0]-a[0])*f + n[0]*out, a[1] + (b[1]-a[1])*f + n[1]*out];
   const Q = (p, y) => [p[0], y, p[1]];
   const top = f => ya + (yb - ya)*f;
   // a flat panel across part of the wall, standing out from it
-  const panel = (key, f0, f1, y0, y1, out) => { const p0 = P(f0,out), p1 = P(f1,out); quad(buf(key), Q(p0,y0), Q(p1,y0), Q(p1,y1), Q(p0,y1)); };
+  const panel = (key, f0, f1, y0, y1, out) => { y0 = Math.max(y0, yl); if (y1 <= y0) return; const p0 = P(f0,out), p1 = P(f1,out); quad(buf(key), Q(p0,y0), Q(p1,y0), Q(p1,y1), Q(p0,y1)); };
   // a horizontal band with a top and underside, so it casts a shadow line
-  const ledge = (key, y0, y1, depth, slope) => { const s0 = slope ? 0 : 0, f = g => slope ? top(g) - lo : s0;
+  const ledge = (key, y0, y1, depth, slope) => { if (y1 <= yl) return; y0 = Math.max(y0, yl); const s0 = slope ? 0 : 0, f = g => slope ? top(g) - lo : s0;
     const a0 = P(0,0), b0 = P(1,0), a1 = P(0,depth), b1 = P(1,depth);
     quad(buf(key), Q(a1,y0+f(0)), Q(b1,y0+f(1)), Q(b1,y1+f(1)), Q(a1,y1+f(0)));
     quad(buf(key), Q(a0,y0+f(0)), Q(b0,y0+f(1)), Q(b1,y0+f(1)), Q(a1,y0+f(0)));
     quad(buf(key), Q(a0,y1+f(0)), Q(b0,y1+f(1)), Q(b1,y1+f(1)), Q(a1,y1+f(0))); };
   // a vertical strip standing out from the wall (pilaster, rib or mullion)
-  const rib = (key, f, w, y0, y1, depth) => { const fw = w/2/len, q0 = P(f-fw,0), q1 = P(f+fw,0), r0 = P(f-fw,depth), r1 = P(f+fw,depth);
+  const rib = (key, f, w, y0, y1, depth) => { y0 = Math.max(y0, yl); if (y1 <= y0) return; const fw = w/2/len, q0 = P(f-fw,0), q1 = P(f+fw,0), r0 = P(f-fw,depth), r1 = P(f+fw,depth);
     quad(buf(key), Q(r0,y0), Q(r1,y0), Q(r1,y1), Q(r0,y1)); quad(buf(key), Q(q0,y0), Q(r0,y0), Q(r0,y1), Q(q0,y1));
     quad(buf(key), Q(r1,y0), Q(q1,y0), Q(q1,y1), Q(r1,y1)); quad(buf(key), Q(r0,y1), Q(r1,y1), Q(q1,y1), Q(q0,y1)); };
   // a solid block standing out from the wall: front face, top, underside and both ends
-  const block = (key, f0, f1, y0, y1, out0, out1) => { const a0 = P(f0,out0), b0 = P(f1,out0), a1 = P(f0,out1), b1 = P(f1,out1);
+  const block = (key, f0, f1, y0, y1, out0, out1) => { y0 = Math.max(y0, yl); if (y1 <= y0) return; const a0 = P(f0,out0), b0 = P(f1,out0), a1 = P(f0,out1), b1 = P(f1,out1);
     quad(buf(key), Q(a1,y0), Q(b1,y0), Q(b1,y1), Q(a1,y1)); quad(buf(key), Q(a0,y1), Q(a1,y1), Q(b1,y1), Q(b0,y1)); quad(buf(key), Q(a0,y0), Q(b0,y0), Q(b1,y0), Q(a1,y0));
     quad(buf(key), Q(a0,y0), Q(a1,y0), Q(a1,y1), Q(a0,y1)); quad(buf(key), Q(b1,y0), Q(b0,y0), Q(b0,y1), Q(b1,y1)); };
   // a slanting bar on the wall (a raking beam), from (fA, yA) to (fB, yB)
-  const slant = (key, fA, yA, fB, yB, w, out) => { const pa = P(fA,out), pb = P(fB,out), qa = P(fA,.05), qb = P(fB,.05);
+  const slant = (key, fA, yA, fB, yB, w, out) => { if (Math.min(yA, yB) < yl) return; const pa = P(fA,out), pb = P(fB,out), qa = P(fA,.05), qb = P(fB,.05);
     quad(buf(key), Q(pa,yA-w/2), Q(pb,yB-w/2), Q(pb,yB+w/2), Q(pa,yA+w/2)); quad(buf(key), Q(qa,yA+w/2), Q(pa,yA+w/2), Q(pb,yB+w/2), Q(qb,yB+w/2));
     quad(buf(key), Q(qa,yA-w/2), Q(qb,yB-w/2), Q(pb,yB-w/2), Q(pa,yA-w/2)); };
   const cells = step => Math.max(1, Math.round(len/step));
@@ -161,7 +161,7 @@ function dressWall(buf, look, wallKey, a, b, ya, yb, n, opt){
   /* Life at street level, whatever the look: a plinth along the foot of the wall, doors, a pair of roller-shutter gates,
      and blocks of turnstiles standing out from the wall, each under its own little canopy. The wall arrives a few metres
      at a time, so everything is spaced by its distance along the whole stand (opt.along is where this piece starts). */
-  if (lo < 3.2) return;
+  if (lo < 3.2 || opt.lift) return; // (no doors or turnstiles where a road runs under the stand)
   ledge("concrete", 0, .55, .16);
   const s0 = opt.along || 0, total = opt.total || len, here = d => d >= s0 && d < s0 + len, f = d => (d - s0)/len;
   const turn = []; for (let d = 17; d < total - 6; d += 34) turn.push(d);

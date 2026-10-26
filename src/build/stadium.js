@@ -14,7 +14,11 @@ function build(){
   const radius = F.pitch ? F.r : (F.custom || F.noStands) ? (F.r > 0 ? F.r : S.corner) : S.corner; // a shaped field sets its own curve
   const poly = S.plot.on && S.plot.pts ? S.plot.pts : null;
   const site = (Array.isArray(S.site) ? S.site : []).filter(f => SITE_KINDS[f.kind] && f.length > 0 && f.width > 0);
-  const obstacles = site.map(f => ({f, poly:featurePoly(f, 1)})); // stands keep a metre clear of roads, water and buildings
+  /* Stands keep a metre clear of roads, water and buildings, except a road a stand is built over (like Villa Park's
+     Trinity Road): that one runs under the stand through an opening at least 5 m high. */
+  const overRoad = f => f.kind === "road" && f.over, CLEAR = 5;
+  const obstacles = site.filter(f => !overRoad(f)).map(f => ({f, poly:featurePoly(f, 1)})), overRoads = site.filter(overRoad).map(f => featurePoly(f, .5));
+  const roadCut = {}; // seats each stand gives up to keep the opening clear
   const roomAt = (o2, v2, d0) => { let dm = poly ? exitDist(poly, o2, v2, d0) : Infinity; for (const ob of obstacles) dm = Math.min(dm, enterDist(ob.poly, o2, v2, d0)); return dm; };
   SHEETS = {};
   if (!DRY){
@@ -99,6 +103,13 @@ function build(){
     const setAt = i => st.setFor ? st.setFor(i) : st.set;
     const pt = (i,d) => [o[i][0] + d*v[i][0], o[i][1] + d*v[i][1]];
     const V = (i,d,y) => { const p = pt(i,d); return [p[0], y, p[1]]; };
+    // where each slice's line passes over a road the stand is built over, as [enter, leave] distances out from the play
+    const overBands = overRoads.length ? o.map((_, i) => overRoads.map(R => { const ts = [];
+      for (let e=0;e<R.length;e++){ const A = R[e], B = R[(e+1)%R.length], E = [B[0]-A[0], B[1]-A[1]], den = cross(v[i], E); if (Math.abs(den) < 1e-12) continue;
+        const w = [A[0]-o[i][0], A[1]-o[i][1]], t = cross(w, E)/den, s = cross(w, v[i])/den; if (s >= -1e-9 && s <= 1 + 1e-9) ts.push(t); }
+      return ts.length >= 2 ? [Math.min(...ts), Math.max(...ts)] : null; }).filter(Boolean)) : null;
+    const overAt = (i, d0, d1) => !!overBands && overBands[i].some(([e0, e1]) => d1 > e0 && d0 < e1);
+    const base = (i, d) => overAt(i, d - .3, d + .3) ? CLEAR : 0; // walls down to the ground stop at the opening's top
     const segs = closed ? m : m-1, nx = i => (i+1)%m;
     const roofOn = !groundRoof && rf.shape !== "none" && st.roofOn !== false;
     const margin = roofOn ? 1.6 : 0.3;
@@ -408,7 +419,7 @@ function build(){
         list.forEach((s2, q) => { if (q % k === Math.floor((list.length - 1)/2) % k) out.add(s2); }); return out; };
       const backAt = entry === "back" && tc.entry === "back" ? atAisles(entryEvery) : new Set(), frontAt = entry === "front" ? atAisles(entryEvery) : new Set();
       const emergAt = S.design.emergEvery > 0 ? marks(S.design.emergEvery) : new Set();
-      const rowLen = [], recs = []; let frontLen = 0;
+      const rowLen = [], recs = [], rowCut = []; let frontLen = 0;
       const gangCut = sl => aisleAt.has(sl) ? S.design.gangWidth/2 + .05 : 0;
       const vomRows = n => { const j0 = Math.max(1, Math.min(n - 5, Math.floor(n*(tc.entryAt || 0.42)))); return [j0, Math.min(n, j0 + 4)]; };
       const vomCut = (sl, n, j) => { if (!vomAt.has(sl) || n < 6) return 0; const [ja, jb] = vomRows(n); return j >= ja && j < jb ? S.design.exitWidth/2 + .3 : 0; };
@@ -418,6 +429,8 @@ function build(){
         if (mr >= 1){
           for (let j=0;j<mr;j++){
             const a0 = p0.front + j*T, a1 = p1.front + j*T, h0 = p0.hs[j], h1 = p1.hs[j];
+            if ((overAt(i, a0, a0 + T) && h0 - .6 < CLEAR) || (overAt(j1, a1, a1 + T) && h1 - .6 < CLEAR)){ // too low to clear the road under it
+              rowCut[j] = (rowCut[j] || 0) + Math.hypot(pt(j1, a1+T/2)[0] - pt(i, a0+T/2)[0], pt(j1, a1+T/2)[1] - pt(i, a0+T/2)[1]); continue; }
             const alt = (tierType === "seated" || tierType === "rail") && altRow(i, j, kk);
             const m0 = pt(i, a0+T/2), m1 = pt(j1, a1+T/2), len = Math.hypot(m1[0]-m0[0], m1[1]-m0[1]) || 1e-6;
             // seats stop at the edge of a gangway or an exit tunnel rather than running through it
@@ -496,10 +509,10 @@ function build(){
             }
             if (p0.over > 0.3 && !p0.lowerGhost) roofQuads.push([pt(i,p0.front), pt(j1,p1.front), pt(j1,Math.min(p1.lowerBack, bk1)), pt(i,Math.min(p0.lowerBack, bk0))]);
           }
-          quad(buf(wallKey), V(i,bk0,0), V(j1,bk1,0), V(j1,bk1,t1+1.2), V(i,bk0,t0+1.2));
+          quad(buf(wallKey), V(i,bk0,base(i,bk0)), V(j1,bk1,base(j1,bk1)), V(j1,bk1,t1+1.2), V(i,bk0,t0+1.2));
           // where the depth changes from one slice to the next (an oval or blended outline), a smooth outer wall hides the steps
           if (n0 !== n1 && !profs[i].slice(k+1).some(q => q && !q.ghost && nRows(q) >= 1)){
-            const e0 = p0.front + n0*T, e1 = p1.front + n1*T; quad(buf(wallKey), V(i,e0,0), V(j1,e1,0), V(j1,e1,p1.hs[n1-1]+1.2), V(i,e0,p0.hs[n0-1]+1.2)); }
+            const e0 = p0.front + n0*T, e1 = p1.front + n1*T; quad(buf(wallKey), V(i,e0,base(i,e0)), V(j1,e1,base(j1,e1)), V(j1,e1,p1.hs[n1-1]+1.2), V(i,e0,p0.hs[n0-1]+1.2)); }
           if (look === "plain" && !roofOn && t0 > 12 && t1 > 12 && sty.wall !== "glassClad"){ const y0 = t0*0.46, y1 = t1*0.46; quad(buf("band"), V(i,bk0+.08,y0), V(j1,bk1+.08,y1), V(j1,bk1+.08,y1+2.4), V(i,bk0+.08,y0+2.4)); }
         }
         if (n0 > mr) cap(i, p0, mr, n0);
@@ -512,7 +525,7 @@ function build(){
           cap(s, p, 0, n, endOpen(s));
           if (p.stacked){ const bk = p.front + n*T, top = p.hs[n-1], lb = Math.min(p.lowerBack, bk);
             const soff = d => lerp(p.hF - 1.5, top - 1.5, (d - p.front)/Math.max(.1, bk - p.front));
-            if (bk > lb + .1){ quad(buf(wallKey), V(s,lb,0), V(s,bk,0), V(s,bk,top-1.5), V(s,lb,soff(lb)));
+            if (bk > lb + .1){ quad(buf(wallKey), V(s,lb,base(s,lb)), V(s,bk,base(s,bk)), V(s,bk,top-1.5), V(s,lb,soff(lb)));
               // the end of the stand under the tier is part of the building, so it wears the same façade as the back
               const tg0 = tangent(s), out = s === 0 ? [-tg0[0], -tg0[1]] : tg0;
               if (look !== "plain" && !DRY && endOpen(s)) dressWall(buf, look, wallKey, pt(s,lb), pt(s,bk), soff(lb), top - 1.5, out, {windows:fac.windows, winSize:fac.winSize, accent:fac.accent}); }
@@ -635,6 +648,7 @@ function build(){
           handles.push({kind:"depth", x:pt(hi,bk)[0], y:p.hs[n-1] + 1.2, z:pt(hi,bk)[1], o:o[hi], v:v[hi], ref, front:p.front, T, side});
           if (p.stacked && si === 0) handles.push({kind:"over", x:pt(hi,p.front)[0], y:p.hF, z:pt(hi,p.front)[1], o:o[hi], v:v[hi], ref, lowerBack:p.lowerBack, lowerBackH:p.lowerBackH}); }); }
       let seats = 0; rowLen.forEach(l => { if (l) seats += capRow(l, tierType); });
+      rowCut.forEach((l, j) => { if (l) roadCut[st.name] = (roadCut[st.name] || 0) + capRow((rowLen[j] || 0) + l, tierType) - capRow(rowLen[j] || 0, tierType); }); // what the road cost
       for (const r of recs){ r.seats = rowLen[r.j] ? capRow(rowLen[r.j], tierType) * r.len / rowLen[r.j] : 0; segRecs.push(r); }
       if (CT) for (const b of CT) if (b.kind === "access" && b.R){ // each space 0.9 m for the wheelchair, 0.7 m for a companion seat
         const sp = Math.floor(2*b.hw/1.6), P = b.P, y = P.hs[Math.min(nRows(P)-1, b.r0)], m0 = ptS(b.c - b.hw, P.front + (b.r0 + 1)*b.T), m1 = ptS(b.c + b.hw, P.front + (b.r0 + 1)*b.T);
@@ -725,7 +739,7 @@ function build(){
         // the front beam: a deep box girder with a lip underneath
         quad(buf("roofEdge"), V(i,a.inner,a.y(0)-1.6), V(j1,b.inner,b.y(0)-1.6), V(j1,b.inner,b.y(0)+.15), V(i,a.inner,a.y(0)+.15));
         quad(buf("roofEdge"), V(i,a.inner,a.y(0)-1.6), V(j1,b.inner,b.y(0)-1.6), V(j1,b.inner+.7,b.y(0)-1.6), V(i,a.inner+.7,a.y(0)-1.6));
-        quad(clad, V(i,a.outer,0), V(j1,b.outer,0), V(j1,b.outer,b.y(1)), V(i,a.outer,a.y(1)));
+        quad(clad, V(i,a.outer,base(i,a.outer)), V(j1,b.outer,base(j1,b.outer)), V(j1,b.outer,b.y(1)), V(i,a.outer,a.y(1)));
         if (look === "plain" && a.y(1) > 14 && b.y(1) > 14 && sty.wall !== "glassClad"){ const y0 = a.y(1)*0.42, y1 = b.y(1)*0.42; quad(buf("band"), V(i,a.outer+.08,y0), V(j1,b.outer+.08,y1), V(j1,b.outer+.08,y1+2.4), V(i,a.outer+.08,y0+2.4)); }
         if (rf.support === "truss" && !closed) latticeAlong(buf("steel"), i, j1, (k, off) => { const r = k === i ? a : b; return [V(k, r.inner + off, r.y(Math.max(0, off)/(r.outer - r.inner)))]; });
         roofQuads.push([pt(i,a.inner), pt(j1,b.inner), pt(j1,b.outer), pt(i,a.outer)]);
@@ -806,7 +820,7 @@ function build(){
     /* Entrances: turnstile blocks standing out from the back wall, each with a row of turnstile doors, an exit gate,
        a canopy and a band in the accent colour; plain gates in between. */
     if (fac.gates){ const blocks = marks(36), band = fac.accent ? tint("trim", fac.accent) : "trim";
-      for (const i of marks(12)){ const b = backAt(i); if (b == null) continue; const tg = tangent(i);
+      for (const i of marks(12)){ const b = backAt(i); if (b == null || base(i, b) > 0) continue; const tg = tangent(i); // (none where a road runs under)
         const at = (d, w, y) => { const q = pt(i, b + d); return [q[0] + tg[0]*w, y, q[1] + tg[1]*w]; };
         const face = (key, d, w0, w1, y0, y1) => quad(buf(key), at(d,w0,y0), at(d,w1,y0), at(d,w1,y1), at(d,w0,y1));
         if (!blocks.has(i)){ face("gate", .08, -1.6, 1.6, 0, 3.4); continue; }
@@ -827,7 +841,7 @@ function build(){
       const ra = RRout && RRout[i], rb = RRout && RRout[j1], roofed = roofOn && ra && rb;
       const d0 = roofed ? ra.outer : x0.back, d1 = roofed ? rb.outer : x1.back, y0 = roofed ? ra.y(1) : x0.top, y1 = roofed ? rb.y(1) : x1.top;
       const nv = [v[i][0] + v[j1][0], v[i][1] + v[j1][1]], nl = Math.hypot(nv[0], nv[1]) || 1;
-      dressWall(buf, look, wallKey, pt(i, d0), pt(j1, d1), y0, y1, [nv[0]/nl, nv[1]/nl], Object.assign({along: cum[i], total: lenTotal}, wallOpt));
+      dressWall(buf, look, wallKey, pt(i, d0), pt(j1, d1), y0, y1, [nv[0]/nl, nv[1]/nl], Object.assign({along: cum[i], total: lenTotal, lift: Math.max(base(i, d0), base(j1, d1))}, wallOpt));
     }
     // the stadium's name (naming rights) goes along the main stand's roof front, unless that stand has lettering of its own
     const SP = sponsorsOf(), named = !fac.sign && SP.title && SP.onStand !== false && st.key === (lay === "bowl" ? "B" : lay === "ring" ? "R0" : "N");
@@ -873,6 +887,13 @@ function build(){
     if (st.sel && st.key in S.stands && lay === "stands" && info[midI]){ const q = pt(midI, info[midI].front);
       handles.push({kind:"dist", x:q[0], y:0.6, z:q[1], o:o[midI], v:v[midI], cfg}); }
     for (const r of segRecs){ r.stand = st.key; allRecs.push(r); }
+    // over a road: columns along both kerbs carry the stand, the full height up to its underside
+    if (overBands && !DRY) for (let s=0;s<m;s+=2) for (const [e0, e1] of overBands[s]){
+      const live = profs[s].filter(p => p && !p.ghost && nRows(p) >= 1); if (!live.length) continue;
+      const fr = Math.min(...live.map(p => p.front)), bk = Math.max(...live.map(p => p.front + nRows(p)*p.T));
+      for (const d of [e0 - .5, e1 + .5]){ if (d < fr || d > bk) continue; const top = heightAt(live, d) - .6, q = pt(s, d); if (top > 1) post(buf("column"), q[0], q[1], 0, top, .6); } }
+    if (roadCut[st.name] > 0 && !st.roadNoted){ st.roadNoted = true;
+      issue(`The ${st.name.toLowerCase()} is built over a road: about ${fmt(Math.max(10, Math.round(roadCut[st.name]/10)*10))} seats at the back or bottom of it are left out to keep a ${CLEAR} m opening for the traffic underneath.`, "road:" + st.key, "geo", {tab:st.key}); }
     if (!DRY) for (const k in bannerRows) adStrip(bannerRows[k], bannerMaterial());
     let rv = 0;
     if (cols.length){ const cosLim = Math.cos(12*Math.PI/180);
