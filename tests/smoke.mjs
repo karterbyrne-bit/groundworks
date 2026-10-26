@@ -2,7 +2,7 @@
 // the main features, failing on any error. Run: npm test   (after npm run build)
 import { chromium } from "playwright";
 import { createServer } from "node:http";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
 const root = new URL("../", import.meta.url);
 const types = { html: "text/html", svg: "image/svg+xml", png: "image/png", webmanifest: "application/manifest+json", js: "text/javascript" };
@@ -16,6 +16,45 @@ const base = `http://localhost:${server.address().port}/`;
 let failures = 0;
 const check = (ok, what) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${what}`); if (!ok) failures++; };
 const browser = await chromium.launch();
+
+// Pinned numbers: the exact capacity and number of check issues of the default design and every preset, kept in
+// tests/expected.json. Any change to the maths that moves one of them fails here, showing the old and new number.
+// After a deliberate change, run: npm run update-expected
+const expectedFile = new URL("./expected.json", import.meta.url);
+const updating = process.argv.includes("--update-expected");
+{
+  console.log("\npinned capacities");
+  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(120000);
+  await page.goto(base, { timeout: 120000 });
+  await page.waitForFunction(() => document.documentElement.classList.contains("ready") && !window.__gw.busy());
+  const numbers = () => page.evaluate(() => ({ capacity: window.__gw.last().total, issues: window.__gw.last().issues.length }));
+  const found = { default: await numbers() };
+  await page.click("#welcome .btn.primary");
+  for (const p of await page.$$eval("#presets button[data-p]", bs => bs.map(b => b.dataset.p))) {
+    await page.evaluate(() => { window.__before = window.__gw.last(); });
+    await page.click(`#presets [data-p="${p}"]`);
+    await page.waitForFunction(() => !window.__gw.busy() && window.__gw.last() !== window.__before);
+    found[p] = await numbers();
+  }
+  await ctx.close();
+  if (updating) {
+    writeFileSync(expectedFile, JSON.stringify(found, null, 2) + "\n");
+    for (const [k, v] of Object.entries(found)) console.log(`        ${k}: ${v.capacity} capacity, ${v.issues} issue(s)`);
+    console.log("\ntests/expected.json updated");
+    await browser.close(); server.close(); process.exit(0);
+  }
+  let expected = {};
+  try { expected = JSON.parse(readFileSync(expectedFile, "utf8")); } catch { check(false, "tests/expected.json can be read (run npm run update-expected to make it)"); }
+  for (const k of new Set([...Object.keys(expected), ...Object.keys(found)])) {
+    const was = expected[k], now = found[k], what = k === "default" ? "the default design" : `preset "${k}"`;
+    if (!was) { check(false, `${what} isn't in tests/expected.json (now ${now.capacity} capacity, ${now.issues} issue(s))`); continue; }
+    if (!now) { check(false, `${what} is in tests/expected.json but no longer in the app`); continue; }
+    check(now.capacity === was.capacity, now.capacity === was.capacity ? `${what} capacity is ${was.capacity}` : `${what} capacity changed: was ${was.capacity}, now ${now.capacity} (${now.capacity > was.capacity ? "+" : ""}${now.capacity - was.capacity})`);
+    check(now.issues === was.issues, now.issues === was.issues ? `${what} has ${was.issues} check issue(s)` : `${what} check issues changed: was ${was.issues}, now ${now.issues}`);
+  }
+}
 
 for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["phone", { width: 390, height: 844 }]]) {
   console.log(`\n${name} (${viewport.width}×${viewport.height})`);

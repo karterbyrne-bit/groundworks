@@ -36,12 +36,14 @@ It's a creative tool. Its checks are loosely based on UK sports-ground guidance 
 | `src/boot.js` | Starts first: the loading screen, the friendly error card, and offline support |
 | `src/data.js` | Sports, floors, seating types, safety rules, architectural styles and presets |
 | `src/core.js` | Geometry, tier stacking and sightline maths, the 3D scene and materials |
-| `src/build.js` | Builds the stadium, runs the checks, draws architecture, lights and screens |
-| `src/ui.js` | The control panel, camera, editing, saving and undo |
+| `src/build/` | Builds the stadium and runs the checks: `basics.js` (shared helpers, bowl pieces), `atmosphere.js` (crowd, home and away ends, sky, day and night), `architecture.js` (skins, arches, towers), `fittings.js` (floodlights, screens, sponsors, tunnel, dugouts, access), `walls.js` (outside walls), `roofs-site.js` (roof lights and sheeting, surroundings), `stadium.js` (the main build and every check) |
+| `src/ui/` | The control panel: `readout.js` (results and architect's notes), `camera.js` (camera, views, undo), `stand-editor.js` (stands and roofs), `ground.js` (sports, site, layouts, presets), `saving.js` (saved designs, share links, Surprise me), `welcome.js` (welcome, help, shortcuts, start-up) |
 | `src/styles.css`, `src/body.html` | The page's look and layout |
 | `build.mjs` | Joins and minifies `src/`, three.js and the fonts into `index.html` |
 | `sw.js`, `manifest.webmanifest`, `icon*`, `og.png` | Offline support, the installable-app details, icons and the link preview image |
-| `tests/smoke.mjs` | Automated test that opens the app in a real browser and clicks through it |
+| `tests/smoke.mjs` | Automated test that opens the app in a real browser, checks every preset's capacity, and clicks through it |
+| `tests/expected.json` | The exact capacity and number of check issues of every preset, which the test compares against |
+| `CLAUDE.md` | House rules for Claude Code sessions working on this project |
 | `docs/NFRs.md` | Non-functional requirements: speed, reliability, privacy and so on, with their status |
 
 ## Hosting it on Vercel
@@ -57,6 +59,7 @@ npm install        # once
 npm run build      # minified index.html
 npm run build:dev  # unminified, easier to debug
 npm test           # opens the app in a browser and checks the main features work
+npm run update-expected  # only after a deliberate change to the maths: re-records every preset's capacity
 ```
 
 Commit `index.html` along with your changes. GitHub checks the build and runs the tests on every push.
