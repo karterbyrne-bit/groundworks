@@ -97,6 +97,17 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.click('#panes [data-pane="results"]'); await page.check("#obsToggle"); await page.waitForTimeout(400);
   check((await page.evaluate(() => window.__gw.obsShown())) > 0, "Show obstructed views colours the restricted seats");
   await page.uncheck("#obsToggle"); await page.waitForTimeout(300); await page.click('#panes [data-pane="start"]');
+  // the architect's notes: a critique of each stand by name, a different verdict for each ground, and the Leitch-era pillars called out
+  { const verdicts = new Set();
+    for (const p of ["ot", "dell", "bowl", "leitch"]) {
+      await page.evaluate(() => { window.__before = window.__gw.last(); });
+      await page.click(`[data-p="${p}"]`); await page.waitForFunction(() => !window.__gw.busy() && window.__gw.last() !== window.__before); await page.waitForTimeout(300);
+      const a = await page.evaluate(() => { const el = document.getElementById("architect"), names = window.__gw.last().parts.map(x => x.label), stands = [...el.querySelectorAll(".stand-notes li")].map(li => li.textContent);
+        return {verdict: el.querySelector(".verdict").textContent, named: stands.some(t => names.some(n => t.startsWith(n + ":"))), distinct: new Set(stands.map(t => t.replace(/^[^:]*:/, ""))).size === stands.length, text: el.textContent}; });
+      if (p === "leitch") check(/pillar|restricted/i.test(a.text), "the architect's notes on the Leitch-era ground mention its pillars or restricted views");
+      else { check(a.named && a.distinct, `the architect's notes on "${p}" critique each stand by name, each in its own words`); verdicts.add(a.verdict); }
+    }
+    check(verdicts.size === 3, "the architect gives Old Trafford, the Dell and the bowl different verdicts"); }
   // upper tiers on their own outline, and façade looks
   for (const p of ["oval", "cartuja"]) {
     await page.click(`[data-p="${p}"]`); await page.waitForTimeout(300);

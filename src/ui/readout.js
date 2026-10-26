@@ -114,11 +114,53 @@ const ARCH_ACTS = {
   vehicle:() => { const opts = tdSides(); S.vehicle = Object.assign(vehicleOf(), {on:true, at: opts.some(o => o[0] === "W") ? "W" : (opts[0] || ["N"])[0]}); },
   name:() => { showPane("look"); setTimeout(() => $("spTitle").focus(), 50); return "nochange"; }
 };
+/* The critic's phrasebook: the same design always gets the same words, but different designs (and different stands in one
+   design) get different ones. */
+const criticSay = seed => (list, salt) => { let h = (seed ^ 2166136261) >>> 0; for (const ch of String(salt)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return list[(h >>> 0) % list.length]; };
+const pctOf = v => Math.round(100*v) + "%";
+/* One stand, judged on its own: what sort of stand it is and how it sits with the others, its views, its materials and
+   its plot. Returns null for anything that isn't a stand of its own (corners, floor seats). */
+function standCritique(p, cx){
+  const cfg = cfgOfKey(p.key), si = cx.D.standInfo && cx.D.standInfo[p.key]; if (!cfg || !si || !p.seats) return null;
+  const say = (list, salt) => { const k0 = list.indexOf(cx.say(list, p.label + salt)); // each stand in a ground gets its own way of putting it
+    for (let q=0;q<list.length;q++){ const k = (k0 + q) % list.length; if (!cx.used.has(salt + k)){ cx.used.add(salt + k); return list[k]; } } return list[k0]; }, sty = STYLES[cfg.style] || {}, era = sty.era || "Modern", n = p.tiers.length;
+  const h = si.height, w = si.width || 1, ob = cx.O && cx.O.stands[p.label], obPct = ob ? ob.seats/p.seats : 0;
+  const look = (cfg.facade && cfg.facade.look) || sty.look || "plain", open = !cfg.roof || cfg.roof.shape === "none";
+  const terr = p.tiers.some(t => t.type === "terrace" || t.type === "rail"), steep = Math.max(0, ...p.tiers.map(t => t.steep || 0)), shallow = p.tiers.some(t => t.bad);
+  const rows = Math.max(0, ...p.tiers.map(t => t.rows || 0)), squeezed = ((cx.D.cutInfo || {})[p.key] || []).some(c => c && c.want > c.fit + .5);
+  const bits = []; let tone = "good", score = 0;
+  // what sort of stand it is
+  if (cx.count > 1 && h > cx.mean*1.4){ score += 1; bits.push(say([`the big beast of the ground at ${Math.round(h)} m tall`, `towers over everything else here at ${Math.round(h)} m`, `the one that'll be on the postcards: ${Math.round(h)} m of it`], "big")); }
+  else if (cx.count > 1 && h < cx.mean*.6){ score -= .5; bits.push(say(["looks like it wandered in from a smaller ground", "keeps its head down next to its neighbours", `the runt of the litter at ${Math.round(h)} m`], "small")); }
+  else if (n >= 3){ score += .5; const nw = ["three", "four", "five", "six"][n - 3] || n;
+    bits.push(say([`${nw} tiers stacked up, like the Sir Alex Ferguson Stand at Old Trafford`, `a proper ${nw}-tier stack in the manner of Anfield's Main Stand`, `${nw} tiers deep, so the top rows feel a long way up`], "tiers")); }
+  else if (terr && n === 1 && rows >= 35){ score += 1; bits.push(say(["one great wall of standing fans, Yellow Wall style", "a single sweep of terrace the Kop would be proud of"], "kop")); }
+  else if (w/Math.max(1, h) > 9) bits.push(say([`long and low, ${Math.round(w)} m by ${Math.round(h)} m`, `stretched out: ${Math.round(w)} m long and only ${Math.round(h)} m high`], "long"));
+  else bits.push(say(["a tidy, honest stand that does its job", `well proportioned at ${Math.round(w)} m long and ${Math.round(h)} m high`, `no fuss: ${fmt(p.seats)} places, sensibly arranged`,
+    "workmanlike, in the best sense", `a solid ${fmt(p.seats)}-seater with nothing to apologise for`], "plain"));
+  // its views
+  if (obPct > .15){ tone = "warn"; score -= 2; const c = Object.keys(ob.causes).sort((a, b) => ob.causes[b] - ob.causes[a])[0];
+    bits.push(say([`but ${pctOf(obPct)} of its seats are ${VIEW_CAUSES[c]}, and the ticket office will have to own up to it`, `though ${pctOf(obPct)} of the crowd here spend the match ${VIEW_CAUSES[c]}`,
+      `but ${pctOf(obPct)} of its fans watch ${VIEW_CAUSES[c]}, craning to see the goals`], "obs")); }
+  else if (obPct > .02){ tone = "tip"; score -= .5; const c = Object.keys(ob.causes).sort((a, b) => ob.causes[b] - ob.causes[a])[0]; bits.push(`though ${pctOf(obPct)} of its seats are ${VIEW_CAUSES[c]}`); }
+  else if (shallow){ tone = "warn"; score -= 1.5; bits.push(say(["but it's too shallow: fans will be craning over the heads in front", "though the rake is too gentle to see over the person in front"], "c")); }
+  else if (steep > 33){ score += .5; bits.push(say([`and at ${Math.round(steep)}° it's thrillingly steep`, `with a ${Math.round(steep)}° rake that puts you right over the play`, `and its ${Math.round(steep)}° rake keeps even the back rows close to the action`], "steep")); }
+  // what it's made of, and its plot
+  const glassy = look === "glass" || look === "fins", trad = era === "Traditional";
+  if (trad && glassy){ score -= .3; bits.push(say(["a glass front on an old-style stand is a brave choice", "the glass front sits oddly on such a traditional stand"], "mat")); }
+  else if (!trad && (look === "brick" || look === "timber")) bits.push(`the ${look} outside wall gives a modern stand some warmth`);
+  else if (look === "plain" && p.seats > 5000){ score -= .5; if (tone === "good") tone = "tip"; bits.push(say(["from the street it's a blank slab, so dress the outside wall up", "the outside wall is plain, which a stand this size doesn't deserve"], "mat")); }
+  if (open && cx.cover > .5){ score -= .5; if (tone === "good") tone = "tip"; bits.push(say(["and it's left without a roof, so bring a coat", "and with no roof its fans get wet while everyone else stays dry"], "roof")); }
+  if (squeezed){ score -= .5; if (tone === "good") tone = "tip"; bits.push(say(["the plot cuts it short, so some rows don't fit", "it's squeezed by the edge of the plot"], "site")); }
+  const text = bits.reduce((s, b, i) => !i ? cap1(b) : s + (/^(but|though|and|with)\b/.test(b) ? ", " : "; ") + b, "") + ".";
+  return {name: p.label, key: p.key, tone, score, text};
+}
 function architectNotes(D){
   const notes = [], sc = {}, L = S.limits, lay = D.lay || layoutOf(), A = (D.screenCtx && D.screenCtx.anchors) || [];
-  const note = (tone, text, act, label) => notes.push({tone, text, act, label});
+  const note = (tone, text, act, label, rank) => notes.push({tone, text, act, label, rank: rank != null ? rank : tone === "warn" ? 3 : tone === "tip" ? (act ? 2.5 : 2) : 1});
   const clamp10 = v => Math.max(0, Math.min(10, v));
-  if (!D.total){ return {notes:[{tone:"tip", text:"Nothing built yet. Give a stand a tier and I'll start taking notes."}], sc:null}; }
+  if (!D.total){ return {notes:[{tone:"tip", text:"Nothing built yet. Give a stand a tier and I'll start taking notes."}], sc:null, stands:[]}; }
+  const say = criticSay(hashSeed([D.total, S.sport, ...D.parts.map(p => p.label + p.seats)].join("|")));
   // how enclosed the ground is: the corners, and how much of the way round has stands
   let corners = 4;
   if (lay === "bowl" || lay === "hybrid") corners = CORNERS.filter(c => !(S.bowl.removed && S.bowl.removed[c.key])).length;
@@ -127,64 +169,93 @@ function architectNotes(D){
   const near = D.set, cover = D.covered/D.total, steep = Math.max(0, ...D.parts.flatMap(p => p.tiers.map(t => t.steep || 0)));
   // atmosphere: close, steep, enclosed and roofed grounds are loud
   sc.atmosphere = clamp10(10 - Math.max(0, near - 6)*0.35 - (4 - corners)*0.9 - (1 - cover)*3 + (steep > 30 ? 0.5 : 0));
-  if (near <= 8) note("good", `The stands are ${Math.round(near)} m from the play. Fans are right on top of the action, which makes for a loud ground.`);
-  else if (near > 14) note("tip", `The stands sit ${Math.round(near)} m back from the play. It feels distant and the noise drifts away. Bring them closer if the sport allows it.`, "closer", "Bring them in");
+  if (near > 14) note("tip", `The stands sit ${Math.round(near)} m back from the play. It feels distant and the noise drifts away. Bring them closer if the sport allows it.`, "closer", "Bring them in");
   if (corners <= 1) note("tip", `${4 - corners} of the 4 corners are open. Noise, wind and rain get in there. Filling them makes the ground feel complete.`, lay === "stands" ? "corners" : null, "Go to the corners");
-  else if (corners === 4) note("good", "All four corners are closed, so the ground holds its noise in.");
   // views
   const cMM = isFinite(D.minC) ? D.minC*1000 : 120, rPct = 100*D.restricted/D.total, O = D.obstructed;
   const rW = O ? 100*(O.bad + 0.4*O.slight)/D.total : rPct; // badly restricted seats count in full, slightly restricted ones less
   sc.views = clamp10(10 - Math.min(4, Math.max(0, 90 - cMM)*0.03) - Math.min(3, Math.max(0, D.far - 150)*0.08) - Math.min(3, rW*0.4));
-  if (D.far <= 150) note("good", `Every fan is within ${Math.round(D.far)} m of the far corner of the play. Even the back row gets a decent view.`);
-  else if (D.far > 175) note("tip", `The furthest fan is ${Math.round(D.far)} m from the ${D.farName || "play"}. Faces become dots past about 150 m. Fewer rows up top, or steeper tiers, would help.`);
+  if (D.far > 175) note("tip", `The furthest fan is ${Math.round(D.far)} m from the ${D.farName || "play"}. Faces become dots past about 150 m. Fewer rows up top, or steeper tiers, would help.`);
   if (cMM < L.minC) note("warn", `Some fans can't see over the heads in front (${Math.round(cMM)} mm against the ${L.minC} mm needed). The checks below have fixes.`);
-  if (rPct > 2){ const tally = {}; if (O) for (const st of Object.values(O.stands)) for (const c in st.causes) tally[c] = (tally[c] || 0) + st.causes[c];
-    const top = Object.keys(tally).sort((a, b) => tally[b] - tally[a])[0];
-    note("warn", `${rPct.toFixed(1)}% of seats have a restricted view${top ? ", mostly " + VIEW_CAUSES[top] : ""}. The checks below say where, and how to clear them.`); }
+  const tally = {}; if (O) for (const st of Object.values(O.stands)) for (const c in st.causes) tally[c] = (tally[c] || 0) + st.causes[c];
+  const topCause = Object.keys(tally).sort((a, b) => tally[b] - tally[a])[0];
+  if (rPct > 2) note("warn", `${rPct.toFixed(1)}% of seats have a restricted view${topCause ? ", mostly " + VIEW_CAUSES[topCause] : ""}. ${topCause === "pillar" ? "Pillars have charm, but fans pay to see the goals. Cantilevered tiers and roofs get rid of them." : "The checks below say where, and how to clear them."}`);
   // comfort: shelter from the weather
   sc.comfort = clamp10(cover*10);
   if (cover < 0.5) note("tip", `Only ${Math.round(cover*100)}% of fans are under a roof. On a wet night the rest will notice.`, "roofs", "Roof the open stands");
-  else if (cover > 0.95) note("good", "Almost everyone is under cover.");
-  // looks: a tidy roofline, a coherent or deliberately mixed set of styles, dressed walls, a name
-  const tops = A.map(a => Math.max(0, ...(a.RR || []).filter(Boolean).map(r => r.y(0)))).filter(h => h > 0);
-  const styles = new Set([S.bowl, ...SIDES.map(k => S.stands[k])].filter(c => c && c.tiers.length).map(c => c.style));
-  let looks = 7;
+  // looks: the roofline, a coherent (or deliberately mixed) set of styles, dressed walls, materials that suit the stands, a fitting signature, a name
+  const tops = A.map(a => Math.max(0, ...(a.RR || []).filter(Boolean).map(r => r.y(0)))).filter(h => h > 0), cfgs = standCfgs();
+  const styles = new Set(cfgs.map(c => c.style)), eras = new Set(cfgs.map(c => (STYLES[c.style] || {}).era || "Modern"));
+  const lookOf = c => (c.facade && c.facade.look) || (STYLES[c.style] || {}).look || "plain";
+  let looks = 5, lopsided = null;
   if (tops.length >= 2){ const hi = Math.max(...tops), lo = Math.min(...tops), ratio = hi/Math.max(1, lo);
-    if (ratio > 2.2 && !S.roofAlign){ looks -= 2; note("tip", `The tallest roof is ${Math.round(hi)} m and the lowest ${Math.round(lo)} m, so the roofline is lopsided. That can be a statement, like Old Trafford's old main stand; to tidy it up, line the roofs up.`, "align", "Line up the roofs"); }
-    else if (ratio < 1.25){ looks += 1.5; note("good", "The roofline is nice and even all the way round."); } }
-  if (styles.size >= 4){ looks -= 0.5; note("tip", `${styles.size} different stand styles. It reads like a ground that grew over a century: charming, but not one design.`); }
-  else if (styles.size === 1 && D.total > 20000) { looks += 1; note("good", "One style all the way round gives the ground a single, confident look."); }
-  const AR = S.arch || {}; if (AR.arch || (AR.skin && AR.skin !== "none") || AR.towers || AR.ramps){ looks += 1.5; note("good", "The signature architecture gives it a skyline you'd recognise from a distance."); }
-  if (!sponsorsOf().title && D.total > 15000) note("tip", "A ground this size deserves a name. Naming rights are a big earner too.", "name", "Name it");
+    if (ratio > 2.2 && !S.roofAlign){ looks -= 1.5; lopsided = [lo, hi]; note("tip", `The tallest roof is ${Math.round(hi)} m and the lowest ${Math.round(lo)} m, so the roofline is lopsided. That can be a statement, like Old Trafford's old main stand; to tidy it up, line the roofs up.`, "align", "Line up the roofs"); }
+    else if (ratio < 1.25) looks += 1.5; }
+  if (styles.size === 1) looks += D.total > 20000 ? 1 : .5; else if (eras.size === 1) looks += .5; else if (styles.size >= 4) looks -= .5;
+  const plainShare = cfgs.length ? cfgs.filter(c => lookOf(c) === "plain").length/cfgs.length : 0; looks += 1.5*(1 - plainShare);
+  for (const c of cfgs){ const trad = (STYLES[c.style] || {}).era === "Traditional", lk = lookOf(c); if (trad && (lk === "glass" || lk === "fins")) looks -= .3/cfgs.length*4; }
+  if (sponsorsOf().title) looks += .3; else if (D.total > 15000) note("tip", "A ground this size deserves a name. Naming rights are a big earner too.", "name", "Name it", 1.2);
+  // signature architecture: does it suit the ground?
+  const AR = S.arch || {}, big = D.total >= 25000, tall = D.maxH > 30;
+  if (AR.arch){ looks += big ? 1.5 : .5; note(big ? "good" : "tip", big ? say(["The arch earns its place: at this size it's a landmark, Wembley-style.", "An arch suits a ground this big. You'll see it from the motorway."], "arch") : `An arch over a ground of ${fmt(D.total)} is a lot of hat for a small head. It suits somewhere Wembley-sized.`, null, null, 1.6); }
+  else if (AR.skin && AR.skin !== "none"){ const allOld = eras.size === 1 && eras.has("Traditional"); looks += allOld ? .5 : 1.5;
+    note(allOld ? "tip" : "good", allOld ? "The outer skin hides all that lovely old brick. Is that what you want?" : styles.size >= 3 ? "The outer skin pulls a mixed set of stands into one building." : "The outer skin turns the ground into one clean object, the way the Allianz Arena's does.", null, null, 1.6); }
+  else if (AR.ramps){ looks += tall ? 1.5 : .5; note(tall ? "good" : "tip", tall ? "The spiral ramps are pure San Siro, and a ground this tall carries them well." : "Spiral ramps on a ground this low are mostly for show. San Siro needed them; this doesn't.", null, null, 1.6); }
+  else if (AR.masts === "corners" || AR.masts === "main"){ looks += 1; note("good", "The masts and cables give it a skyline, as the four masts do at Cardiff's Principality Stadium.", null, null, 1.6); }
+  else if (AR.towers){ looks += 1; note("good", "The entrance towers give the street something to look up at.", null, null, 1.4); }
   sc.looks = clamp10(looks);
   // getting in and out
   const em = D.issues.some(i => /^emerg:/.test(i.key)), evac = D.slowest || 0;
   sc.access = clamp10(10 - Math.max(0, evac - 4)*1.2 - (em ? 3 : 0) - D.issues.filter(i => i.cat === "rules").length*0.8);
   if (evac > L.maxEvac*0.85 && evac <= L.maxEvac) note("tip", `The slowest stand takes ${evac.toFixed(1)} minutes to empty, close to the ${L.maxEvac}-minute limit. A few more exits would give some slack.`, "exits", "Add exits");
-  else if (evac && evac < 5) note("good", `Everyone's out within ${evac.toFixed(1)} minutes. Plenty of exits.`);
   // wheelchair spaces and a way in for emergency vehicles
   const need = wheelchairNeed(D.total), AC = accessOf();
   if (!AC.on) note("tip", `No wheelchair spaces yet. A ground this size should have about ${need}. Switch them on under Rules.`, "access", "Add wheelchair spaces");
-  else if ((D.wheelchair || 0) >= need) note("good", `${D.wheelchair} wheelchair spaces, spread round the ground. That meets the guidance.`);
   if (!vehicleOf().on && (lay === "bowl" || lay === "hybrid" || corners === 4)) note("warn", "There's no way for an ambulance or fire engine to drive onto the pitch. Add an emergency vehicle entrance through one of the stands.", "vehicle", "Add one");
   // facilities, stand by stand
-  const fac = standCfgs().map(c => facilitiesOf(c)), basic = fac.filter(f => f === "basic").length, prem = fac.filter(f => f === "premium").length;
+  const fac = cfgs.map(c => facilitiesOf(c)), basic = fac.filter(f => f === "basic").length;
   if (basic) note("tip", `${basic === fac.length ? "Every stand has" : basic + " stand" + (basic > 1 ? "s have" : " has")} basic facilities. Expect long queues for the toilets and the tea bar at half time.`);
-  if (prem) note("good", `${prem === fac.length ? "Every stand has" : prem + " stand" + (prem > 1 ? "s have" : " has")} premium facilities: lounges and restaurants that earn money on non-match days too.`);
   sc.comfort = clamp10(sc.comfort*0.75 + 2.5*(fac.length ? fac.reduce((a, f) => a + (f === "basic" ? 0.3 : f === "premium" ? 1.2 : 0.8), 0)/fac.length : 0.8));
-  // the ends: a home end behind a goal makes the noise; an away end needs room and keeping apart
-  const HE = homeEndOf(), AW = awayOf(), AL = D.awayAlloc || {seats:0};
-  if (HE.at){ const p = D.parts.find(x => x.key === HE.at), terr = p && p.tiers.some(t => t.type === "terrace" || t.type === "rail");
-    note("good", `${HE.name ? HE.name.charAt(0) + HE.name.slice(1).toLowerCase() : "The home end"} is a sea of the club's colours${terr ? ", and standing there makes it louder still" : ""}.`); }
-  if (AW.on && AL.seats){ const share = AL.seats/D.total;
-    if (share < 0.03) note("tip", `The away end holds ${fmt(AL.seats)}, under 3% of the ground. Visiting fans will feel squeezed.`);
+  // the ends: an away end needs room and keeping apart
+  const AW = awayOf(), AL = D.awayAlloc || {seats:0};
+  if (AW.on && AL.seats){ if (AL.seats/D.total < 0.03) note("tip", `The away end holds ${fmt(AL.seats)}, under 3% of the ground. Visiting fans will feel squeezed.`);
     if (!AW.gap) note("warn", "There's no gap between home and away fans. Leave a few empty seats to keep them apart."); }
   // money: hospitality
-  const boxShare = (D.byType.exec || 0)/D.total;
-  if (D.total > 25000 && boxShare < 0.01) note("tip", "No executive boxes. At a ground this size, hospitality pays a lot of the bills. Try a ring of boxes between two tiers.", "boxes", "Go to stands");
+  if (D.total > 25000 && (D.byType.exec || 0)/D.total < 0.01) note("tip", "No executive boxes. At a ground this size, hospitality pays a lot of the bills. Try a ring of boxes between two tiers.", "boxes", "Go to stands");
   if (!AC.on || (D.wheelchair || 0) < need) sc.access = clamp10(sc.access - 1.5);
+  // the site: a tight plot
+  const cut = Object.values(D.cutInfo || {}).flat().reduce((a, c) => a + (c ? Math.max(0, Math.round(c.want - c.fit)) : 0), 0);
+  if (cut > 0) note("tip", say([`The plot is tight: ${cut} rows don't fit. Like Kenilworth Road, it's hemmed in by its neighbours, which has its own charm.`, `${cut} rows are lost to the plot boundary. Squeezed grounds have character, but that's a lot of seats left on the drawing board.`], "plot"), null, null, 1.8);
+  // what it's like: a real ground it brings to mind
+  const trad = eras.size === 1 && eras.has("Traditional"), modern = eras.size === 1 && eras.has("Modern");
+  const like = D.total < 12000 ? say(["Small and tight, like a lower-league ground at its best: you'll hear the manager shouting.", "A compact little ground. Every seat feels close to the action."], "like")
+    : lay === "bowl" ? (D.total > 50000 ? say(["In shape and scale it's a cousin of Wembley or the Emirates: one big sweeping bowl.", "A big, continuous bowl in the Wembley mould. Impressive, if a touch impersonal."], "like") : "A neat bowl in the modern European mould: every seat faces the play.")
+    : trad ? say(["Pure Archibald Leitch: brick, pillars and pitched roofs, like Fratton Park or the old Ibrox.", "This could have been built in 1910. Leitch would recognise it, pillars and all."], "like")
+    : styles.size >= 3 ? say(["It reads like Goodison or Villa Park: a ground that grew a stand at a time.", "A ground with a history you can read in its stands, one era after another."], "like")
+    : modern && corners === 4 ? "Four big modern stands with the corners filled: the Premier League new-build look." : null;
+  if (like) note("good", like, null, null, 1.5);
   const overall = (sc.atmosphere + sc.views + sc.comfort + sc.looks + sc.access)/5;
-  return {notes, sc, overall};
+  // stand by stand
+  const live = D.parts.filter(p => p.key !== "F" && cfgOfKey(p.key) && D.standInfo && D.standInfo[p.key]);
+  const hs = live.map(p => D.standInfo[p.key].height), cx = {D, O, say, cover, used: new Set(), count: live.length, mean: hs.length ? hs.reduce((a, b) => a + b, 0)/hs.length : 0};
+  const stands = live.map(p => standCritique(p, cx)).filter(Boolean);
+  // the best and worst of it
+  const evacTxt = evac ? `everyone's out in ${evac.toFixed(1)} minutes` : "plenty of ways out";
+  const feats = [
+    [sc.atmosphere, `the atmosphere: fans ${Math.round(near)} m from the play${corners === 4 ? " with every corner filled" : ""}`, near > 14 ? `the atmosphere: the stands sit ${Math.round(near)} m back and the noise drifts off` : `the atmosphere: ${4 - corners} open corner${4 - corners === 1 ? "" : "s"} let the noise out`],
+    [sc.views, `the views: ${D.restricted ? "hardly a seat" : "not one seat"} behind anything, and nobody further than ${Math.round(D.far)} m from the far corner`, rPct > 2 ? `the views: ${rPct.toFixed(1)}% of seats are restricted` : cMM < L.minC ? "the views: some fans can't see over the heads in front" : `the views: the back rows are ${Math.round(D.far)} m from the far corner`],
+    [sc.comfort, `the shelter: ${Math.round(cover*100)}% of fans are under a roof`, `the shelter: only ${Math.round(cover*100)}% of fans are under a roof`],
+    [sc.looks, AR.arch || AR.ramps || (AR.skin && AR.skin !== "none") || AR.masts ? "the looks: a skyline you'd know from a mile off" : "the looks: a handsome, well-dressed ground", lopsided ? `the looks: the roofline lurches from ${Math.round(lopsided[0])} m to ${Math.round(lopsided[1])} m` : plainShare > .5 ? "the looks: from the street it's mostly plain walls" : "the looks: nothing catches the eye from the street"],
+    [sc.access, `getting out: ${evacTxt}`, em ? "getting out: the emergency evacuation is too slow" : `getting in and out: the slowest stand takes ${evac.toFixed(1)} minutes to empty`]];
+  const ranked = feats.slice().sort((a, b) => b[0] - a[0]), bestStand = stands.slice().sort((a, b) => b.score - a.score)[0], worstStand = stands.slice().sort((a, b) => a.score - b.score)[0];
+  let best = ranked[0][1], worst = ranked[ranked.length - 1][2];
+  if (bestStand && bestStand.score >= 1 && ranked[0][0] < 8.5) best = `the ${bestStand.name.toLowerCase()}`;
+  if (worstStand && worstStand.score <= -1.5 && ranked[ranked.length - 1][0] > 4) worst = `the ${worstStand.name.toLowerCase()}`;
+  const grade = overall >= 8.5 ? ["A classic in the making.", "This is the real deal.", "Frankly, I'd buy a season ticket."] : overall >= 7 ? ["A strong design.", "Plenty to like here.", "A proper ground, this."]
+    : overall >= 5.5 ? ["Solid, with some work to do.", "Decent bones, rough edges.", "Promising, but not there yet."] : ["Worth a rethink.", "Back to the drawing board, I'm afraid.", "It needs more than a lick of paint."];
+  const verdict = say(grade, "grade") + " " + say([`Its best feature is ${best}; the weakest is ${worst}.`, `The highlight is ${best}. The let-down is ${worst}.`, `I like ${best}. I'm less keen on ${worst}.`], "bw");
+  notes.sort((a, b) => b.rank - a.rank);
+  return {notes: notes.slice(0, 4), sc, overall, stands, best, worst, verdict};
 }
 /* A very rough idea of what it would cost to build, from typical costs per place for each kind of seating, more for each
    tier stacked higher, plus roofs and the big architectural extras. Only good for comparing designs. */
@@ -201,12 +272,12 @@ function buildCost(D){
 }
 function renderArchitect(D){
   const el = $("architect"); if (!el) return;
-  const {notes, sc, overall} = architectNotes(D);
-  const verdict = overall == null ? "" : overall >= 8.5 ? "A classic in the making." : overall >= 7 ? "A strong design." : overall >= 5.5 ? "Solid, with some work to do." : "Worth a rethink.";
+  const {notes, sc, overall, stands, verdict} = architectNotes(D);
   const cost = D.total ? buildCost(D) : 0, money = v => v >= 1e9 ? "£" + (v/1e9).toFixed(1) + "bn" : "£" + Math.round(v/1e6) + "m";
   el.innerHTML = `<h3>Architect's notes ${sc ? `<span class="grade">${overall.toFixed(1)}</span><small>out of 10</small>` : ""}</h3>
-    ${sc ? `<p class="verdict">${verdict}</p><div class="scores">${[["Atmosphere","atmosphere"],["Views","views"],["Shelter","comfort"],["Looks","looks"],["In and out","access"]].map(([l,k]) =>
+    ${sc ? `<p class="verdict">${esc(verdict)}</p><div class="scores">${[["Atmosphere","atmosphere"],["Views","views"],["Shelter","comfort"],["Looks","looks"],["In and out","access"]].map(([l,k]) =>
       `<div class="score"><span>${l}</span>${sc[k].toFixed(1)}<i><b style="width:${sc[k]*10}%"></b></i></div>`).join("")}</div>` : ""}
+    ${stands.length ? `<ul class="stand-notes">${stands.map(n => `<li class="t-${n.tone}"><span><b>${esc(n.name)}</b>: ${esc(n.text)}</span></li>`).join("")}</ul>` : ""}
     <ul>${notes.map((n, i) => `<li class="t-${n.tone}"><span>${esc(n.text)}</span>${n.act ? `<button data-arch="${n.act}">${esc(n.label)}</button>` : ""}</li>`).join("")}</ul>
     ${cost ? `<p class="cost">Rough build cost: <b>${money(cost)}</b>, about £${fmt(cost/D.total)} a place. A ballpark figure for comparing designs, not a quote.</p>` : ""}`;
 }
