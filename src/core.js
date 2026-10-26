@@ -286,7 +286,9 @@ const AO = (() => { try {
 function drawAO(){
   const t0 = performance.now();
   const g = AO.gtao; g.camera = camera;
-  renderer.render(scene, camera); g.render(renderer, null, null);
+  renderer.render(scene, camera);
+  const see = []; scene.traverse(o => { if (o.userData.noAO && o.visible){ o.visible = false; see.push(o); } }); // glows and smoke cast no shading
+  g.render(renderer, null, null); for (const o of see) o.visible = true;
   AO.overlay.uniforms.tAO.value = g.pdRenderTarget.texture; g._renderPass(renderer, AO.overlay, null); AO.frames++; // multiplied over the frame just drawn
   AO.ms = performance.now() - t0; if (LIGHT && AO.ms > 140) AO.off = true; // too slow for this phone: leave it off
 }
@@ -352,8 +354,8 @@ const M = {
   board: std({color:0x10233f, roughness:.4, emissive:0x163a6e, emissiveIntensity:.8}),
   site: std({color:0xc0392b, roughness:.6}), handle: std({color:0xffffff, roughness:.5, emissive:0x5a1a14}),
   white: std({color:0xffffff, roughness:.4}),
-  haloA: new THREE.MeshStandardMaterial({color:0x111111, emissive:0xffffff, roughness:.4}), haloB: new THREE.MeshStandardMaterial({color:0x111111, emissive:0xffffff, roughness:.4}), // the LED halo
-  flare: new THREE.MeshBasicMaterial({color:0xffd2b0}), // a flare's white-hot core
+  haloA: new THREE.MeshBasicMaterial({color:0xffffff, side:THREE.DoubleSide, toneMapped:false}), haloB: new THREE.MeshBasicMaterial({color:0xffffff, side:THREE.DoubleSide, toneMapped:false}), // the LED halo: lit from within, seen from both sides, in the club's true colours
+  flare: new THREE.MeshBasicMaterial({color:0xffb27a, toneMapped:false}), // a flare's burning core
   obsSlight: new THREE.MeshBasicMaterial({color:0xffb020, transparent:true, opacity:.75, side:THREE.DoubleSide, depthWrite:false}), // "Show obstructed views": slightly restricted
   obsBad: new THREE.MeshBasicMaterial({color:0xe5322b, transparent:true, opacity:.8, side:THREE.DoubleSide, depthWrite:false}), // and badly
   bronze: std({color:0xb07e42, roughness:.34, metalness:.65}), stone: std({color:0xc9bfa8, roughness:.9}), // statues on their plinths
@@ -414,7 +416,7 @@ function setSeatColours(){
   M.seated.color.set(S.seat); M.seatBack.color.set(S.seat).multiplyScalar(0.8); M.rail.color.set(S.seat);
   M.exec.color.set(S.seat).multiplyScalar(0.5); M.lattice.color.set(S.seat);
   const alt = S.seat2 || "#f2f2f2"; M.seatAlt.color.set(alt); M.seatAltBack.color.set(alt).multiplyScalar(0.85);
-  M.haloA.emissive.set(S.seat); M.haloB.emissive.set(alt);
+  M.haloA.color.set(S.seat); M.haloB.color.set(alt);
   invalidate();
 }
 setSeatColours();
