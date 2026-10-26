@@ -298,7 +298,7 @@ $("editor").addEventListener("change", e => {
   if (el.dataset.wrap){ renderEditor(); return; } // runs and notes depend on how far it wraps
   if (el.dataset.corner){ const cc = S.corners[el.dataset.corner], f = el.dataset.cf; cc[f] = el.type === "checkbox" ? el.checked : el.value; renderEditor(); changed(); return; }
   if (el.dataset.actChange === "style"){ applyStyle(cfgForTab(), el.value, isHybrid() && tab === "B"); renderEditor(); changed(); return; }
-  if (el.tagName === "SELECT" && el.dataset.p && el.dataset.p.endsWith(".support")){ // pillars, towers or nothing
+  if (el.tagName === "SELECT" && el.dataset.p && /(^|\.)tiers\.\d+\.support$/.test(el.dataset.p)){ // a tier held up by pillars, towers or nothing (not a roof's structure)
     const tr = el.dataset.p.split(".").slice(0, -1).reduce((o, k) => o[k], el.dataset.p.startsWith("cc.") ? {cc:{tiers:S.cornerCustom}} : targetObj());
     tr.pillars = el.value === "pillars"; if (el.value === "towers") tr.hold = "towers"; else delete tr.hold; renderEditor(); changed(); return; }
   if (el.type === "color") return;
