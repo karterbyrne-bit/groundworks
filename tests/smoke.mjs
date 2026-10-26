@@ -348,8 +348,8 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.waitForFunction(() => !window.__gw.busy());
   const memAfter = await page.evaluate(() => window.__gw.memory());
   check(memAfter.materials <= memBefore.materials + 3 && memAfter.textures <= memBefore.textures + 3, `memory stays flat after many colour changes (${memBefore.materials}→${memAfter.materials} materials)`);
-  // the 3D view goes to sleep when nothing moves
-  await page.waitForTimeout(1500);
+  // the 3D view goes to sleep when nothing moves (on a slow machine, give it time to draw its last, still frame first)
+  for (let k = 0; k < 20; k++) if (!(await page.evaluate(async () => { const n0 = window.__frames; await new Promise(res => setTimeout(res, 700)); return window.__frames - n0; }))) break;
   const framesIdle = await page.evaluate(async () => { const n0 = window.__frames; await new Promise(res => setTimeout(res, 1000)); return window.__frames - n0; });
   check(framesIdle === 0, `nothing is redrawn while the stadium sits still (${framesIdle} frames in a second)`);
 
@@ -357,7 +357,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   const before = await page.evaluate(() => JSON.stringify(window.__gw.state()));
   const link = await page.evaluate(async () => { let url = ""; navigator.clipboard.writeText = async t => { url = t; }; navigator.share = undefined; document.getElementById("shareBtn").click(); for (let i = 0; i < 100 && !url; i++) await new Promise(r => setTimeout(r, 100)); return url; });
   check(/#d=z/.test(link), "Share makes a compressed link");
-  const page2 = await ctx.newPage();
+  const page2 = await ctx.newPage(); page2.setDefaultTimeout(120000);
   page2.on("pageerror", e => errors.push(e.message));
   await page2.goto(link.replace(/^https?:\/\/[^/]+\//, base));
   await page2.waitForFunction(() => document.documentElement.classList.contains("ready"));

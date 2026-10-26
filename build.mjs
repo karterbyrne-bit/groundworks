@@ -23,9 +23,14 @@ const boot = src("boot.js");
 // three.js only ships as modules now, so its core and the orbit controls are bundled into one plain script that sets
 // window.THREE, which the app's code uses. Only the parts the app names (THREE.Something anywhere in its files) are
 // kept, which leaves out most of the library; the list is worked out here, so there's nothing to keep up to date.
-const used = [...new Set(FILES.map(src).join("\n").match(/\bTHREE\.[A-Za-z0-9_]+/g).map(n => n.slice(6)))].filter(n => n !== "OrbitControls").sort();
+// Add-ons (camera controls, post-processing) live in their own files; any of these the app names is bundled too.
+const ADDONS = {OrbitControls:"controls/OrbitControls.js", EffectComposer:"postprocessing/EffectComposer.js", RenderPass:"postprocessing/RenderPass.js",
+  GTAOPass:"postprocessing/GTAOPass.js", OutputPass:"postprocessing/OutputPass.js"};
+const named = [...new Set(FILES.map(src).join("\n").match(/\bTHREE\.[A-Za-z0-9_]+/g).map(n => n.slice(6)))].sort();
+const used = named.filter(n => !ADDONS[n]), addons = named.filter(n => ADDONS[n]);
 const three = buildSync({
-  stdin: { contents: `import { ${used.join(", ")} } from "three"; import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"; window.THREE = { ${used.join(", ")}, OrbitControls };`, resolveDir: new URL(".", import.meta.url).pathname },
+  stdin: { contents: `import { ${used.join(", ")} } from "three";\n` + addons.map(n => `import { ${n} } from "three/examples/jsm/${ADDONS[n]}";\n`).join("") +
+    `window.THREE = { ${named.join(", ")} };`, resolveDir: new URL(".", import.meta.url).pathname },
   bundle: true, minify: !dev, format: "iife", target: "es2020", write: false, legalComments: "none",
 }).outputFiles[0].text;
 
