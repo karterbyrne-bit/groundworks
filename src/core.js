@@ -243,7 +243,7 @@ const view = document.getElementById("view");
 /* Phones and tablets get a lighter set-up: fewer pixels and a smaller shadow map. Their screens are small enough that
    it barely shows, and it roughly halves the work for every frame, so they run cooler and last longer. */
 const LIGHT = matchMedia("(pointer: coarse)").matches || Math.min(screen.width, screen.height) < 700;
-const renderer = new THREE.WebGLRenderer({antialias:true, powerPreference: LIGHT ? "low-power" : "default"});
+const renderer = new THREE.WebGLRenderer({antialias:!LIGHT, powerPreference:"high-performance"}); // phones skip edge smoothing: their sharp screens barely show the jaggies, and it costs a lot
 renderer.setPixelRatio(Math.min(LIGHT ? 1.5 : 2, window.devicePixelRatio || 1));
 /* Physically based light, filmic tone mapping (bright skies and floodlights roll off softly instead of clipping to white)
    and proper sRGB colour, so colours picked in the editor come out as picked. */
@@ -281,7 +281,7 @@ const AO = (() => { try {
     vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position, 1.0); }",
     fragmentShader: "uniform sampler2D tAO; uniform float strength; varying vec2 vUv; void main(){ float a = clamp(texture2D(tAO, vUv).r/0.93, 0.0, 1.0); gl_FragColor = vec4(vec3(mix(1.0, pow(a, 0.7), strength)), 1.0); }",
     transparent: true, depthTest: false, depthWrite: false, blending: THREE.CustomBlending, blendSrc: THREE.DstColorFactor, blendDst: THREE.ZeroFactor});
-  return {gtao, overlay, off: false, ms: 0, frames: 0};
+  return {gtao, overlay, off: LIGHT, ms: 0, frames: 0}; // phones leave it off (Save as image still uses it)
 } catch(e){ return null; } })();
 function drawAO(){
   const t0 = performance.now();
@@ -314,7 +314,7 @@ const fill = new THREE.DirectionalLight(0xdfe8ff, LUX.fill); fill.position.set(-
 /* Soft-edged shadows: a blurred edge (a smaller blur on phones, which have a smaller shadow map), and a nudge along the
    surface so big flat roofs and stands don't shadow themselves in stripes. */
 sun.position.set(140, 260, 90); sun.castShadow = true; sun.shadow.mapSize.set(LIGHT ? 1024 : 2048, LIGHT ? 1024 : 2048);
-sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.04; sun.shadow.radius = LIGHT ? 2 : 3.5;
+sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.04; sun.shadow.radius = LIGHT ? 1 : 3.5;
 scene.add(sun);
 const groundMat = new THREE.MeshStandardMaterial({color:0xc3cbc0, roughness:1});
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(6000,6000), groundMat);
@@ -379,6 +379,7 @@ float wHash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)))*43758.5453); }
 float wNoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f);
   return mix(mix(wHash(i), wHash(i + vec2(1.0, 0.0)), f.x), mix(wHash(i + vec2(0.0, 1.0)), wHash(i + vec2(1.0, 1.0)), f.x), f.y); }`;
 function weather(m, streaks){
+  if (LIGHT) return; // phones go without: it's worked out for every pixel of every wall and roof
   m.userData.weather = streaks == null ? 1 : streaks;
   m.onBeforeCompile = sh => {
     sh.uniforms.wStreak = {value: m.userData.weather};
@@ -401,7 +402,7 @@ for (const k of ["roofSolid", "roofConcrete", "roofGreen", "roofEdge"]) weather(
 /* Window glass: dark and a little reflective, with a hint of the rooms behind (a pale ceiling, a lit office here and
    there, a blind half down), varying window by window so a long wall doesn't read as one sheet. */
 M.window.metalness = .25; M.window.roughness = .06; M.window.color.set(0x1c2630);
-M.window.onBeforeCompile = sh => {
+if (!LIGHT) M.window.onBeforeCompile = sh => {
   sh.vertexShader = "varying vec3 vWPos;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n vWPos = (modelMatrix*vec4(transformed, 1.0)).xyz;");
   sh.fragmentShader = "varying vec3 vWPos;" + WEATHER_GLSL + "\n" + sh.fragmentShader.replace("#include <color_fragment>", `#include <color_fragment>
     { vec2 cell = floor(vec2((vWPos.x + vWPos.z)*0.55, vWPos.y*0.3)); float r = wHash(cell), up = fract(vWPos.y*0.3);
