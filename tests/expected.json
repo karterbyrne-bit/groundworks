@@ -13,23 +13,23 @@
   },
   "monument": {
     "capacity": 21720,
-    "issues": 1
+    "issues": 3
   },
   "mixed": {
     "capacity": 25215,
-    "issues": 4
+    "issues": 6
   },
   "urban": {
     "capacity": 10249,
-    "issues": 5
+    "issues": 6
   },
   "dell": {
     "capacity": 8710,
-    "issues": 1
+    "issues": 3
   },
   "leitch": {
     "capacity": 16763,
-    "issues": 7
+    "issues": 10
   },
   "ibrox": {
     "capacity": 26914,
@@ -53,7 +53,7 @@
   },
   "bullring": {
     "capacity": 10819,
-    "issues": 0
+    "issues": 1
   },
   "wrestle": {
     "capacity": 1017,
@@ -61,11 +61,11 @@
   },
   "lords": {
     "capacity": 17283,
-    "issues": 0
+    "issues": 3
   },
   "classicpark": {
     "capacity": 16395,
-    "issues": 0
+    "issues": 1
   },
   "ballpark": {
     "capacity": 22495,
