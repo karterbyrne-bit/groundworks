@@ -25,7 +25,7 @@ function build(){
     scene.remove(group);
     const shared = new Set(Object.values(M)); // free what this build made, but keep the shared materials and cached textures
     group.traverse(o => { if (o.geometry && !o.geometry.keep) o.geometry.dispose(); for (const m of [].concat(o.material || [])){ if (m.map && m.map.dispose && !m.map.keep) m.map.dispose(); if (!m.keep && !shared.has(m)) m.dispose(); } });
-    sweepMats();
+    sweepMats(); CLOCK_FACES.length = 0;
     group = new THREE.Group(); scene.add(group);
   }
   const Bf = {}; const buf = k => (Bf[k] = Bf[k] || []);
@@ -776,13 +776,31 @@ function build(){
         for (const i of [0, m-1]){ const a = RR[i]; if (!a) continue;
           if (gable) tri(clad, V(i,a.inner,a.y(0)), V(i,at(a,.5),a.y(.5)), V(i,a.outer,a.y(1)));
           if (rf.support === "truss"){ const tg = tangent(i), s = i ? 1.6 : -1.6, q = pt(i, a.inner + .8); post(buf("steel"), q[0] + tg[0]*s, q[1] + tg[1]*s, 0, a.y(0) + 3.2, 1.6); } }
-        if (gable && RR[midI]){ // central pediment facing the play
+        const leitchGable = fac.gable && sty.era === "Traditional" && RR[midI];
+        if (gable && RR[midI] && !leitchGable){ // central pediment facing the play (the Leitch gable takes its place)
           const a = RR[midI], tg = tangent(midI), c = pt(midI, a.inner), hw = Math.min(14, lenTotal*0.18), apex = a.yIn + hw*0.55, cm = pt(midI, at(a,.5));
           const L1 = [c[0]-tg[0]*hw, a.yIn, c[1]-tg[1]*hw], R1 = [c[0]+tg[0]*hw, a.yIn, c[1]+tg[1]*hw], A1 = [c[0], apex, c[1]];
           tri(buf(cfg.style === "pavilion" ? "white" : "lattice"), L1, R1, A1);
           quad(rm, L1, A1, [cm[0], Math.max(apex, a.y(.5)), cm[1]], [cm[0]-tg[0]*hw, a.y(.5), cm[1]-tg[1]*hw]);
           quad(rm, R1, A1, [cm[0], Math.max(apex, a.y(.5)), cm[1]], [cm[0]+tg[0]*hw, a.y(.5), cm[1]+tg[1]*hw]);
           topAll = Math.max(topAll, apex); }
+        /* A Leitch gable, like Craven Cottage's: a pitched gable standing up from the middle of the roof front, painted,
+           with the club's name across it and its own little pitched roof running back. Older stands only. */
+        if (leitchGable && !DRY){
+          const a = RR[midI], tg = tangent(midI), c = pt(midI, a.inner + .2), hw = Math.min(11, lenTotal*0.14), y0 = a.y(0), apex = y0 + hw*0.55, back = pt(midI, a.inner + Math.min(9, (a.outer - a.inner)*.6));
+          const L1 = [c[0]-tg[0]*hw, y0, c[1]-tg[1]*hw], R1 = [c[0]+tg[0]*hw, y0, c[1]+tg[1]*hw], A1 = [c[0], apex, c[1]];
+          const Lb = [back[0]-tg[0]*hw, y0, back[1]-tg[1]*hw], Rb = [back[0]+tg[0]*hw, y0, back[1]+tg[1]*hw], Ab = [back[0], apex, back[1]];
+          tri(buf("white"), L1, R1, A1); quad(buf("slate"), L1, A1, Ab, Lb); quad(buf("slate"), R1, A1, Ab, Rb);
+          for (const [p, q] of [[L1, A1], [A1, R1]]) bar(buf(fac.accent ? tint("trim", fac.accent) : "trim"), p, q, .35); // a painted barge board
+          const name = String(fac.sign || sponsorsOf().title || homeEndOf().name || "FOOTBALL CLUB").slice(0, 30).toUpperCase(), sm = signMaterial(name, S.seat);
+          let lh = hw*0.2; if (lh*sm.aspect > hw*1.3) lh = hw*1.3/sm.aspect;
+          const sign = new THREE.Mesh(new THREE.PlaneGeometry(lh*sm.aspect, lh), sm), toward = pt(midI, a.inner - 60);
+          sign.position.set(c[0] - v[midI][0]*.08, y0 + hw*0.17, c[1] - v[midI][1]*.08); sign.lookAt(toward[0], y0 + hw*0.17, toward[1]); sign.userData.stadium = true; group.add(sign);
+          topAll = Math.max(topAll, apex); }
+        // a stand clock up on the roof, facing the pitch, as at Arsenal's old Clock End
+        if (fac.clock === "roof" && RR[midI] && !DRY){ const a = RR[midI], r = Math.max(2, Math.min(4.5, lenTotal*0.03)), d = a.inner + Math.min(3, (a.outer - a.inner)*.3), p = pt(midI, d), tg = tangent(midI), y = a.y(.15) + r + 1;
+          for (const s of [-1, 1]) post(buf("steel"), p[0] + tg[0]*r*.6*s, p[1] + tg[1]*r*.6*s, a.y(.15), y - r*.5, .2);
+          addClock(p, y, pt(midI, d - 60), r); topAll = Math.max(topAll, y + r); }
       }
       if (rf.shape === "closed" && closed){ // roof over the whole floor, optionally with an opening in the middle
         const cy = Math.max(...RR.filter(Boolean).map(x => x.y(0))) + 9, op = Math.max(0, Math.min(0.9, rf.opening || 0)), b = buf("roofClosed");
@@ -814,6 +832,9 @@ function build(){
     }
     // façade extras: stair towers, entrance gates and window mullions on the back wall
     const backAt = i => info[i] ? info[i].back + (roofOn ? 1.5 : 0) : null;
+    if (fac.clock === "wall" && info[midI] && !DRY){ // a stand clock high on the back wall, facing the street
+      const R3 = roofOn && RRout ? RRout[midI] : null, d = (R3 ? R3.outer : info[midI].back) + .4, top = R3 ? R3.y(1) : info[midI].top, r = Math.max(1.8, Math.min(4, top*0.12));
+      if (top > 2*r + 4) addClock(pt(midI, d), top - r - 1.5, pt(midI, d + 60), r); }
     if (fac.towers){ const ts = closed ? [...marks(60)] : [0, m-1].filter(endOpen);
       for (const i of ts){ const b = backAt(i); if (b == null) continue; const tg = tangent(i), side = closed ? 0 : (i ? 4 : -4), q = pt(i, b + 3.5);
         post(buf("tower"), q[0] + tg[0]*side, q[1] + tg[1]*side, 0, info[i].top, 6); grow(q[0], q[1]); } } // level with the back of the stand, so it doesn't poke up behind the fans

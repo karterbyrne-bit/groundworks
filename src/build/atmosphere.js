@@ -230,6 +230,7 @@ function applyMood(){
     sun.position.set(R*Math.cos(el)*Math.cos(az), R*Math.sin(el), R*Math.cos(el)*Math.sin(az));
     const warm = Math.max(0, Math.min(1, (22 - elD)/18)); sun.color.lerp(new THREE.Color(0xffa860), warm); hemi.color.lerp(new THREE.Color(0xffd2a8), warm*0.5);
     sun.intensity = lerp(LUX.sun, LUX.eveSun, warm); hemi.intensity = lerp(LUX.hemi, LUX.eveHemi, warm); scene.environmentIntensity = lerp(LUX.env, LUX.eveEnv, warm); }
+  updateClocks();
   M.lamp.emissiveIntensity = night ? 2.2 : 0.9; M.band.emissive.set(night ? 0xffc46b : 0x000000); M.band.emissiveIntensity = night ? 0.55 : 0;
   M.board.emissiveIntensity = night ? 1.6 : 0.8; M.screen.emissiveIntensity = night ? 1.4 : 0.7;
   M.window.emissive.set(night ? 0xffc77a : 0x000000); M.window.emissiveIntensity = night ? 0.6 : 0;
