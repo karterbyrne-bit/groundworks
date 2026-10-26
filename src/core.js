@@ -281,7 +281,7 @@ const AO = (() => { try {
     vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position, 1.0); }",
     fragmentShader: "uniform sampler2D tAO; uniform float strength; varying vec2 vUv; void main(){ float a = clamp(texture2D(tAO, vUv).r/0.93, 0.0, 1.0); gl_FragColor = vec4(vec3(mix(1.0, pow(a, 0.7), strength)), 1.0); }",
     transparent: true, depthTest: false, depthWrite: false, blending: THREE.CustomBlending, blendSrc: THREE.DstColorFactor, blendDst: THREE.ZeroFactor});
-  return {gtao, overlay, off: LIGHT, ms: 0, frames: 0}; // phones leave it off (Save as image still uses it)
+  return {gtao, overlay, off: true, ms: 0, frames: 0}; // off in the live view, to keep it quick; Save as image still uses it
 } catch(e){ return null; } })();
 function drawAO(){
   const t0 = performance.now();
