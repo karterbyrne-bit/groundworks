@@ -300,6 +300,7 @@ $("skin").innerHTML = Object.entries(SKINS).map(([k,v]) => `<option value="${k}"
 $("skin").addEventListener("change", e => { archOf().skin = e.target.value; changed(); });
 bindRadio("skinShape", v => { archOf().skinShape = v; changed(); });
 for (const k of ["arch","ramps","towers","plaza"]) $("a-"+k).addEventListener("change", e => { archOf()[k] = e.target.checked; changed(); });
+$("archAt").addEventListener("change", e => { archOf().archAt = e.target.value; changed(); });
 function openState(st, sideTab, tweak){
   S = upgradeCorners(st); quiet = true; if (tweak) tweak(); tab = isHybrid() ? "B" : (sideTab || "N");
   setSeatColours(); renderTypeSizes(); renderEditor(); renderViews(); changed(true);
