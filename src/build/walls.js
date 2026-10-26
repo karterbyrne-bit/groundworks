@@ -62,6 +62,32 @@ function signMaterial(text, colour){
   if (cache) signTex[k] = m;
   return m;
 }
+/* A stand clock's face, showing the time of day used for the lighting (3pm for a day match with no time set, quarter to
+   eight for a night match). One picture per quarter of an hour, kept, and the faces in the stadium are updated when the
+   time of day changes. */
+const clockTex = {}, CLOCK_FACES = [];
+const clockTime = () => S.night ? 19.75 : (S.hour == null ? 15 : S.hour);
+function clockTexture(t){
+  const k = Math.round(t*4)/4; if (clockTex[k]) return clockTex[k];
+  const N = 256, c = document.createElement("canvas"); c.width = c.height = N; const g = c.getContext("2d"), R = N/2;
+  g.fillStyle = "#f4f1e6"; g.beginPath(); g.arc(R, R, R - 2, 0, 7); g.fill();
+  g.strokeStyle = "#1d2124"; g.lineCap = "round";
+  for (let i=0;i<60;i++){ const a = i/60*Math.PI*2, big = i % 5 === 0, r0 = R*(big ? .78 : .86); g.lineWidth = big ? 7 : 2.5;
+    g.beginPath(); g.moveTo(R + Math.sin(a)*r0, R - Math.cos(a)*r0); g.lineTo(R + Math.sin(a)*R*.93, R - Math.cos(a)*R*.93); g.stroke(); }
+  const hand = (a, len, w) => { g.lineWidth = w; g.beginPath(); g.moveTo(R - Math.sin(a)*len*.15, R + Math.cos(a)*len*.15); g.lineTo(R + Math.sin(a)*len, R - Math.cos(a)*len); g.stroke(); };
+  hand(((k % 12) + 0)/12*Math.PI*2, R*.5, 11); hand((k % 1)*Math.PI*2, R*.75, 7);
+  g.fillStyle = "#1d2124"; g.beginPath(); g.arc(R, R, 9, 0, 7); g.fill();
+  const tx = canvasTex(c); tx.keep = true; return (clockTex[k] = tx);
+}
+function updateClocks(){ for (const m of CLOCK_FACES){ m.map = m.emissiveMap = clockTexture(clockTime()); m.emissiveIntensity = S.night ? .9 : .08; m.needsUpdate = true; } }
+/* A clock face of radius r at p (on the ground plan, at height y), facing the point it looks at, on a dark surround. */
+function addClock(p, y, look, r){
+  const m = new THREE.MeshStandardMaterial({roughness:.5, emissive:0xffffff}); CLOCK_FACES.push(m);
+  const face = new THREE.Mesh(new THREE.CircleGeometry(r, 40), m), back = new THREE.Mesh(new THREE.CircleGeometry(r*1.13, 40), M.dark);
+  const dir = new THREE.Vector3(look[0] - p[0], 0, look[1] - p[1]).normalize();
+  for (const [o, off] of [[back, 0], [face, .06]]){ o.position.set(p[0] + dir.x*off, y, p[1] + dir.z*off); o.lookAt(p[0] + dir.x*50, y, p[1] + dir.z*50); o.castShadow = true; o.userData.stadium = true; group.add(o); }
+  updateClocks();
+}
 const ACCENTS = new Set(["trim", "band", "lattice"]); // the club colour goes on dressings and stripes, never on glazing frames or steel
 function dressWall(buf, look, wallKey, a, b, ya, yb, n, opt){
   const len = Math.hypot(b[0]-a[0], b[1]-a[1]); if (len < 0.5) return;
