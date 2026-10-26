@@ -822,12 +822,12 @@ function build(){
     /* The outside wall, dressed in the stand's look: windows, pilasters, bands, fins or glass. It runs along the roof's back
        edge where there is a roof, otherwise along the back of the top tier. */
     const wallOpt = {windows:fac.windows, winSize:fac.winSize, concourse:fac.concourse, accent:fac.accent};
-    if (look !== "plain" || fac.concourse) for (let i=0;i<segs;i++){
+    if (!DRY) for (let i=0;i<segs;i++){ // (the behind-the-scenes rebuilds for fixes only need the numbers)
       const j1 = nx(i), x0 = info[i], x1 = info[j1]; if (!x0 || !x1) continue;
       const ra = RRout && RRout[i], rb = RRout && RRout[j1], roofed = roofOn && ra && rb;
       const d0 = roofed ? ra.outer : x0.back, d1 = roofed ? rb.outer : x1.back, y0 = roofed ? ra.y(1) : x0.top, y1 = roofed ? rb.y(1) : x1.top;
       const nv = [v[i][0] + v[j1][0], v[i][1] + v[j1][1]], nl = Math.hypot(nv[0], nv[1]) || 1;
-      dressWall(buf, look, wallKey, pt(i, d0), pt(j1, d1), y0, y1, [nv[0]/nl, nv[1]/nl], wallOpt);
+      dressWall(buf, look, wallKey, pt(i, d0), pt(j1, d1), y0, y1, [nv[0]/nl, nv[1]/nl], Object.assign({along: cum[i], total: lenTotal}, wallOpt));
     }
     // the stadium's name (naming rights) goes along the main stand's roof front, unless that stand has lettering of its own
     const SP = sponsorsOf(), named = !fac.sign && SP.title && SP.onStand !== false && st.key === (lay === "bowl" ? "B" : lay === "ring" ? "R0" : "N");

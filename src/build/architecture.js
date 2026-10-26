@@ -97,33 +97,62 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
     for (let i=0;i<n;i+=Math.max(1, Math.round(n/40))){ const p = topOut[i]; if (outerD[i] > 5) post(bf("column"), p[0] - N[i][0]*1.2, p[2] - N[i][1]*1.2, hP, hP + 4.5, .2); }
     P.forEach((p,i) => { const q = [p[0] + N[i][0]*outerD[i], p[1] + N[i][1]*outerD[i]]; ext[0] = Math.max(ext[0], Math.abs(q[0])); ext[1] = Math.max(ext[1], Math.abs(q[1])); });
   }
-  // spiral ramp towers, San Siro style
+  /* Spiral ramps, San Siro style: an open helix of concrete deck round an empty middle, held up on slim columns, with a
+     parapet and a steel rail on each edge, and a short bridge across to the stand at every level. */
   if (A.ramps){
-    const count = Math.max(4, Math.min(12, Math.round(perim/80))), R0 = 2.2, R1 = 6, h = H*0.92, turns = Math.max(1.5, h/7.5);
+    const count = Math.max(4, Math.min(10, Math.round(perim/90))), R0 = 4.5, R1 = 10.5, h = H*0.92, turns = Math.max(1.5, h/8), gap = 3.5, per = 32;
     for (let t=0;t<count;t++){
-      const i = Math.floor((t + 0.5)*n/count), c = [P[i][0] + N[i][0]*(R1 + 0.8), P[i][1] + N[i][1]*(R1 + 0.8)];
-      const core = new THREE.Mesh(new THREE.CylinderGeometry(R0, R0, h + 2, 16), M.concrete); core.position.set(c[0], (h+2)/2, c[1]); core.castShadow = true; core.userData.stadium = true; group.add(core);
-      const segs = Math.round(turns*28), ph = Math.atan2(-N[i][1], -N[i][0]);
-      for (let s=0;s<segs;s++){ const q0 = ph + s/28*Math.PI*2, q1 = ph + (s+1)/28*Math.PI*2, y0 = h*s/segs, y1 = h*(s+1)/segs;
-        const P0 = r => [c[0] + Math.cos(q0)*r, y0, c[1] + Math.sin(q0)*r], P1 = r => [c[0] + Math.cos(q1)*r, y1, c[1] + Math.sin(q1)*r];
-        quad(bf("concrete"), P0(R0), P1(R0), P1(R1), P0(R1));
-        quad(bf("concrete"), P0(R1), P1(R1), [P1(R1)[0], y1+1.1, P1(R1)[2]], [P0(R1)[0], y0+1.1, P0(R1)[2]]);
-        quad(bf("soffit"), P0(R0), P1(R0), [P1(R0)[0], y1-.4, P1(R0)[2]], [P0(R0)[0], y0-.4, P0(R0)[2]]); }
+      const i = Math.floor((t + 0.5)*n/count), c = [P[i][0] + N[i][0]*(R1 + gap), P[i][1] + N[i][1]*(R1 + gap)];
+      const segs = Math.round(turns*per), ph = Math.atan2(-N[i][1], -N[i][0]);
+      const at = (q, r, y) => [c[0] + Math.cos(q)*r, y, c[1] + Math.sin(q)*r];
+      for (let s=0;s<segs;s++){ const q0 = ph + s/per*Math.PI*2, q1 = ph + (s+1)/per*Math.PI*2, y0 = h*s/segs, y1 = h*(s+1)/segs;
+        quad(bf("concrete"), at(q0,R0,y0), at(q1,R0,y1), at(q1,R1,y1), at(q0,R1,y0)); // the deck
+        quad(bf("soffit"), at(q0,R0,y0-.45), at(q0,R1,y0-.45), at(q1,R1,y1-.45), at(q1,R0,y1-.45));
+        for (const [r, hp, wall] of [[R1, 1.1, true], [R0, .95, true]]){ // parapets, outside and in, with a rail along the top
+          quad(bf("concrete"), at(q0,r,y0-.45), at(q1,r,y1-.45), at(q1,r,y1+hp), at(q0,r,y0+hp));
+          quad(bf("concrete"), at(q0,r,y0+hp), at(q1,r,y1+hp), at(q1,r - Math.sign(r - (R0+R1)/2)*.22,y1+hp), at(q0,r - Math.sign(r - (R0+R1)/2)*.22,y0+hp));
+          if (wall) quad(bf("steel"), at(q0,r,y0+hp+.25), at(q1,r,y1+hp+.25), at(q1,r,y1+hp+.31), at(q0,r,y0+hp+.31));
+          if (s % 4 === 0){ const p = at(q0, r, y0); post(bf("steel"), p[0], p[2], y0+hp, y0+hp+.31, .05); } } }
+      for (let k=0;k<12;k++){ const q = ph + k/12*Math.PI*2; // slim columns round both edges instead of a solid drum
+        for (const r of [R0 + .4, R1 - .4]){ const p = at(q, r, 0); post(bf("column"), p[0], p[2], 0, h, .45); } }
+      // a bridge to the stand each time the ramp comes round to face it
+      for (let k=1;k<=Math.floor(turns);k++){ const y = h*k/turns, a = at(ph, R1, y), b = [P[i][0] + N[i][0]*.2, y, P[i][1] + N[i][1]*.2];
+        const sd = [-N[i][1]*1.6, N[i][0]*1.6];
+        quad(bf("concrete"), [a[0]-sd[0],y,a[2]-sd[1]], [a[0]+sd[0],y,a[2]+sd[1]], [b[0]+sd[0],y,b[2]+sd[1]], [b[0]-sd[0],y,b[2]-sd[1]]);
+        quad(bf("soffit"), [a[0]-sd[0],y-.45,a[2]-sd[1]], [b[0]-sd[0],y-.45,b[2]-sd[1]], [b[0]+sd[0],y-.45,b[2]+sd[1]], [a[0]+sd[0],y-.45,a[2]+sd[1]]);
+        for (const sg of [-1, 1]){ const e = [sd[0]*sg, sd[1]*sg];
+          quad(bf("concrete"), [a[0]+e[0],y-.45,a[2]+e[1]], [b[0]+e[0],y-.45,b[2]+e[1]], [b[0]+e[0],y+1.05,b[2]+e[1]], [a[0]+e[0],y+1.05,a[2]+e[1]]); } }
       ext[0] = Math.max(ext[0], Math.abs(c[0]) + R1); ext[1] = Math.max(ext[1], Math.abs(c[1]) + R1); }
     top = Math.max(top, H + 2);
   }
-  // twin entrance towers on the main (north) side
+  /* Twin entrance towers on the main (north) side: tapered shafts with bands of windows and ribs up the corners, a
+     stepped top with a glass lantern and a mast, and a block joining each to the stand behind. */
   if (A.towers){
     let bi = 0; for (let i=0;i<n;i++) if (P[i][1] < P[bi][1] - 1e-6 || (Math.abs(P[i][1] - P[bi][1]) < 1e-6 && Math.abs(P[i][0]) < Math.abs(P[bi][0]))) bi = i;
-    const zc = P[bi][1] - 9, hT = H + 14;
+    const zc = P[bi][1] - 11, hT = H + 14, w0 = 10, w1 = 7;
+    // a square shaft from half-width a at y0 to half-width b at y1, round (x, z)
+    const shaft = (key, x, z, a, b, y0, y1, out) => { for (const [dx, dz] of [[1,0],[0,1],[-1,0],[0,-1]]){ const tx = -dz, tz = dx, o = out || 0;
+      const A0 = [x + dx*(a+o) - tx*a, y0, z + dz*(a+o) - tz*a], B0 = [x + dx*(a+o) + tx*a, y0, z + dz*(a+o) + tz*a];
+      const A1 = [x + dx*(b+o) - tx*b, y1, z + dz*(b+o) - tz*b], B1 = [x + dx*(b+o) + tx*b, y1, z + dz*(b+o) + tz*b];
+      quad(bf(key), A0, B0, B1, A1); }
+      quad(bf(key), [x-b,y1,z-b], [x+b,y1,z-b], [x+b,y1,z+b], [x-b,y1,z+b]); };
+    const wAt = y => w0/2 + (w1/2 - w0/2)*y/hT;
     for (const sx of [-1, 1]){ const x = sx*Math.max(14, (F.W/2)*0.35);
       if (poly && !inPoly([x, zc], poly)) continue;
-      post(bf("white"), x, zc, 0, hT, 9);
-      const drum = new THREE.Mesh(new THREE.CylinderGeometry(3.8, 4.2, 5, 20), M.white); drum.position.set(x, hT + 2.5, zc);
-      const dome = new THREE.Mesh(new THREE.SphereGeometry(3.8, 20, 12, 0, Math.PI*2, 0, Math.PI/2), M.concrete); dome.position.set(x, hT + 5, zc);
-      for (const o of [drum, dome]){ o.castShadow = true; o.userData.stadium = true; group.add(o); }
-      post(bf("steel"), x, zc, hT + 8, hT + 14, .2); ext[1] = Math.max(ext[1], Math.abs(zc) + 6); }
-    top = Math.max(top, H + 28);
+      shaft("white", x, zc, w0/2, w1/2, 0, hT);
+      for (let y = 4; y < hT - 2; y += 4.2) shaft("window", x, zc, wAt(y)*.86, wAt(y + 1.4)*.86, y, y + 1.4, wAt(y)*.15 + .04); // window bands
+      for (const [cx, cz] of [[1,1],[1,-1],[-1,1],[-1,-1]]){ const r0 = w0/2 + .15, r1 = w1/2 + .15; // ribs up the corners
+        quad(bf("concrete"), [x + cx*r0 - cx*.5, 0, zc + cz*r0], [x + cx*r0, 0, zc + cz*r0 - cz*.5], [x + cx*r1, hT, zc + cz*r1 - cz*.5], [x + cx*r1 - cx*.5, hT, zc + cz*r1]); }
+      shaft("concrete", x, zc, w1/2 + .5, w1/2 + .5, hT, hT + 1.2); shaft("white", x, zc, w1/2 - .4, w1/2 - .7, hT + 1.2, hT + 3.4);
+      shaft("glassClad", x, zc, w1/2 - 1.3, w1/2 - 1.3, hT + 3.4, hT + 6); shaft("roofEdge", x, zc, w1/2 - .9, w1/2 - .9, hT + 6, hT + 6.5);
+      post(bf("steel"), x, zc, hT + 6.5, hT + 13, .25);
+      const zb = P[bi][1] + 1, zf = zc + wAt(0)*.9; // the link back to the stand
+      if (zb > zf){ const lw = 2.4, lh = Math.min(hT*0.55, H - 1);
+        quad(bf("concrete"), [x-lw,0,zf], [x-lw,0,zb], [x-lw,lh,zb], [x-lw,lh,zf]); quad(bf("concrete"), [x+lw,0,zb], [x+lw,0,zf], [x+lw,lh,zf], [x+lw,lh,zb]);
+        quad(bf("roofEdge"), [x-lw,lh,zf], [x-lw,lh,zb], [x+lw,lh,zb], [x+lw,lh,zf]);
+        for (let y = 3; y < lh - 1; y += 4.2){ quad(bf("window"), [x-lw-.05,y,zf], [x-lw-.05,y,zb], [x-lw-.05,y+1.4,zb], [x-lw-.05,y+1.4,zf]); quad(bf("window"), [x+lw+.05,y,zb], [x+lw+.05,y,zf], [x+lw+.05,y+1.4,zf], [x+lw+.05,y+1.4,zb]); } }
+      ext[1] = Math.max(ext[1], Math.abs(zc) + 7); }
+    top = Math.max(top, H + 27);
   }
   // an arch over the main stand
   if (A.arch){
