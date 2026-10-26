@@ -151,6 +151,11 @@ details .inner{padding:4px 12px 12px;display:flex;flex-direction:column;gap:10px
 .breakdown{grid-column:1 / -1;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px 22px;align-items:start}
 .breakdown .bd-h{grid-column:1 / -1}
 .breakdown .bd[open]{grid-column:1 / -1}
+.bd.obs{grid-column:1 / -1}
+.obs-st{margin:8px 0 0}
+.obs-st ul{margin:4px 0 0;padding-left:16px;display:grid;gap:3px}
+.obs-st li{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.obs-st button{font-size:11.5px;padding:2px 8px}
 .bd{font-size:12.5px;border:0;border-radius:0;background:none}
 .bd > summary{display:grid;grid-template-columns:1fr auto;gap:2px 8px;cursor:pointer;list-style:none;padding:0;font-weight:400;font-size:12.5px}
 .bd > summary::after{content:none}

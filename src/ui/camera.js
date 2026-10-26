@@ -10,7 +10,7 @@ function setTip(){
   tipEl.classList.toggle("msg", !!(tipOverride || picking || look));
 }
 function setLook(on){
-  look = on; if (!on && crowdClear) clearCrowdNear(null);
+  look = on; if (!on && crowdClear) clearCrowdNear(null); if (!on) clearObsOutline();
   controls.enableZoom = !on; controls.enablePan = !on;
   controls.rotateSpeed = on ? -0.35 : 1;
   controls.maxPolarAngle = on ? Math.PI*0.8 : Math.PI*0.49;
@@ -65,6 +65,7 @@ function moveCam(p, t, instant){
   anim = {p0:camera.position.clone(), t0:controls.target.clone(), p, t, start:performance.now()}; wake();
 }
 function goCam(mode, instant){
+  clearObsOutline();
   picking = mode === "seat"; tipOverride = null;
   view.classList.toggle("picking", picking);
   camMode = mode;
@@ -229,6 +230,34 @@ function seatView(h, standing, instant){
   const f = LAST.F.home || [0,0], p = new THREE.Vector3(h.x, h.y + (standing ? 1.65 : 1.2), h.z);
   const aim = new THREE.Vector3(f[0], focusY + 1, f[1]).sub(p).normalize().multiplyScalar(0.5);
   picking = false; view.classList.remove("picking"); setLook(true); clearCrowdNear([h.x, h.y + 1, h.z]); moveCam(p, p.clone().add(aim), instant); setTip();
+  seatObstruction(h);
+}
+/* In a seat with a restricted view: say so, and outline what's in the way in yellow until the camera moves on. */
+var obsOutline = null; // var: setLook can clear it before this line has run
+function clearObsOutline(){ if (obsOutline){ obsOutline.parent && obsOutline.parent.remove(obsOutline); obsOutline.geometry.dispose(); obsOutline = null; } }
+function seatObstruction(h){
+  clearObsOutline(); const O = LAST && LAST.obstructed; if (!O) return;
+  let best = null, bd = 5; for (const b of O.blocks){ const d = Math.hypot(b.x - h.x, b.z - h.z, (b.y - h.y - 1.2)*.5); if (d < bd){ bd = d; best = b; } }
+  if (!best) return;
+  toast(`<b>${best.sev === 2 ? "Badly restricted view" : "Restricted view"}:</b> this seat is ${VIEW_CAUSES[best.cause]}, so part of the play is hidden. It's outlined in yellow.`);
+  const w = best.blocker, pts = []; if (!w) return;
+  const box = (x0, y0, z0, x1, y1, z1) => { const c = [[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1],[x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1]];
+    for (const [a, b] of [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]]) pts.push(...c[a], ...c[b]); };
+  if (w.post){ const p = w.post, r = Math.max(.4, p.r); box(p.x - r, p.y0, p.z - r, p.x + r, Math.min(p.y1, h.y + 40), p.z + r); }
+  else if (w.edge){ const o = w.edge.o[w.i], v = w.edge.v[w.i], vl = Math.hypot(v[0], v[1]) || 1, t = [-v[1]/vl*8, v[0]/vl*8], c = [o[0] + v[0]*w.q, o[1] + v[1]*w.q];
+    pts.push(c[0] - t[0], w.y, c[1] - t[1], c[0] + t[0], w.y, c[1] + t[1], c[0] - t[0], w.y - .3, c[1] - t[1], c[0] + t[0], w.y - .3, c[1] + t[1]); }
+  else if (w.a){ const y0 = w.wall ? w.wall.y0 : 0, y1 = w.wall ? w.wall.y1 : w.a[1];
+    pts.push(w.a[0], y0, w.a[2], w.b[0], y0, w.b[2], w.a[0], y1, w.a[2], w.b[0], y1, w.b[2], w.a[0], y0, w.a[2], w.a[0], y1, w.a[2], w.b[0], y0, w.b[2], w.b[0], y1, w.b[2]); }
+  if (!pts.length) return;
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+  obsOutline = new THREE.LineSegments(g, new THREE.LineBasicMaterial({color:0xffd400, depthTest:false, transparent:true}));
+  obsOutline.renderOrder = 20; scene.add(obsOutline); wake();
+}
+/* "Show me" for restricted views: from over the play, looking at the spot in the stand. */
+function showObstructedAt(at){
+  clearObsOutline(); if (camMode === "seat" || look) goCam("aerial", true);
+  const d = Math.hypot(at[0], at[2]) || 1, out = [at[0]/d, at[2]/d], back = Math.min(60, d*.7);
+  moveCam(new THREE.Vector3(at[0] - out[0]*back, at[1] + 28, at[2] - out[1]*back), new THREE.Vector3(at[0], at[1], at[2]));
 }
 /* Which stand is under a point: the region whose seating slice lies nearest. */
 function standAt(p){

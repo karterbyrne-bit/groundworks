@@ -47,6 +47,29 @@ function skinTexture(kind){
   else { g.fillStyle = "#7fa9bf"; g.fillRect(0,0,256,256); g.fillStyle = "rgba(255,255,255,.35)"; g.fillRect(0,0,256,40); g.fillStyle = "#2f3a40"; g.fillRect(0,0,6,256); g.fillRect(0,0,256,6); g.fillRect(0,128,256,4); }
   const t = canvasTex(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.keep = true; return (skinTex[kind] = t);
 }
+/* Where the arch (or arches) goes: each span with its line across the ground, its lean and rise, the centre line C(u) from
+   one foot (u = 0) to the other (u = 1), and its thickness. Shared by the drawing and the check on obstructed views. */
+function archSpans(A, F, set, sext, H, standInfo){
+  if (!A || !A.arch) return [];
+  const at = A.archAt || "main", dN = standInfo.N ? standInfo.N.depth : 20, spans = [];
+  if (at === "main"){ const span = Math.max(60, 2*sext[0] + 20); spans.push({a:[-span/2, -(F.H/2 + set + dN*0.55)], span, lean:18*Math.PI/180, out:[0, -1], rise:Math.max(H*2.2, span*0.36)}); }
+  else { const ex = sext[0] + 12, ez = sext[1] + 12, span = 2*Math.hypot(ex, ez), rise = Math.max(H*2, span*0.3);
+    spans.push({a:[-ex, -ez], b:[ex, ez], span, lean:0, rise});
+    if (at === "cross") spans.push({a:[-ex, ez], b:[ex, -ez], span, lean:0, rise:rise*1.07}); } // the second a little higher, so they pass
+  for (const sp of spans){ const b = sp.b || [sp.a[0] + sp.span, sp.a[1]], out = sp.out || [0, 0]; sp.dx = (b[0] - sp.a[0])/sp.span; sp.dz = (b[1] - sp.a[1])/sp.span; sp.r0 = Math.max(2.4, sp.span*0.011);
+    sp.C = u => { const y = sp.rise*Math.pow(Math.max(0, 1 - Math.pow(2*u - 1, 2)), 0.85);
+      return new THREE.Vector3(sp.a[0] + sp.dx*sp.span*u + out[0]*y*Math.sin(sp.lean), y*Math.cos(sp.lean), sp.a[1] + sp.dz*sp.span*u + out[1]*y*Math.sin(sp.lean)); }; }
+  return spans;
+}
+/* Where signature masts stand, [x, z] each, with the mast height (see Masts and cables below). */
+function sigMastSpots(A, F, set, sext, H, poly){
+  if (!A || (A.masts !== "corners" && A.masts !== "main")) return {spots: [], hm: 0};
+  const fx = F.W/2 + set, hm = Math.max(H*2.3, H + 32), out = [];
+  const inside = (x, z) => { if (!poly) return [x, z]; for (let k=0;k<20 && !inPoly([x, z], poly);k++){ x *= .95; z *= .95; } return [x, z]; };
+  if (A.masts === "corners") for (const [sx, sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]) out.push([...inside(sx*(sext[0] + 8), sz*(sext[1] + 8)), sx, sz]);
+  else { const count = fx > 70 ? 5 : 4, z = -(sext[1] + 8); for (let k=0;k<count;k++) out.push([...inside(-fx*.75 + 1.5*fx*k/(count - 1), z), 0, 0]); }
+  return {spots: out, hm};
+}
 /* Statues outside the main entrance: up to four generic bronze figures on stone plinths, each in its own pose (arms raised
    in triumph, pointing, striding onto a ball, hands on hips). Nobody in particular. All of them one merged mesh. */
 function addStatues(n, bounds, poly, bf){
@@ -192,17 +215,10 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
      back, as Wembley's does), diagonally across the whole ground, or two arches crossing. A soft glow runs along it at
      night. Every member of every arch goes into one merged mesh, so it's a single draw for a phone however much steel. */
   if (A.arch){
-    const at = A.archAt || "main", dN = standInfo.N ? standInfo.N.depth : 20, spans = [];
-    if (at === "main"){ const span = Math.max(60, 2*sext[0] + 20); spans.push({a:[-span/2, -(F.H/2 + set + dN*0.55)], span, lean:18*Math.PI/180, out:[0, -1], rise:Math.max(H*2.2, span*0.36)}); }
-    else { const ex = sext[0] + 12, ez = sext[1] + 12, span = 2*Math.hypot(ex, ez), rise = Math.max(H*2, span*0.3);
-      spans.push({a:[-ex, -ez], b:[ex, ez], span, lean:0, rise});
-      if (at === "cross") spans.push({a:[-ex, ez], b:[ex, -ez], span, lean:0, rise:rise*1.07}); } // the second a little higher, so they pass
+    const at = A.archAt || "main", spans = archSpans(A, F, set, sext, H, standInfo);
     const steel = [], cables = [], glow = [], fx = F.W/2 + set, fz = F.H/2 + set;
     for (const sp of spans){
-      const b = sp.b || [sp.a[0] + sp.span, sp.a[1]], dx = (b[0] - sp.a[0])/sp.span, dz = (b[1] - sp.a[1])/sp.span, out = sp.out || [0, 0];
-      const C = u => { const y = sp.rise*Math.pow(Math.max(0, 1 - Math.pow(2*u - 1, 2)), 0.85);
-        return new THREE.Vector3(sp.a[0] + dx*sp.span*u + out[0]*y*Math.sin(sp.lean), y*Math.cos(sp.lean), sp.a[1] + dz*sp.span*u + out[1]*y*Math.sin(sp.lean)); };
-      const r0 = Math.max(2.4, sp.span*0.011), radius = u => r0*(1 - 0.32*C(u).y/sp.rise), K = 6, Mseg = 64, rings = [];
+      const {dx, dz, C} = sp, r0 = sp.r0; radius = u => r0*(1 - 0.32*C(u).y/sp.rise), K = 6, Mseg = 64, rings = [];
       for (let m=0;m<=Mseg;m++){ const u = .02 + .96*m/Mseg, p = C(u), tng = C(Math.min(1, u + .004)).sub(C(Math.max(0, u - .004))).normalize();
         const side = new THREE.Vector3().crossVectors(tng, new THREE.Vector3(0, 1, 0)).normalize(), nrm = new THREE.Vector3().crossVectors(side, tng).normalize(), r = radius(u);
         rings.push({p, tng, pts: Array.from({length: K}, (_, k) => p.clone().addScaledVector(side, Math.cos(k/K*Math.PI*2)*r).addScaledVector(nrm, Math.sin(k/K*Math.PI*2)*r))}); }
@@ -230,20 +246,16 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
      from the mast tops to the roofs' front edges, with a backstay down to the ground behind each. Four at the corners, or
      a row along the back of the main stand. The tips carry a lamp that shows at night. */
   if (A.masts === "corners" || A.masts === "main"){
-    const fx = F.W/2 + set, fz = F.H/2 + set, hm = Math.max(H*2.3, H + 32), yF = Math.max(4, H*0.92), mastL = [], cab = [], v3 = (x, y, z) => new THREE.Vector3(x, y, z);
-    const inside = (x, z) => { if (!poly) return [x, z]; for (let k=0;k<20 && !inPoly([x, z], poly);k++){ x *= .95; z *= .95; } return [x, z]; }; // kept on the plot
+    const fx = F.W/2 + set, fz = F.H/2 + set, {spots, hm} = sigMastSpots(A, F, set, sext, H, poly), yF = Math.max(4, H*0.92), mastL = [], cab = [], v3 = (x, y, z) => new THREE.Vector3(x, y, z);
     const mast = (x, z, targets, stay) => { const t = v3(x, hm*.97, z);
       mastL.push([v3(x, 0, z), v3(x, hm*.45, z), 1.5], [v3(x, hm*.45, z), v3(x, hm*.8, z), 1.15], [v3(x, hm*.8, z), v3(x, hm, z), .8]); // tapering in three lengths
       for (const [tx, tz] of targets) cab.push([t, v3(tx, yF, tz), .12]);
       cab.push([t, v3(stay[0], 0, stay[1]), .16]); post(bf("concrete"), stay[0], stay[1], 0, .8, 2.2); // the backstay and its anchor block
       post(bf("lamp"), x, z, hm, hm + 1.4, 1.1); post(bf("steel"), x, z, hm + 1.4, hm + 4, .15);
       ext[0] = Math.max(ext[0], Math.abs(x) + 3); ext[1] = Math.max(ext[1], Math.abs(z) + 3); };
-    if (A.masts === "corners") for (const [sx, sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]){
-      const [x, z] = inside(sx*(sext[0] + 8), sz*(sext[1] + 8));
-      mast(x, z, [[sx*fx*.85, sz*fz], [sx*fx*.6, sz*fz], [sx*fx*.35, sz*fz], [sx*fx, sz*fz*.8], [sx*fx, sz*fz*.5]], [x + sx*hm*.32, z + sz*hm*.32]); }
-    else { const count = fx > 70 ? 5 : 4, z = -(sext[1] + 8);
-      for (let k=0;k<count;k++){ const [x, zz] = inside(-fx*.75 + 1.5*fx*k/(count - 1), z);
-        mast(x, zz, [[x - 7, -fz], [x + 7, -fz]], [x, zz - hm*.4]); } }
+    for (const [x, z, sx, sz] of spots){ // four at the corners, or a row behind the main stand
+      if (A.masts === "corners") mast(x, z, [[sx*fx*.85, sz*fz], [sx*fx*.6, sz*fz], [sx*fx*.35, sz*fz], [sx*fx, sz*fz*.8], [sx*fx, sz*fz*.5]], [x + sx*hm*.32, z + sz*hm*.32]);
+      else mast(x, z, [[x - 7, -fz], [x + 7, -fz]], [x, z - hm*.4]); }
     for (const [list, mat, sides] of [[mastL, M.mast, 12], [cab, M.cable, 8]]){ const mesh = tubesMesh(list, sides, mat); mesh.castShadow = true; mesh.userData.stadium = true; group.add(mesh); }
     top = Math.max(top, hm + 4);
   }
