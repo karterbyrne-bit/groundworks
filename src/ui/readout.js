@@ -201,7 +201,6 @@ function architectNotes(D){
   else if (AR.skin && AR.skin !== "none"){ const allOld = eras.size === 1 && eras.has("Traditional"); looks += allOld ? .5 : 1.5;
     note(allOld ? "tip" : "good", allOld ? "The outer skin hides all that lovely old brick. Is that what you want?" : styles.size >= 3 ? "The outer skin pulls a mixed set of stands into one building." : "The outer skin turns the ground into one clean object, the way the Allianz Arena's does.", null, null, 1.6); }
   else if (AR.ramps){ looks += tall ? 1.5 : .5; note(tall ? "good" : "tip", tall ? "The spiral ramps are pure San Siro, and a ground this tall carries them well." : "Spiral ramps on a ground this low are mostly for show. San Siro needed them; this doesn't.", null, null, 1.6); }
-  else if (AR.masts === "corners" || AR.masts === "main"){ looks += 1; note("good", "The masts and cables give it a skyline, as the four masts do at Cardiff's Principality Stadium.", null, null, 1.6); }
   else if (AR.towers){ looks += 1; note("good", "The entrance towers give the street something to look up at.", null, null, 1.4); }
   sc.looks = clamp10(looks);
   // getting in and out
@@ -245,7 +244,7 @@ function architectNotes(D){
     [sc.atmosphere, `the atmosphere: fans ${Math.round(near)} m from the play${corners === 4 ? " with every corner filled" : ""}`, near > 14 ? `the atmosphere: the stands sit ${Math.round(near)} m back and the noise drifts off` : `the atmosphere: ${4 - corners} open corner${4 - corners === 1 ? "" : "s"} let the noise out`],
     [sc.views, `the views: ${D.restricted ? "hardly a seat" : "not one seat"} behind anything, and nobody further than ${Math.round(D.far)} m from the far corner`, rPct > 2 ? `the views: ${rPct.toFixed(1)}% of seats are restricted` : cMM < L.minC ? "the views: some fans can't see over the heads in front" : `the views: the back rows are ${Math.round(D.far)} m from the far corner`],
     [sc.comfort, `the shelter: ${Math.round(cover*100)}% of fans are under a roof`, `the shelter: only ${Math.round(cover*100)}% of fans are under a roof`],
-    [sc.looks, AR.arch || AR.ramps || (AR.skin && AR.skin !== "none") || AR.masts ? "the looks: a skyline you'd know from a mile off" : "the looks: a handsome, well-dressed ground", lopsided ? `the looks: the roofline lurches from ${Math.round(lopsided[0])} m to ${Math.round(lopsided[1])} m` : plainShare > .5 ? "the looks: from the street it's mostly plain walls" : "the looks: nothing catches the eye from the street"],
+    [sc.looks, AR.arch || AR.ramps || (AR.skin && AR.skin !== "none") ? "the looks: a skyline you'd know from a mile off" : "the looks: a handsome, well-dressed ground", lopsided ? `the looks: the roofline lurches from ${Math.round(lopsided[0])} m to ${Math.round(lopsided[1])} m` : plainShare > .5 ? "the looks: from the street it's mostly plain walls" : "the looks: nothing catches the eye from the street"],
     [sc.access, `getting out: ${evacTxt}`, em ? "getting out: the emergency evacuation is too slow" : `getting in and out: the slowest stand takes ${evac.toFixed(1)} minutes to empty`]];
   const ranked = feats.slice().sort((a, b) => b[0] - a[0]), bestStand = stands.slice().sort((a, b) => b.score - a.score)[0], worstStand = stands.slice().sort((a, b) => a.score - b.score)[0];
   let best = ranked[0][1], worst = ranked[ranked.length - 1][2];

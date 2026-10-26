@@ -1196,7 +1196,6 @@ function build(){
   { const A = S.arch || {}, H = Math.max(8, outerTop), fm = floodMode();
     if (fm === "masts" || fm === "pylons"){ const roundish = F.r >= Math.min(F.W, F.H)/2 - 1, a = Math.PI/6, mh = Math.max(maxH + 16, 30);
       for (const sx of [-1,1]) for (const sz of [-1,1]) viewPosts.push({x: roundish ? sx*(sext[0] + 8)*Math.cos(a) : sx*(sext[0] + 8), z: roundish ? sz*(sext[1] + 8)*Math.sin(a) : sz*(sext[1] + 8), r: fm === "pylons" ? 3 : 1, y0:0, y1:mh + 4, cause:"mast"}); }
-    if (!CV) for (const [x, z] of sigMastSpots(A, F, set, sext, H, poly).spots) viewPosts.push({x, z, r:1.5, y0:0, y1:200, cause:"mast"});
     for (const sp of archSpans(A, F, set, sext, H, standInfo)) for (const u of [.02, .98]){ const c = sp.C(u), c2 = sp.C(u < .5 ? .07 : .93); viewPosts.push({x:c.x, z:c.z, r:sp.r0*1.5, y0:0, y1:c2.y, cause:"arch"}); }
     for (const p of screenPlans) if (p.kind === "board"){ const px = -p.n[1]*p.w/2, pz = p.n[0]*p.w/2; viewWalls.push({a:[p.x - px, p.z - pz], b:[p.x + px, p.z + pz], y0:p.y - p.h/2, y1:p.y + p.h/2, cause:"screen"}); }
     const OV = obstructedViews(allRecs, F, viewPosts, viewWalls, boardsOn ? {hx: FP.W/2 + offX, hz: FP.H/2 + offZ, h: bH} : null);

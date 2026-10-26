@@ -61,15 +61,6 @@ function archSpans(A, F, set, sext, H, standInfo){
       return new THREE.Vector3(sp.a[0] + sp.dx*sp.span*u + out[0]*y*Math.sin(sp.lean), y*Math.cos(sp.lean), sp.a[1] + sp.dz*sp.span*u + out[1]*y*Math.sin(sp.lean)); }; }
   return spans;
 }
-/* Where signature masts stand, [x, z] each, with the mast height (see Masts and cables below). */
-function sigMastSpots(A, F, set, sext, H, poly){
-  if (!A || (A.masts !== "corners" && A.masts !== "main")) return {spots: [], hm: 0};
-  const fx = F.W/2 + set, hm = Math.max(H*2.3, H + 32), out = [];
-  const inside = (x, z) => { if (!poly) return [x, z]; for (let k=0;k<20 && !inPoly([x, z], poly);k++){ x *= .95; z *= .95; } return [x, z]; };
-  if (A.masts === "corners") for (const [sx, sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]) out.push([...inside(sx*(sext[0] + 8), sz*(sext[1] + 8)), sx, sz]);
-  else { const count = fx > 70 ? 5 : 4, z = -(sext[1] + 8); for (let k=0;k<count;k++) out.push([...inside(-fx*.75 + 1.5*fx*k/(count - 1), z), 0, 0]); }
-  return {spots: out, hm};
-}
 /* Statues outside the main entrance: up to four generic bronze figures on stone plinths, each in its own pose (arms raised
    in triumph, pointing, striding onto a ball, hands on hips). Nobody in particular. All of them one merged mesh. */
 function addStatues(n, bounds, poly, bf){
@@ -250,23 +241,6 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
       top = Math.max(top, sp.rise*Math.cos(sp.lean) + r0); }
     for (const [list, mat, sides] of [[steel, M.steel, 6], [cables, M.cable, 8], [glow, M.archGlow, 8]]) if (list.length){
       const mesh = tubesMesh(list, sides, mat); mesh.castShadow = mat !== M.archGlow; mesh.userData.stadium = true; group.add(mesh); }
-  }
-  /* Masts and cables, like Cardiff's Principality Stadium: tall steel masts holding the roofs up on round cables that run
-     from the mast tops to the roofs' front edges, with a backstay down to the ground behind each. Four at the corners, or
-     a row along the back of the main stand. The tips carry a lamp that shows at night. */
-  if (A.masts === "corners" || A.masts === "main"){
-    const fx = F.W/2 + set, fz = F.H/2 + set, {spots, hm} = sigMastSpots(A, F, set, sext, H, poly), yF = Math.max(4, H*0.92), mastL = [], cab = [], v3 = (x, y, z) => new THREE.Vector3(x, y, z);
-    const mast = (x, z, targets, stay) => { const t = v3(x, hm*.97, z);
-      mastL.push([v3(x, 0, z), v3(x, hm*.45, z), 1.5], [v3(x, hm*.45, z), v3(x, hm*.8, z), 1.15], [v3(x, hm*.8, z), v3(x, hm, z), .8]); // tapering in three lengths
-      for (const [tx, tz] of targets){ const q = roofFrontNear(anchors, tx, tz, 30); cab.push([t, q ? v3(q[0], q[1], q[2]) : v3(tx, yF, tz), .12]); } // down onto the roof's front edge
-      cab.push([t, v3(stay[0], 0, stay[1]), .16]); post(bf("concrete"), stay[0], stay[1], 0, .8, 2.2); // the backstay and its anchor block
-      post(bf("lamp"), x, z, hm, hm + 1.4, 1.1); post(bf("steel"), x, z, hm + 1.4, hm + 4, .15);
-      ext[0] = Math.max(ext[0], Math.abs(x) + 3); ext[1] = Math.max(ext[1], Math.abs(z) + 3); };
-    for (const [x, z, sx, sz] of spots){ // four at the corners, or a row behind the main stand
-      if (A.masts === "corners") mast(x, z, [[sx*fx*.85, sz*fz], [sx*fx*.6, sz*fz], [sx*fx*.35, sz*fz], [sx*fx, sz*fz*.8], [sx*fx, sz*fz*.5]], [x + sx*hm*.32, z + sz*hm*.32]);
-      else mast(x, z, [[x - 7, -fz], [x + 7, -fz]], [x, z - hm*.4]); }
-    for (const [list, mat, sides] of [[mastL, M.mast, 12], [cab, M.cable, 8]]){ const mesh = tubesMesh(list, sides, mat); mesh.castShadow = true; mesh.userData.stadium = true; group.add(mesh); }
-    top = Math.max(top, hm + 4);
   }
   return top;
 }
