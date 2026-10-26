@@ -207,6 +207,7 @@ table.tiers .lo{color:var(--bad, #c0392b);font-weight:600}
 .summary{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;font-size:12.5px;color:var(--muted);padding:8px 10px;border-radius:8px;background:var(--sunk);font-variant-numeric:tabular-nums}
 .summary b{color:var(--ink);font-size:13.5px;margin-right:4px}
 .row.pair .note{grid-column:1 / -1;color:var(--muted);font-size:11.5px;margin-top:-2px}
+.row.pair .note .cut{color:var(--bad)}
 .cornerbox{border:1px solid var(--line);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px}
 details.sub{background:var(--paper)}
 .saverow{display:flex;gap:6px;flex-wrap:wrap}

@@ -233,6 +233,10 @@ function refreshOutputs(){
     const v = tr.auto ? (info && info[k] ? info[k] : 0) : tr.rake, over = v > lim + 0.05;
     rk.textContent = (tr.auto ? (v ? "up to " + Math.round(v) + "°" : "auto") : tr.rake + "°") + (over ? " · over " + lim + "°" : "");
     rk.classList.toggle("over", over);
+    // rows the plot leaves off: say so under the rows, or adding rows looks like it does nothing
+    const rowsIn = $("editor").querySelector(`input[type=range][data-p$="tiers.${k}.rows"]`), note = rowsIn && rowsIn.closest(".pair").querySelector(".note");
+    if (note){ const c = LAST && LAST.cutInfo && LAST.cutInfo[tab] && LAST.cutInfo[tab][k], word = tr.type === "terrace" ? "steps" : "rows";
+      note.innerHTML = (tr.rows*S.types[tr.type].row).toFixed(1) + " m deep" + (c && c.fit < c.want ? ` · <span class="cut">Only ${c.fit} of ${c.want} ${word} fit ${LAST.poly ? "inside the plot" : "clear of the surroundings"}</span>` : ""); }
   });
 }
 function applyStyle(cfg, key, ring){
