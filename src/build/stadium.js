@@ -1260,7 +1260,7 @@ function build(){
   if (!DRY) drawNeighbourhood(poly, ext.slice(), site, buf2);
   if (!DRY && S.halo) addHalo(anchors, buf2);
   if (!DRY && S.statues > 0) addStatues(Math.min(4, S.statues | 0), bounds, poly, buf2);
-  const archTop = addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, buf2, ext);
+  const archTop = addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, buf2, ext, anchors);
   result.maxH = Math.max(result.maxH, archTop);
   if (window.__gwCheck){ let bad = 0; for (const k in B2) for (const v of B2[k]) if (!isFinite(v)) bad++; group.traverse(o => { const a = o.geometry && o.geometry.attributes && o.geometry.attributes.position; if (a && a.array) for (const v of a.array) if (!isFinite(v)) bad++; }); result.archNan = bad; }
   const fm = floodMode();
