@@ -102,6 +102,47 @@ $("shareBtn").addEventListener("click", async () => {
   try { await navigator.clipboard.writeText(url); toast(`<b>Link copied.</b> Anyone who opens it gets this exact stadium.`); }
   catch(e) { $("codeBox").value = url; showPane("start"); $("codeBox").closest("details").open = true; toast("<b>Copy the link from the box</b> under Share as a design code."); }
 });
+/* Save as image: a clean picture of the 3D view (none of the buttons over it), at least 1600 pixels wide and drawn at the
+   best settings, big soft shadows and ambient occlusion, even on a phone, with a caption bar along the bottom. */
+async function stadiumImage(){
+  const vw = view.clientWidth || 1200, vh = view.clientHeight || 800, w = Math.max(1600, Math.round(vw*renderer.getPixelRatio())), h = Math.round(w*vh/vw);
+  const keep = {pr:renderer.getPixelRatio(), map:sun.shadow.mapSize.clone(), radius:sun.shadow.radius, ol:ortho.left, or:ortho.right, aoOff:AO && AO.off};
+  const freshShadows = () => { if (sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map = null; } renderer.shadowMap.needsUpdate = true; };
+  const pic = document.createElement("canvas"), cap = Math.round(w*0.05); pic.width = w; pic.height = h + cap; const g = pic.getContext("2d");
+  try {
+    renderer.setPixelRatio(1); renderer.setSize(w, h, false); persp.aspect = w/h; persp.updateProjectionMatrix();
+    const oh = (ortho.top - ortho.bottom)/2; ortho.left = -oh*w/h; ortho.right = oh*w/h; ortho.updateProjectionMatrix();
+    sun.shadow.mapSize.set(4096, 4096); sun.shadow.radius = 4; freshShadows();
+    if (AO && camera === persp){ AO.gtao.setSize(w, h); drawAO(); } else renderer.render(scene, camera);
+    g.drawImage(renderer.domElement, 0, 0, w, h); // straight after drawing, while the picture is still there to copy
+  } finally {
+    renderer.setPixelRatio(keep.pr); sun.shadow.mapSize.copy(keep.map); sun.shadow.radius = keep.radius; freshShadows();
+    ortho.left = keep.ol; ortho.right = keep.or; ortho.updateProjectionMatrix(); if (AO) AO.off = keep.aoOff; resize(); }
+  // the caption: the ground's name (or My stadium), its capacity, and a small credit with the site's address
+  const site = /^https?:/.test(location.protocol) ? (location.host + location.pathname.replace(/index\.html$/, "")).replace(/\/$/, "") : "Groundworks";
+  const name = (sponsorsOf().title || "My stadium").toUpperCase(), y = h + cap/2;
+  g.fillStyle = "#111714"; g.fillRect(0, h, w, cap); g.textBaseline = "middle";
+  g.font = `800 ${Math.round(cap*.5)}px 'Big Shoulders Display', 'Arial Narrow', sans-serif`; g.fillStyle = "#ffffff"; g.fillText(name, cap*.45, y);
+  const nw = g.measureText(name).width;
+  g.font = `500 ${Math.round(cap*.32)}px 'IBM Plex Sans', sans-serif`; g.fillStyle = "#cfd8d2"; g.fillText(`${fmt(LAST.total)} capacity`, cap*.45 + nw + cap*.5, y);
+  g.textAlign = "right"; g.font = `400 ${Math.round(cap*.24)}px 'IBM Plex Mono', monospace`; g.fillStyle = "#9fb0a6"; g.fillText(`Made with Groundworks · ${site}`, w - cap*.45, y);
+  return new Promise((res, rej) => pic.toBlob(b => b ? res(b) : rej(new Error("no image")), "image/png"));
+}
+/* Phones get the share sheet with the picture where they can; everything else downloads it. */
+async function saveImage(btn){
+  if (!LAST) return; btn.disabled = true;
+  try {
+    const blob = await stadiumImage(), fname = ((sponsorsOf().title || "my stadium").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "my-stadium") + ".png";
+    const file = new File([blob], fname, {type:"image/png"});
+    if (navigator.canShare && matchMedia("(pointer:coarse)").matches && navigator.canShare({files:[file]})){
+      try { await navigator.share({files:[file], title: sponsorsOf().title || "My Groundworks stadium"}); return; } catch(e) { if (e && e.name === "AbortError") return; } }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = fname; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    toast("<b>Picture saved.</b> Look for it in your downloads.");
+  } catch(e) { toast("<b>Couldn't make the picture.</b> Try again, or take a screenshot instead."); }
+  finally { btn.disabled = false; }
+}
+document.querySelectorAll("[data-saveimage]").forEach(b => b.addEventListener("click", () => saveImage(b)));
 async function openFromLink(){
   const m = location.hash.match(/^#d=([zj][A-Za-z0-9_-]+)$/); if (!m) return false;
   history.replaceState(null, "", location.pathname + location.search);

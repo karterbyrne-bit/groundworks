@@ -233,6 +233,10 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check((await cap()) < unboxed, "a stand is cut back to clear a building");
   await page.click('#panes [data-pane="start"]');
 
+  // Save as image: a PNG of the view, at least 1600 pixels wide, with no errors (desktop downloads it)
+  if (name === "desktop"){ const dl = page.waitForEvent("download"); await page.click("#imageBtn"); const d = await dl;
+    const png = readFileSync(await d.path()), wide = png.length > 24 ? png.readUInt32BE(16) : 0;
+    check(png.slice(1, 4).toString() === "PNG" && wide >= 1600 && /\.png$/.test(d.suggestedFilename()) && errors.length === 0, `Save as image makes a picture (${wide} pixels wide)`); }
   const beforeRandom = await page.evaluate(() => JSON.stringify(window.__gw.state()));
   await page.click("#randomBtn"); await page.waitForTimeout(300);
   check((await cap()) > 0, "Surprise me builds a stadium");
