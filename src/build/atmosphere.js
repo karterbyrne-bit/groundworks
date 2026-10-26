@@ -193,7 +193,7 @@ function skyTexture(night){
   else if (dusk){ gr.addColorStop(0, "#2f4f86"); gr.addColorStop(0.5, "#8a8fb8"); gr.addColorStop(0.82, "#f0a878"); gr.addColorStop(1, "#ffd59a"); }
   else { gr.addColorStop(0, "#4f86c6"); gr.addColorStop(0.5, "#8fb6dd"); gr.addColorStop(0.85, "#cddff0"); gr.addColorStop(1, "#e4ecf0"); }
   g.fillStyle = gr; g.fillRect(0, 0, 4, 512);
-  const t = new THREE.CanvasTexture(c); t.keep = true; return (sceneryTex[k] = t);
+  const t = canvasTex(c); t.keep = true; return (sceneryTex[k] = t);
 }
 function grassTexture(){
   if (sceneryTex.grass) return sceneryTex.grass;
@@ -201,7 +201,7 @@ function grassTexture(){
   let seed = 11; const rnd = () => { seed = (seed*16807) % 2147483647; return seed/2147483647; };
   g.fillStyle = "#cfd8c4"; g.fillRect(0, 0, N, N);
   for (let i=0;i<9000;i++){ const v = 180 + Math.floor(rnd()*60); g.fillStyle = `rgb(${v-14},${v},${v-24})`; g.fillRect(rnd()*N, rnd()*N, 2, 2); }
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(600, 600); t.keep = true; return (sceneryTex.grass = t);
+  const t = canvasTex(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(600, 600); t.keep = true; return (sceneryTex.grass = t);
 }
 function setGroundMap(map){ if (groundMat.map !== map){ groundMat.map = map; groundMat.needsUpdate = true; } }
 function fogReach(){ const real = S && S.scenery !== "model" && camera !== ortho; FOG.near = real ? 650 : 1e5; FOG.far = real ? 3200 : 2e5; }
@@ -213,7 +213,8 @@ function plainScenery(){ setGroundMap(null); fogReach(); }
 /* Day or night, and whether roofs can be seen through. */
 function applyMood(){
   const night = !!S.night;
-  hemi.intensity = night ? 0.16 : 0.75; sun.intensity = night ? 0.06 : 0.9; fill.intensity = night ? 0.04 : 0.25;
+  hemi.intensity = night ? LUX.nightHemi : LUX.hemi; sun.intensity = night ? LUX.nightSun : LUX.sun; fill.intensity = night ? LUX.nightFill : LUX.fill;
+  scene.environmentIntensity = night ? LUX.nightEnv : LUX.env;
   /* The sun's place in the sky from the time of day: up in the east in the morning, high at lunchtime, low and golden in
      the evening, with long shadows. Without a time set it stays where it always was. */
   sun.color.set(0xffffff); hemi.color.set(0xffffff);
@@ -221,7 +222,7 @@ function applyMood(){
   else { const hr = S.hour, elD = Math.max(3, 62*Math.sin(Math.PI*(hr - 5.5)/15)), el = elD*Math.PI/180, az = Math.PI*(hr - 6)/14, R = 320;
     sun.position.set(R*Math.cos(el)*Math.cos(az), R*Math.sin(el), R*Math.cos(el)*Math.sin(az));
     const warm = Math.max(0, Math.min(1, (22 - elD)/18)); sun.color.lerp(new THREE.Color(0xffa860), warm); hemi.color.lerp(new THREE.Color(0xffd2a8), warm*0.5);
-    sun.intensity = 0.9 - 0.3*warm; hemi.intensity = 0.75 - 0.2*warm; }
+    sun.intensity = lerp(LUX.sun, LUX.eveSun, warm); hemi.intensity = lerp(LUX.hemi, LUX.eveHemi, warm); scene.environmentIntensity = lerp(LUX.env, LUX.eveEnv, warm); }
   M.lamp.emissiveIntensity = night ? 2.2 : 0.9; M.band.emissive.set(night ? 0xffc46b : 0x000000); M.band.emissiveIntensity = night ? 0.55 : 0;
   M.board.emissiveIntensity = night ? 1.6 : 0.8; M.screen.emissiveIntensity = night ? 1.4 : 0.7;
   M.window.emissive.set(night ? 0xffc77a : 0x000000); M.window.emissiveIntensity = night ? 0.6 : 0;

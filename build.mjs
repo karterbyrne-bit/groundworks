@@ -2,7 +2,7 @@
 // three.js and the fonts are packed into the page too, so it never depends on another website being up.
 // Run: npm install   (once)   then   npm run build
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync } from "node:fs";
-import { transformSync } from "esbuild";
+import { transformSync, buildSync } from "esbuild";
 
 const read = p => readFileSync(new URL(p, import.meta.url), "utf8");
 const src = f => read("./src/" + f);
@@ -20,8 +20,14 @@ const css = src("styles.css");
 const body = src("body.html");
 const boot = src("boot.js");
 
-const three = read("./node_modules/three/build/three.min.js");
-const orbit = transformSync(read("./node_modules/three/examples/js/controls/OrbitControls.js"), { minify: true, target: "es2019" }).code;
+// three.js only ships as modules now, so its core and the orbit controls are bundled into one plain script that sets
+// window.THREE, which the app's code uses. Only the parts the app names (THREE.Something anywhere in its files) are
+// kept, which leaves out most of the library; the list is worked out here, so there's nothing to keep up to date.
+const used = [...new Set(FILES.map(src).join("\n").match(/\bTHREE\.[A-Za-z0-9_]+/g).map(n => n.slice(6)))].filter(n => n !== "OrbitControls").sort();
+const three = buildSync({
+  stdin: { contents: `import { ${used.join(", ")} } from "three"; import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"; window.THREE = { ${used.join(", ")}, OrbitControls };`, resolveDir: new URL(".", import.meta.url).pathname },
+  bundle: true, minify: !dev, format: "iife", target: "es2020", write: false, legalComments: "none",
+}).outputFiles[0].text;
 
 // Latin subsets only: the page is in English. font-display:swap shows text straight away in a fallback font.
 const FONTS = [
@@ -72,7 +78,6 @@ ${outCss}</style>
 ${outBody}
 <script>${outBoot}</script>
 <script>${three}</script>
-<script>${orbit}</script>
 <script>${outJs}</script>
 </body>
 </html>
