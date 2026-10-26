@@ -86,6 +86,7 @@ function addCrowd(recs, F){
   const A = awayOf(), away = new THREE.Color(A.colour), HE = homeEndOf();
   /* No two shirts quite the same: old and new kits, faded and fresh, a scarf over one. A few shades of each colour. */
   const shades = col => [0.8, 0.9, 1, 1, 1.1].map(k => col.clone().multiplyScalar(k)), clubS = shades(club), club2S = shades(club2), awayS = shades(away);
+  const obsCol = S.showObstructed ? [null, new THREE.Color(0xffb020), new THREE.Color(0xe5322b)] : null; // "Show obstructed views": fans with a restricted view in amber, badly restricted in red
   const full = S.crowdFill == null ? 0.93 : Math.max(0, Math.min(1, S.crowdFill));
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), up = new THREE.Vector3(0,1,0), hsc = new THREE.Vector3(1,1,1);
   const phase = [], baseY = [], flags = [];
@@ -118,7 +119,8 @@ function addCrowd(recs, F){
       // tall and short, broad and slight, and the odd child next to a parent
       const h = hgt*(0.86 + rnd()*0.28)*(rnd() < .05 ? 0.76 : 1), y = lerp(r.h0, r.h1, f) + (standing ? 0.05 + h/2 + 0.35 : 0.42 + h/2) + (rnd()-0.5)*0.05;
       if (nearEye(x, y, z)) continue; // cleared for the view from a seat
-      place(x, y, z, h, widen*(0.8 + rnd()*0.42), shirt, head, a, 0.88 + rnd()*0.3);
+      const oc = obsCol && r.obs ? obsCol[r.obs] : null;
+      place(x, y, z, h, widen*(0.8 + rnd()*0.42), oc || shirt, oc || head, a, 0.88 + rnd()*0.3);
       if ((kop && HE.flags && !HE.tifo && rnd() < .05) || (inAway && HE.flags && rnd() < .03)) flags.push([x, y + h/2 + 1.25, z, inAway ? (rnd() < .6 ? away : club2.clone().lerp(away, .3)) : rnd() < .55 ? club : club2, q.clone()]);
     }
   }

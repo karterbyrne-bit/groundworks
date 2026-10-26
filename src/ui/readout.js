@@ -61,7 +61,7 @@ function renderStats(){
     ...(D.awayAlloc && D.awayAlloc.seats ? [["Away allocation", `${fmt(D.awayAlloc.seats)} (${(100*D.awayAlloc.seats/Math.max(1, D.total)).toFixed(1)}%)`, ""]] : []),
     ["Slowest emergency evacuation", D.slowestEm ? D.slowestEm.toFixed(1) + " min" : "n/a", D.slowestEm ? pill(!D.issues.some(i => /^emerg:/.test(i.key)), "ok", "slow") : ""]
   ];
-  if (D.restricted) items.push(["Restricted view", `${fmt(D.restricted)} seats`, `<span class="pill ${rPct > 5 ? "bad" : "warn"}">${rPct.toFixed(1)}%</span>`]);
+  if (D.restricted) items.push(["Restricted view", `${fmt(D.restricted)} seats` + (D.obstructed && D.obstructed.bad ? ` (${fmt(D.obstructed.bad)} badly)` : ""), `<span class="pill ${rPct > 5 ? "bad" : "warn"}">${rPct.toFixed(1)}%</span>`]);
   document.getElementById("metrics").innerHTML = items.map(([k,v,p]) => `<div class="metric"><div class="k">${k}</div><div class="v">${v}${p}</div></div>`).join("");
   const sf = document.getElementById("safety"), std = S.standard === "custom" ? "your own rules" : (S.standard === "minimum" ? "UK guidance minimums" : "UK recommended guidance");
   const fixable = D.issues.filter(i => i.fix).length;
@@ -76,14 +76,30 @@ function renderStats(){
   sf.className = "safety" + (D.issues.some(i => i.cat !== "geo") ? " has" : "");
   sf.innerHTML = head + (D.issues.length ? groups : `<p class="ok">Nothing to report against ${std}.</p>`) +
     `<label class="toggle small"><input type="checkbox" id="trimToggle"${S.trim ? " checked" : ""}> Mark problem tiers in red in the 3D view</label>
+     <label class="toggle small"><input type="checkbox" id="obsToggle"${S.showObstructed ? " checked" : ""}> Show obstructed views (amber: part of the pitch is hidden, red: a lot of it)</label>
      <p class="disclaimer">Groundworks is a creative sandbox. Passing these checks doesn't mean a design is safe, legal or buildable; real stadiums need professional design and approval.</p>`;
   const merged = mergeParts(D.parts);
   const max = Math.max(1, ...merged.map(p => p.seats));
-  document.getElementById("breakdown").innerHTML = merged.length ? `<h3 class="bd-h">Capacity by stand and tier</h3>` + merged.map(p =>
+  document.getElementById("breakdown").innerHTML = obstructedBreakdown(D) + (merged.length ? `<h3 class="bd-h">Capacity by stand and tier</h3>` + merged.map(p =>
     `<details class="bd"${openBd.has(p.label) ? " open" : ""} data-bd="${esc(p.label)}"><summary><span>${esc(p.label)}</span><span>${fmt(p.seats)}</span><small>${esc(p.kinds)}</small><i><b style="width:${(100*p.seats/max).toFixed(1)}%"></b></i></summary>${tierTable(p.tiers, p.seats)}</details>`).join("")
-    : '<p class="hint">No stands yet. Give at least one stand a tier to start seating fans.</p>';
+    : '<p class="hint">No stands yet. Give at least one stand a tier to start seating fans.</p>');
   renderArchitect(D); renderSummary(); updateHud();
 }
+/* Restricted views, stand by stand and by what's in the way, each with a "Show me" that turns the colours on and looks at them. */
+function obstructedBreakdown(D){
+  const O = D.obstructed; if (!O || !D.restricted) return "";
+  const rows = Object.entries(O.stands).sort((a, b) => b[1].seats - a[1].seats).map(([name, st]) => {
+    const causes = Object.entries(st.causes).sort((a, b) => b[1] - a[1]).map(([c, n]) =>
+      `<li><span>${fmt(Math.round(n))} ${VIEW_CAUSES[c]}</span><button class="ghost" data-obs="${esc(name)}|${c}">Show me</button></li>`).join("");
+    return `<div class="obs-st"><b>${esc(name)}</b> <span>${fmt(st.seats)} seats${st.bad ? `, ${fmt(st.bad)} badly` : ""}</span><ul>${causes}</ul></div>`; }).join("");
+  return `<details class="bd obs"${openBd.has("obs") ? " open" : ""} data-bd="obs"><summary><span>Restricted views</span><span>${fmt(D.restricted)}</span><small>Seats where something hides part of the play, by stand and by what's in the way</small></summary>${rows}</details>`;
+}
+document.getElementById("breakdown").addEventListener("click", e => {
+  const b = e.target.closest("[data-obs]"); if (!b || !LAST || !LAST.obstructed) return;
+  const [name, cause] = b.dataset.obs.split("|"), st = LAST.obstructed.stands[name], at = st && st.spots[cause]; if (!at) return;
+  if (!S.showObstructed){ S.showObstructed = true; changed(); }
+  showObstructedAt(at);
+});
 /* ================= architect's notes =================
    How the design works as a building, rather than whether it passes the rules: atmosphere, views, comfort, looks and
    getting people in and out, each scored out of 10, with notes in plain words and a one-tap change where one helps. */
@@ -116,12 +132,15 @@ function architectNotes(D){
   if (corners <= 1) note("tip", `${4 - corners} of the 4 corners are open. Noise, wind and rain get in there. Filling them makes the ground feel complete.`, lay === "stands" ? "corners" : null, "Go to the corners");
   else if (corners === 4) note("good", "All four corners are closed, so the ground holds its noise in.");
   // views
-  const cMM = isFinite(D.minC) ? D.minC*1000 : 120, rPct = 100*D.restricted/D.total;
-  sc.views = clamp10(10 - Math.min(4, Math.max(0, 90 - cMM)*0.03) - Math.min(3, Math.max(0, D.far - 150)*0.08) - Math.min(3, rPct*0.4));
+  const cMM = isFinite(D.minC) ? D.minC*1000 : 120, rPct = 100*D.restricted/D.total, O = D.obstructed;
+  const rW = O ? 100*(O.bad + 0.4*O.slight)/D.total : rPct; // badly restricted seats count in full, slightly restricted ones less
+  sc.views = clamp10(10 - Math.min(4, Math.max(0, 90 - cMM)*0.03) - Math.min(3, Math.max(0, D.far - 150)*0.08) - Math.min(3, rW*0.4));
   if (D.far <= 150) note("good", `Every fan is within ${Math.round(D.far)} m of the far corner of the play. Even the back row gets a decent view.`);
   else if (D.far > 175) note("tip", `The furthest fan is ${Math.round(D.far)} m from the ${D.farName || "play"}. Faces become dots past about 150 m. Fewer rows up top, or steeper tiers, would help.`);
   if (cMM < L.minC) note("warn", `Some fans can't see over the heads in front (${Math.round(cMM)} mm against the ${L.minC} mm needed). The checks below have fixes.`);
-  if (rPct > 2) note("warn", `${rPct.toFixed(1)}% of seats look past a pillar. Cantilevered tiers and roofs get rid of them.`);
+  if (rPct > 2){ const tally = {}; if (O) for (const st of Object.values(O.stands)) for (const c in st.causes) tally[c] = (tally[c] || 0) + st.causes[c];
+    const top = Object.keys(tally).sort((a, b) => tally[b] - tally[a])[0];
+    note("warn", `${rPct.toFixed(1)}% of seats have a restricted view${top ? ", mostly " + VIEW_CAUSES[top] : ""}. The checks below say where, and how to clear them.`); }
   // comfort: shelter from the weather
   sc.comfort = clamp10(cover*10);
   if (cover < 0.5) note("tip", `Only ${Math.round(cover*100)}% of fans are under a roof. On a wet night the rest will notice.`, "roofs", "Roof the open stands");
@@ -199,7 +218,7 @@ document.getElementById("safety").addEventListener("click", e => {
   else if (sb) showIssue(LAST.issues[+sb.dataset.show]);
   else if (fa) fixAll();
 });
-document.getElementById("safety").addEventListener("change", e => { if (e.target.id === "trimToggle"){ S.trim = e.target.checked; changed(); } if (e.target.id === "keepClose"){ S.keepClose = e.target.checked; changed(); } });
+document.getElementById("safety").addEventListener("change", e => { if (e.target.id === "trimToggle"){ S.trim = e.target.checked; changed(); } if (e.target.id === "keepClose"){ S.keepClose = e.target.checked; changed(); } if (e.target.id === "obsToggle"){ S.showObstructed = e.target.checked; changed(); } });
 /* Pop-up messages. An optional action (usually Undo) gives a one-tap way back. */
 function toast(msg, action, ms){
   const box = $("toasts"), el = document.createElement("div");

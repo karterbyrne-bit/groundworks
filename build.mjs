@@ -11,7 +11,7 @@ const dev = process.argv.includes("--dev"); // unminified, easier to debug
 // The app's code, joined in this order into one shared scope: each file can use what the files before it define.
 const FILES = [
   "data.js", "core.js",
-  "build/basics.js", "build/atmosphere.js", "build/architecture.js", "build/fittings.js", "build/walls.js", "build/roofs-site.js", "build/neighbourhood.js", "build/stadium.js",
+  "build/basics.js", "build/atmosphere.js", "build/architecture.js", "build/fittings.js", "build/walls.js", "build/roofs-site.js", "build/neighbourhood.js", "build/views.js", "build/stadium.js",
   "ui/readout.js", "ui/camera.js", "ui/stand-editor.js", "ui/ground.js", "ui/saving.js", "ui/welcome.js",
 ];
 // if the 3D engine didn't arrive (a page cut off part way), boot.js shows a card instead of the app starting

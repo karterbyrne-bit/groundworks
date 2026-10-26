@@ -85,6 +85,18 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
     await page.click(`[data-p="${p}"]`); await page.waitForTimeout(300);
     check((await cap()) > 0, `preset "${p}" builds`);
   }
+  // obstructed views: the Leitch-era ground has seats behind its pillars; a modern bowl has almost none. The colours go on and off.
+  for (const p of ["leitch", "bowl"]) {
+    await page.evaluate(() => { window.__before = window.__gw.last(); });
+    await page.click(`[data-p="${p}"]`); await page.waitForFunction(() => !window.__gw.busy() && window.__gw.last() !== window.__before);
+    const v = await page.evaluate(() => { const L = window.__gw.last(); return {total: L.total, restricted: L.restricted, pillars: Object.values(L.obstructed.stands).some(s => s.causes.pillar > 0)}; });
+    if (p === "leitch") check(v.restricted > 0 && v.pillars, `the Leitch-era ground has restricted views behind its pillars (${v.restricted} seats)`);
+    else check(v.restricted < v.total*.01, `a modern bowl has almost no restricted views (${v.restricted} of ${v.total} seats)`);
+  }
+  await page.click('[data-p="leitch"]'); await page.waitForTimeout(300);
+  await page.click('#panes [data-pane="results"]'); await page.check("#obsToggle"); await page.waitForTimeout(400);
+  check((await page.evaluate(() => window.__gw.obsShown())) > 0, "Show obstructed views colours the restricted seats");
+  await page.uncheck("#obsToggle"); await page.waitForTimeout(300); await page.click('#panes [data-pane="start"]');
   // upper tiers on their own outline, and façade looks
   for (const p of ["oval", "cartuja"]) {
     await page.click(`[data-p="${p}"]`); await page.waitForTimeout(300);

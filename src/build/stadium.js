@@ -33,7 +33,7 @@ function build(){
   /* Every check result has a category (geometry note, viewing issue, rule break), a key so a fix can test it worked, and an optional fix. */
   const issue = (text, key, cat, extra) => issues.push(Object.assign({text, key, cat}, extra || {}));
   const outline = []; let outerTop = 0;
-  let wheelchair = 0, total=0, minC=Infinity, maxH=0, far=0, farRef=null, restricted=0, slowest=0, slowestEm=0, curRef = null;
+  let wheelchair = 0, total=0, minC=Infinity, maxH=0, far=0, farRef=null, slowest=0, slowestEm=0, curRef = null;
   const bounds = [-(F.W/2+set), F.W/2+set, -(F.H/2+set), F.H/2+set];
   const focus = F.home || [0,0];
   const farFrom = (x,z,y) => {
@@ -43,7 +43,7 @@ function build(){
     if (dd > far){ far = dd; farRef = curRef; }
   };
   const grow = (x,z) => { outline.push([x,z]); bounds[0] = Math.min(bounds[0], x); bounds[1] = Math.max(bounds[1], x); bounds[2] = Math.min(bounds[2], z); bounds[3] = Math.max(bounds[3], z); };
-  const regions = [], roofQuads = [], allRecs = [], anchors = [], boardGaps = [];
+  const regions = [], roofQuads = [], allRecs = [], anchors = [], boardGaps = [], viewPosts = [], viewWalls = []; // viewPosts and viewWalls: what can get in a fan's way
 
   if (poly){
     const hx = F.W/2+set, hz = F.H/2+set;
@@ -231,7 +231,7 @@ function build(){
       const tx = b[0]-a[0], tz = b[1]-a[1], l = Math.hypot(tx,tz) || 1; return [tx/l, tz/l]; };
     const above = st.drawFrom > 0, K = Math.max(0, ...profs.map(p => p.length));
     const realCount = Math.max(0, ...profs.map(p => p.filter((x,k) => k >= st.drawFrom && !x.ghost).length));
-    let standWc = 0, standSeats = 0, standEvac = 0, standTop = 0, standBack = 0; const kinds = new Set(), segRecs = [], cols = [], tierRecs = [], towerReqs = [];
+    let standWc = 0, standSeats = 0, standEvac = 0, standTop = 0, standBack = 0; const kinds = new Set(), segRecs = [], tierRecs = [], towerReqs = [];
     const wallBase = sty.wall === "concrete" ? "concrete" : sty.wall === "glassClad" ? "glassClad" : "clad_" + cfg.style;
     const wallKey = textured(tint(wallBase, fac.colour), wallBase === "glassClad" ? null : LOOK_TEX[look]); // the wall's colour and real material
     const pillarAt = marks(12), midI = (() => { let best = Math.floor(m/2), bd = Infinity; for (let i=0;i<m;i++){ const d = Math.abs(cum[i] - lenTotal/2); if (d < bd && profs[i].some(p => nRows(p) >= 1 && !p.ghost)){ bd = d; best = i; } } return best; })();
@@ -579,7 +579,7 @@ function build(){
         // pillars under a stacked tier's front (always when the tier below is left open)
         if (p.stacked && (p.pillars || p.lowerGhost) && tc.hold !== "towers" && pillarAt.has(s)){
           const cd = p.front + 0.4, q = pt(s, cd), base = p.lowerGhost ? 0 : heightAt(profs[s].slice(0,k), cd);
-          post(buf("column"), q[0], q[1], base, p.hF - 1.5, 0.45); if (!p.lowerGhost) cols.push({x:q[0], z:q[1], d:cd});
+          post(buf("column"), q[0], q[1], base, p.hF - 1.5, 0.45); viewPosts.push({x:q[0], z:q[1], r:.3, y0:base, y1:p.hF - 1.5, cause:"pillar"});
         }
         const bp = pt(s, p.front + n*T - T/2); farFrom(bp[0], bp[1], p.hs[n-1] + eye);
         standTop = Math.max(standTop, p.hs[n-1] + 1.2); standBack = Math.max(standBack, p.front + n*T);
@@ -616,7 +616,8 @@ function build(){
           else { // a green exit sign over the tunnel mouth, and the extending tunnel out towards the pitch
             const c = Q(b.c, dB - .05, top - .35); post(buf("emerg"), c[0], c[2], top - .55, top - .2, .5);
             if (TN.extend){ const reach = Math.min(8, dF - .6), d1 = dF - reach, w = b.hw + .15, key = tint("fascia", colour);
-              if (reach > 1){ const r0 = b.c - w, r1 = b.c + w, h = 2.5, arc = [[0, h - .5], [.25, h - .15], [.5, h], [.75, h - .15], [1, h - .5]];
+              if (reach > 1){ const r0 = b.c - w, r1 = b.c + w, h = 2.5, wa = Q(r0, (d1 + dF)/2, 0), wb = Q(r1, (d1 + dF)/2, 0); viewWalls.push({a:[wa[0], wa[2]], b:[wb[0], wb[2]], y0:0, y1:h, cause:"dugout"});
+                 arc = [[0, h - .5], [.25, h - .15], [.5, h], [.75, h - .15], [1, h - .5]];
                 for (const e2 of [r0, r1]) quad(buf(key), Q(e2,d1,0), Q(e2,dF,0), Q(e2,dF,h - .5), Q(e2,d1,h - .5));
                 for (let q=0;q<arc.length-1;q++){ const [fa, ya] = arc[q], [fb, yb] = arc[q+1], sa = lerp(r0, r1, fa), sb = lerp(r0, r1, fb);
                   quad(buf(key), Q(sa,d1,ya), Q(sb,d1,yb), Q(sb,dF,yb), Q(sa,dF,ya)); }
@@ -625,7 +626,7 @@ function build(){
           const D = 2.3, dBk = dF - .4, dFr = dBk - D;
           if (dFr < 1){ if (!issues.some(x => x.key === "dugouts:fit")){ issue(`The dugouts don't fit between the touchline and the ${st.name.toLowerCase()} (they need about ${(D + 1.4).toFixed(1)} m).`, "dugouts:fit", "geo",
             {tab:st.key, fix:{label:"Sink them into the stand", run:() => { S.dugouts = Object.assign(dugoutsOf(), {style:"sunk"}); return true; }}}); } continue; }
-          const seat = tint("seated", colour), H = 2.2;
+          const seat = tint("seated", colour), H = 2.2, wa = Q(s0, (dBk + dFr)/2, 0), wb = Q(s1, (dBk + dFr)/2, 0); viewWalls.push({a:[wa[0], wa[2]], b:[wb[0], wb[2]], y0:0, y1:H - .3, cause:"dugout"});
           quad(buf("dark"), Q(s0,dBk,0), Q(s1,dBk,0), Q(s1,dBk,H), Q(s0,dBk,H));
           const arc = [[0, H], [.35, H - .15], [.7, H - .55], [1, 1.1]];
           for (let q=0;q<arc.length-1;q++){ const da = lerp(dBk, dFr, arc[q][0]), db = lerp(dBk, dFr, arc[q+1][0]);
@@ -649,10 +650,10 @@ function build(){
           if (p.stacked && si === 0) handles.push({kind:"over", x:pt(hi,p.front)[0], y:p.hF, z:pt(hi,p.front)[1], o:o[hi], v:v[hi], ref, lowerBack:p.lowerBack, lowerBackH:p.lowerBackH}); }); }
       let seats = 0; rowLen.forEach(l => { if (l) seats += capRow(l, tierType); });
       rowCut.forEach((l, j) => { if (l) roadCut[st.name] = (roadCut[st.name] || 0) + capRow((rowLen[j] || 0) + l, tierType) - capRow(rowLen[j] || 0, tierType); }); // what the road cost
-      for (const r of recs){ r.seats = rowLen[r.j] ? capRow(rowLen[r.j], tierType) * r.len / rowLen[r.j] : 0; segRecs.push(r); }
+      for (const r of recs){ r.seats = rowLen[r.j] ? capRow(rowLen[r.j], tierType) * r.len / rowLen[r.j] : 0; r.k = k; segRecs.push(r); }
       if (CT) for (const b of CT) if (b.kind === "access" && b.R){ // each space 0.9 m for the wheelchair, 0.7 m for a companion seat
         const sp = Math.floor(2*b.hw/1.6), P = b.P, y = P.hs[Math.min(nRows(P)-1, b.r0)], m0 = ptS(b.c - b.hw, P.front + (b.r0 + 1)*b.T), m1 = ptS(b.c + b.hw, P.front + (b.r0 + 1)*b.T);
-        wheelchair += sp; standWc += sp; seats += sp*2; segRecs.push({j:b.r0, len:2*b.hw, d:P.front + (b.r0 + 1)*b.T, x:(m0[0]+m1[0])/2, z:(m0[1]+m1[1])/2, m0, m1, h0:y, h1:y, type:"seated", seats:sp*2}); }
+        wheelchair += sp; standWc += sp; seats += sp*2; segRecs.push({j:b.r0, len:2*b.hw, d:P.front + (b.r0 + 1)*b.T, x:(m0[0]+m1[0])/2, z:(m0[1]+m1[1])/2, m0, m1, h0:y, h1:y, type:"seated", seats:sp*2, k, i:b.si}); }
       byType[tierType] += seats; standSeats += seats; total += seats; kinds.add(TYPES[tierType].short);
       const tr0 = {name: cap1(tierName(kDrawn-1, realCount, above) || "single") + " tier", type:tierType, rows:nRows(best), seats:Math.round(seats), steep, c: isFinite(tierC) ? Math.round(tierC*1000) : null, evac:0, front:best.front, height:best.hB, bad};
       tierRecs.push(tr0);
@@ -771,7 +772,7 @@ function build(){
         if (rf.support === "ribs" && ribAt.has(i)) for (let s=0;s<nS;s++){ const f0 = s/nS, f1 = (s+1)/nS;
           quad(buf("steel"), V(i,at(a,f0),a.y(f0)), V(i,at(a,f1),a.y(f1)), V(i,at(a,f1),a.y(f1) + .4 + 3.6*f1), V(i,at(a,f0),a.y(f0) + .4 + 3.6*f0)); }
         if (rf.support === "columns" && colAt.has(i)){ const x = info[i], cd = Math.max(a.inner + .6, x.front + .6), f = (cd - a.inner)/(a.outer - a.inner), q = pt(i, cd);
-          post(buf("column"), q[0], q[1], heightAt(x.prof, cd), a.y(f), 0.35); cols.push({x:q[0], z:q[1], d:cd}); }
+          post(buf("column"), q[0], q[1], heightAt(x.prof, cd), a.y(f), 0.35); viewPosts.push({x:q[0], z:q[1], r:.25, y0:heightAt(x.prof, cd), y1:a.y(f), cause:"pillar"}); }
         if (rf.support === "masts" && mastAt.has(i)){ const q = pt(i, a.outer + 4), top = a.y(1) + 22, tip = pt(i, a.inner + 1), mid = pt(i, at(a, .45)), tg = tangent(i);
           post(buf("steel"), q[0], q[1], 0, top, .9);
           for (const [p2, y2] of [[tip, a.y(0)], [mid, a.y(.45)]]) quad(buf("cable"), [q[0]-tg[0]*.08, top, q[1]-tg[1]*.08], [q[0]+tg[0]*.08, top, q[1]+tg[1]*.08], [p2[0]+tg[0]*.08, y2, p2[1]+tg[1]*.08], [p2[0]-tg[0]*.08, y2, p2[1]-tg[1]*.08]);
@@ -781,7 +782,7 @@ function build(){
       if (!closed){
         for (const i of [0, m-1]){ const a = RR[i]; if (!a) continue;
           if (gable) tri(clad, V(i,a.inner,a.y(0)), V(i,at(a,.5),a.y(.5)), V(i,a.outer,a.y(1)));
-          if (rf.support === "truss"){ const tg = tangent(i), s = i ? 1.6 : -1.6, q = pt(i, a.inner + .8); post(buf("steel"), q[0] + tg[0]*s, q[1] + tg[1]*s, 0, a.y(0) + 3.2, 1.6); } }
+          if (rf.support === "truss"){ const tg = tangent(i), s = i ? 1.6 : -1.6, q = pt(i, a.inner + .8); post(buf("steel"), q[0] + tg[0]*s, q[1] + tg[1]*s, 0, a.y(0) + 3.2, 1.6); viewPosts.push({x:q[0] + tg[0]*s, z:q[1] + tg[1]*s, r:.8, y0:0, y1:a.y(0) + 3.2, cause:"pillar"}); } }
         const leitchGable = fac.gable && sty.era === "Traditional" && RR[midI];
         if (gable && RR[midI] && !leitchGable){ // central pediment facing the play (the Leitch gable takes its place)
           const a = RR[midI], tg = tangent(midI), c = pt(midI, a.inner), hw = Math.min(14, lenTotal*0.18), apex = a.yIn + hw*0.55, cm = pt(midI, at(a,.5));
@@ -922,21 +923,13 @@ function build(){
     if (roadCut[st.name] > 0 && !st.roadNoted){ st.roadNoted = true;
       issue(`The ${st.name.toLowerCase()} is built over a road: about ${fmt(Math.max(10, Math.round(roadCut[st.name]/10)*10))} seats at the back or bottom of it are left out to keep a ${CLEAR} m opening for the traffic underneath.`, "road:" + st.key, "geo", {tab:st.key}); }
     if (!DRY) for (const k in bannerRows) adStrip(bannerRows[k], bannerMaterial());
-    let rv = 0;
-    if (cols.length){ const cosLim = Math.cos(12*Math.PI/180);
-      for (const r of segRecs){
-        const ox = focus[0]-r.x, oz = focus[1]-r.z, ol = Math.hypot(ox,oz);
-        for (const c of cols){ if (r.d <= c.d + 0.5) continue;
-          const vx = c.x-r.x, vz = c.z-r.z, vl = Math.hypot(vx,vz);
-          if (vl > 60 || vl >= ol) continue;
-          if ((vx*ox + vz*oz)/(vl*ol) > cosLim){ rv += r.seats; break; } } }
-      rv = Math.round(rv); restricted += rv; }
     maxH = Math.max(maxH, topAll); outerTop = Math.max(outerTop, standTop);
     const si = standInfo[st.key] = standInfo[st.key] || {width:0, depth:0, height:0, seats:0};
     si.width += lenTotal; si.depth = Math.max(si.depth, standBack - s0); si.height = Math.max(si.height, topAll); si.seats += standSeats;
-    if (standSeats) parts.push({label:st.name, key:st.key, seats:Math.round(standSeats), kinds:(st.styleLabel === false ? "" : sty.label + " · ") + [...kinds].join(" + ") + (rv ? ` · ${fmt(rv)} restricted` : "") + ` · empties in ${standEvac.toFixed(1)} min` + (standWc ? ` · ${standWc} wheelchair spaces` : ""), tiers:tierRecs, wheel:standWc});
+    if (standSeats) parts.push({label:st.name, key:st.key, seats:Math.round(standSeats), kinds:(st.styleLabel === false ? "" : sty.label + " · ") + [...kinds].join(" + ") + ` · empties in ${standEvac.toFixed(1)} min` + (standWc ? ` · ${standWc} wheelchair spaces` : ""), tiers:tierRecs, wheel:standWc});
     regions.push({key:st.key, o, v, closed, profs: profs.map(p => p.slice(st.drawFrom).filter(x => !x.ghost))});
     anchors.push({key: st.ck || st.key, name: st.name, o, v, info, RR: RRout, m, closed, profs, drawFrom: st.drawFrom});
+    for (const r of segRecs) r.an = anchors[anchors.length - 1];
     return st;
   }
 
@@ -1187,9 +1180,8 @@ function build(){
   { const A = awayOf(), HE = homeEndOf();
     if (A.on && !awayAlloc.seats && total) issue("The away end is set on a stand with no seats.", "away:none", "geo", {fix:{label:"Put the away fans in the west end", run:() => { S.away = Object.assign(awayOf(), {at:"W"}); return true; }}});
     if (A.on && HE.at && HE.at === A.at) issue("The away fans are in the home end. Move one of them.", "away:home", "geo"); }
-  const result = {issues, total, wheelchair, awayAlloc, maxH, bounds, covered, minC, slowest, slowestEm, far, farRef, restricted, byType, roofNeedMax};
+  const result = {issues, total, wheelchair, awayAlloc, maxH, bounds, covered, minC, slowest, slowestEm, far, farRef, restricted:0, obstructed:null, byType, roofNeedMax};
   const screenPlans = planScreens(F, anchors, closedAt, outerTop, set, issue);
-  if (DRY) return result;
 
   // pitchside advertising boards
   /* Any rectangular playing area gets them (football, rugby, wrestleball, tennis, a plain floor): by default 5 m behind the
@@ -1198,7 +1190,24 @@ function build(){
   const FP = pitchOf(F), boardsFit = S.sport === "football" || S.sport === "rugby" || (F.custom && !(FP.r > 0) && ["wrestleball","tennis","plain"].includes(S.custom.kind));
   const BS = boardSetOf(), roomX = set + (F.W - FP.W)/2 - 1, roomZ = set + (F.H - FP.H)/2 - 1 - (S.sport === "football" ? .5 : 0);
   const offX = floorRows ? .6 : Math.min(BS.end, roomX), offZ = floorRows ? .6 : Math.min(BS.side, roomZ), bH = BS.height;
-  if (S.boards && !CV && boardsFit && offX >= .5 && offZ >= .5){
+  const boardsOn = S.boards && !CV && boardsFit && offX >= .5 && offZ >= .5;
+
+  /* ---------- obstructed views ---------- */
+  { const A = S.arch || {}, H = Math.max(8, outerTop), fm = floodMode();
+    if (fm === "masts" || fm === "pylons"){ const roundish = F.r >= Math.min(F.W, F.H)/2 - 1, a = Math.PI/6, mh = Math.max(maxH + 16, 30);
+      for (const sx of [-1,1]) for (const sz of [-1,1]) viewPosts.push({x: roundish ? sx*(sext[0] + 8)*Math.cos(a) : sx*(sext[0] + 8), z: roundish ? sz*(sext[1] + 8)*Math.sin(a) : sz*(sext[1] + 8), r: fm === "pylons" ? 3 : 1, y0:0, y1:mh + 4, cause:"mast"}); }
+    if (!CV) for (const [x, z] of sigMastSpots(A, F, set, sext, H, poly).spots) viewPosts.push({x, z, r:1.5, y0:0, y1:200, cause:"mast"});
+    for (const sp of archSpans(A, F, set, sext, H, standInfo)) for (const u of [.02, .98]){ const c = sp.C(u), c2 = sp.C(u < .5 ? .07 : .93); viewPosts.push({x:c.x, z:c.z, r:sp.r0*1.5, y0:0, y1:c2.y, cause:"arch"}); }
+    for (const p of screenPlans) if (p.kind === "board"){ const px = -p.n[1]*p.w/2, pz = p.n[0]*p.w/2; viewWalls.push({a:[p.x - px, p.z - pz], b:[p.x + px, p.z + pz], y0:p.y - p.h/2, y1:p.y + p.h/2, cause:"screen"}); }
+    const OV = obstructedViews(allRecs, F, viewPosts, viewWalls, boardsOn ? {hx: FP.W/2 + offX, hz: FP.H/2 + offZ, h: bH} : null);
+    result.restricted = OV.slight + OV.bad; result.obstructed = OV;
+    for (const [name, st] of Object.entries(OV.stands)){ const seats = (standInfo[st.key] || {}).seats || 0; if (!seats || st.seats < .05*seats) continue;
+      const cause = Object.keys(st.causes).sort((a, b) => st.causes[b] - st.causes[a])[0], fix = viewFix(st.key, cause);
+      issue(`${fmt(st.seats)} seats in the ${name.toLowerCase()} (${Math.round(100*st.seats/seats)}%) have a restricted view, mostly ${VIEW_CAUSES[cause]}${st.bad ? `; ${fmt(st.bad)} of them badly` : ""}.`, `obstructed:${st.key}`, "view", {tab:st.key, fix}); } }
+  if (DRY) return result;
+  if (S.showObstructed) drawObstructed(allRecs, buf);
+
+  if (boardsOn){
     const hx = FP.W/2 + offX, hz = FP.H/2 + offZ, dp = .3; // the boards are boxes about 30 cm deep
     const Pb = [[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz]], Po = [[-hx-dp,-hz-dp],[hx+dp,-hz-dp],[hx+dp,hz+dp],[-hx-dp,hz+dp]];
     // each side runs corner to corner, with a gap where the players' tunnel comes out
@@ -1217,7 +1226,7 @@ function build(){
   addProps(group, CV ? CV.F2 : pitchOf(F), buf, CV ? CV.sp : undefined);
   drawSheets();
   for (const key in Bf) if (Bf[key].length){
-    const mesh = meshFrom(Bf[key], M[key], !["roof","roofGlass","glass","roofClosed","aisle","void","glassClad"].includes(key));
+    const mesh = meshFrom(Bf[key], M[key], !["roof","roofGlass","glass","roofClosed","aisle","void","glassClad","obsSlight","obsBad"].includes(key));
     if (TYPES[key.split("_")[0]] || key === "floorSeat"){ mesh.userData.seat = true; mesh.userData.kind = key.split("_")[0]; }
     mesh.userData.stadium = true;
     group.add(mesh);
