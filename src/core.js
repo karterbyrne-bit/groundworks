@@ -352,6 +352,8 @@ const M = {
   board: std({color:0x10233f, roughness:.4, emissive:0x163a6e, emissiveIntensity:.8}),
   site: std({color:0xc0392b, roughness:.6}), handle: std({color:0xffffff, roughness:.5, emissive:0x5a1a14}),
   white: std({color:0xffffff, roughness:.4}),
+  haloA: new THREE.MeshStandardMaterial({color:0x111111, emissive:0xffffff, roughness:.4}), haloB: new THREE.MeshStandardMaterial({color:0x111111, emissive:0xffffff, roughness:.4}), // the LED halo
+  flare: new THREE.MeshBasicMaterial({color:0xffd2b0}), // a flare's white-hot core
   bronze: std({color:0xb07e42, roughness:.34, metalness:.65}), stone: std({color:0xc9bfa8, roughness:.9}), // statues on their plinths
   archGlow: new THREE.MeshStandardMaterial({color:0x1a2230, emissive:0xd8e8ff, emissiveIntensity:2.4, roughness:.4}), // the arch's glow at night
   window: std({color:0x34465a, roughness:.08, metalness:.75, envMapIntensity:1.2}), frame: std({color:0x2f3438, roughness:.5, metalness:.5}), trim: std({color:0xd9d2c2, roughness:.85}),
@@ -410,6 +412,7 @@ function setSeatColours(){
   M.seated.color.set(S.seat); M.seatBack.color.set(S.seat).multiplyScalar(0.8); M.rail.color.set(S.seat);
   M.exec.color.set(S.seat).multiplyScalar(0.5); M.lattice.color.set(S.seat);
   const alt = S.seat2 || "#f2f2f2"; M.seatAlt.color.set(alt); M.seatAltBack.color.set(alt).multiplyScalar(0.85);
+  M.haloA.emissive.set(S.seat); M.haloB.emissive.set(alt);
   invalidate();
 }
 setSeatColours();

@@ -247,7 +247,7 @@ function settleNow(){
 function settleAO(){ clearTimeout(aoTimer); aoTimer = setTimeout(() => { if (AO && !AO.off && camera === persp && !anim && !controls.autoRotate) requestAnimationFrame(() => { if (!anim && !dirty){ drawAO(); idle = 31; } }); }, 300); } // the still frame is the last: sleep straight after it
 /* Things that move on their own for a while (a Mexican wave). Each is called every frame until it returns false. */
 var TICKERS = new Set(); // var: invalidate() can call wake() before this line has run
-function wake(){ idle = 0; if (!awake){ awake = true; requestAnimationFrame(loop); } }
+function wake(){ idle = 0; if (!awake){ awake = true; requestAnimationFrame(loop); } if (SPECTACLE && !SPECTACLE.ticking) spectacleWake(); }
 function loop(now){
   if (anim){ const k = Math.min(1, (now - anim.start)/850), e = 1 - Math.pow(1-k, 3);
     camera.position.lerpVectors(anim.p0, anim.p, e); controls.target.lerpVectors(anim.t0, anim.t, e);
