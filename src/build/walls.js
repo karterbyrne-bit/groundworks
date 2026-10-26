@@ -40,7 +40,7 @@ function wallTexture(kind){
 const LOOK_TEX = {brick:"brick", timber:"timber", sheet:"cladding", fins:"cladding", deco:"concrete", concrete:"concrete", grid:"concrete", plain:"concrete"};
 function textured(key, kind){
   if (!kind) return key; const k = key + "~" + kind;
-  if (!M[k]){ M[k] = M[key].clone(); M[k].map = wallTexture(kind); }
+  if (!M[k]){ M[k] = M[key].clone(); M[k].map = wallTexture(kind); if (M[k].userData.weather) weather(M[k], M[k].userData.weather); }
   M_USED.add(k); return k;
 }
 /* Lettering for an outside wall or a roof front, in the club's own words. */
