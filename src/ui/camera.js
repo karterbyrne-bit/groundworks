@@ -45,7 +45,11 @@ function camTarget(mode){
     const vl = Math.hypot(r.v[i][0], r.v[i][1]) || 1, u = [r.v[i][0]/vl, r.v[i][1]/vl];
     if (mode === "exterior"){
       const b = [r.o[i][0] + r.v[i][0]*back, r.o[i][1] + r.v[i][1]*back];
-      return {p:new THREE.Vector3(b[0] + u[0]*(top*1.6 + 40), 3 + top*0.15, b[1] + u[1]*(top*1.6 + 40)), t:new THREE.Vector3(b[0], top*0.55, b[1])};
+      let out = top*1.6 + 40;
+      if (S.scenery !== "model"){ // stand in the street outside the ground, not among the houses round it
+        const ex = D.ext[0] + 10, ez = D.ext[1] + 10, P = S.plot.on && S.plot.pts ? S.plot.pts : [[-ex,-ez],[ex,-ez],[ex,ez],[-ex,ez]], e = exitDist(P, b, u, 0);
+        if (e > 0 && e < 1e3) out = Math.min(out, e + 7); }
+      return {p:new THREE.Vector3(b[0] + u[0]*out, 3 + top*0.15, b[1] + u[1]*out), t:new THREE.Vector3(b[0], top*0.55, b[1])};
     }
     const p0 = live[live.length-1], n = nRows(p0), d = p0.front + (n - 1.5)*p0.T, q = [r.o[i][0] + r.v[i][0]*d, r.o[i][1] + r.v[i][1]*d];
     const p = new THREE.Vector3(q[0], p0.hs[n-2 >= 0 ? n-2 : 0] + 1.2, q[1]);
@@ -146,7 +150,7 @@ renderer.domElement.addEventListener("pointermove", e => {
     const p = groundAt(e); if (!p) return;
     if (drag.type === "site"){ const f = S.site[drag.i]; if (!f) return;
       if (drag.end){ f.angle = Math.round(((Math.atan2(p.z - f.z, p.x - f.x)*180/Math.PI) + 360) % 180); f.length = Math.max(5, Math.round(2*Math.hypot(p.x - f.x, p.z - f.z))); }
-      else { f.x = Math.round(p.x); f.z = Math.round(p.z); }
+      else { f.x = Math.round(p.x); f.z = Math.round(p.z); snapRoad(f); } // a road brought near the plot's edge runs along it
       changed(false, true); return; }
     const dx = p.x - drag.start[0], dz = p.z - drag.start[1], pts = clone(drag.pts);
     if (drag.type === "v"){ pts[drag.i] = [Math.round(drag.pts[drag.i][0] + dx), Math.round(drag.pts[drag.i][1] + dz)]; }
