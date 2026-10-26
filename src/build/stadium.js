@@ -82,6 +82,12 @@ function build(){
   }
   const rakeLimit = ty => ty === "terrace" ? L.terraceRake : L.seatRake;
   const steepInfo = {};
+  /* Rows a hard plot boundary (or the surroundings) leaves off, by stand and tier: the most rows that fit anywhere along it
+     against the most asked for, so the editor can say why adding rows isn't adding seats. */
+  const cutInfo = {};
+  const noteCut = (key, from, want, got) => { for (let k = from; k < want.length; k++){ if (want[k].ghost) continue;
+    const list = cutInfo[key] = cutInfo[key] || [], c = list[k - from] = list[k - from] || {fit:0, want:0};
+    c.fit = Math.max(c.fit, Math.floor(got[k].rows + 1e-6)); c.want = Math.max(c.want, Math.floor(want[k].rows + 1e-6)); } };
   const noteSteep = (key, k, v) => { steepInfo[key] = steepInfo[key] || []; steepInfo[key][k] = Math.max(steepInfo[key][k] || 0, v); };
 
   /* ---------- the slice builder: draws one stand, bowl or corner ---------- */
@@ -110,8 +116,8 @@ function build(){
     for (let i=0;i<m;i++){
       let tiers = cut(st.tiersFor(i), i); const s0 = setAt(i);
       if (poly || obstacles.length){
-        const dm = roomAt(o[i], v[i], s0); if (!isFinite(dm)){ tierList.push(tiers); profs.push(profile(tiers, s0)); continue; }
-        if (S.plot.clip) tiers = trimTiers(tiers, dm - margin, s0);
+        const dm = roomAt(o[i], v[i], s0); if (!isFinite(dm)){ if (S.plot.clip) noteCut(st.key, st.drawFrom, tiers, tiers); tierList.push(tiers); profs.push(profile(tiers, s0)); continue; }
+        if (S.plot.clip){ const want = tiers; tiers = trimTiers(tiers, dm - margin, s0); noteCut(st.key, st.drawFrom, want, tiers); }
         else { const pr = profile(tiers, s0).filter(p => nRows(p) >= 1); if (pr.length) overflow = Math.max(overflow, Math.max(...pr.map(p => p.front + nRows(p)*p.T)) + margin - dm); }
       }
       tierList.push(tiers); profs.push(profile(tiers, s0));
@@ -1222,7 +1228,7 @@ function build(){
   const sc = sun.shadow.camera, half = Math.max(ext[0],ext[1]) + 30;
   sc.left=-half; sc.right=half; sc.top=half; sc.bottom=-half; sc.near=10; sc.far=1400; sc.updateProjectionMatrix();
   const screenSpots = []; for (const p of screenPlans) screenSpots[p.idx] = [p.x, p.y, p.z];
-  LAST = Object.assign(result, {closedAt, focusIn, F, farName, ext, sext, parts, set, steepInfo, poly, lay, standInfo, handles, screenSpots,
+  LAST = Object.assign(result, {closedAt, focusIn, F, farName, ext, sext, parts, set, steepInfo, cutInfo, poly, lay, standInfo, handles, screenSpots,
     screenCtx:{F, anchors, closedAt, outerTop, set}}); // lets a new screen try its mountings without rebuilding the stadium
   LAST_REGIONS = regions;
   renderStats(); refreshOutputs(); invalidate();
