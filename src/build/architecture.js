@@ -103,7 +103,15 @@ function tubesMesh(list, sides, mat){
   const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3)); g.setIndex(idx);
   const m = new THREE.Mesh(g, mat); m.receiveShadow = true; return m;
 }
-function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf, ext){
+/* The nearest point on any stand's roof front edge to [x, z] (within reach metres), as [x, y, z]: where an arch's cables land. */
+function roofFrontNear(anchors, x, z, reach){
+  let best = null, bd = reach*reach;
+  for (const g of anchors || []) for (let i=0;i<g.m;i++){ const R = g.RR && g.RR[i]; if (!R) continue;
+    const px = g.o[i][0] + g.v[i][0]*R.inner, pz = g.o[i][1] + g.v[i][1]*R.inner, d = (px - x)*(px - x) + (pz - z)*(pz - z);
+    if (d < bd){ bd = d; best = [px, R.y(0), pz]; } }
+  return best;
+}
+function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf, ext, anchors){
   if (outline.length < 3) return 0;
   let top = 0;
   const H = Math.max(8, outerTop), inPlot = (p) => !poly || inPoly(p, poly);
@@ -233,11 +241,12 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
         foot.position.set(p.x, 0, p.z); foot.castShadow = foot.receiveShadow = true; foot.userData.stadium = true; group.add(foot); }
       // cables from the arch down to the roof fronts: straight down the line for the main stand, out to both sides across the ground
       for (let m=6;m<=Mseg-6;m+=3){ const p = rings[m].p;
-        if (at === "main"){ cables.push([p, new THREE.Vector3(p.x*0.96, Math.max(4, H*0.92), -fz - 1.5), .11]); continue; }
+        const land = (x, z) => { const q = roofFrontNear(anchors, x, z, 30); return q ? new THREE.Vector3(q[0], q[1], q[2]) : new THREE.Vector3(x, Math.max(4, H*0.92), z); }; // onto the roof's front edge
+        if (at === "main"){ cables.push([p, land(p.x*0.96, -fz - 1.5), .11]); continue; }
         if (Math.abs(p.x) >= fx || Math.abs(p.z) >= fz) continue; // over the stands themselves
         const pr = [-dz, dx]; for (const sg of [-1, 1]){ const tx = pr[0]*sg, tz = pr[1]*sg;
           const t = Math.min(tx ? (Math.sign(tx)*fx - p.x)/tx : Infinity, tz ? (Math.sign(tz)*fz - p.z)/tz : Infinity);
-          cables.push([p, new THREE.Vector3(p.x + tx*t, Math.max(4, H*0.92), p.z + tz*t), .11]); } }
+          cables.push([p, land(p.x + tx*t, p.z + tz*t), .11]); } }
       top = Math.max(top, sp.rise*Math.cos(sp.lean) + r0); }
     for (const [list, mat, sides] of [[steel, M.steel, 6], [cables, M.cable, 8], [glow, M.archGlow, 8]]) if (list.length){
       const mesh = tubesMesh(list, sides, mat); mesh.castShadow = mat !== M.archGlow; mesh.userData.stadium = true; group.add(mesh); }
