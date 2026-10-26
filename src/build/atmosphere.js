@@ -24,13 +24,15 @@ function letterGrid(text, cols, rows){
    colours. Stewards in hi-vis stand along the front facing the crowd. Heads take a mix of skin tones, and some wear hats.
    CROWD keeps where everyone is, so a Mexican wave can stand them up and sit them down again. */
 let CROWD = null;
-/* In the view from a seat, the fans right round you are left out, so you see the play rather than the backs of heads. */
+/* In the view from a seat, your own seat is left empty, and so is the seat right in front of you, so the camera isn't
+   inside someone's head. Everyone else stays: you look out over the heads in front, as you would at a match. */
 let crowdClear = null;
 const nearEye = (x, y, z) => { if (!crowdClear) return false; const dx = x - crowdClear[0], dz = z - crowdClear[2], dy = y - crowdClear[1];
-  if (Math.hypot(dx, dz) < 3) return Math.abs(dy) < 3;                                          // your neighbours
+  if (Math.abs(dy) > 2.5) return false;
+  if (Math.hypot(dx, dz) < .45) return true;                                                     // your own seat
   const l = Math.hypot(crowdClear[0], crowdClear[2]) || 1, ux = -crowdClear[0]/l, uz = -crowdClear[2]/l; // towards the play
   const along = dx*ux + dz*uz, across = Math.abs(dz*ux - dx*uz);
-  return along > 0 && along < 15 && across < 2 + along*0.5 && dy < 1.5 && dy > -9; };           // and a wedge of rows in front of you
+  return along > 0 && along < 1.1 && across < .45; };                                            // and the one in front of you
 function clearCrowdNear(eye){
   crowdClear = eye;
   const m4 = new THREE.Matrix4(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
