@@ -382,6 +382,7 @@ function weather(m, streaks){
         vec2 side = normalize(vec2(-vWN.z, vWN.x) + vec2(1e-4)); float along = dot(vWPos.xz, side);
         float streak = smoothstep(0.5, 0.9, wNoise(vec2(along*0.85, vWPos.y*0.06)))*wall*wStreak;
         float grime = (1.0 - smoothstep(0.2, 4.0, vWPos.y))*(0.6 + 0.4*wNoise(vWPos.xz*0.4))*wall;
+        tone *= 1.0 + (wHash(vec2(floor(along/6.5), floor(vWPos.y/40.0) + 3.0)) - 0.5)*0.09*wall; // each bay a touch different
         diffuseColor.rgb *= tone*(1.0 - 0.3*streak)*(1.0 - 0.38*grime); }`);
   };
   m.customProgramCacheKey = () => "weather";
@@ -389,6 +390,19 @@ function weather(m, streaks){
 }
 for (const k of ["concrete", "riser", "soffit", "tower", "terrace", "fascia", "gate", "trim", "pavement"]) weather(M[k]);
 for (const k of ["roofSolid", "roofConcrete", "roofGreen", "roofEdge"]) weather(M[k], 0.6);
+/* Window glass: dark and a little reflective, with a hint of the rooms behind (a pale ceiling, a lit office here and
+   there, a blind half down), varying window by window so a long wall doesn't read as one sheet. */
+M.window.metalness = .25; M.window.roughness = .06; M.window.color.set(0x1c2630);
+M.window.onBeforeCompile = sh => {
+  sh.vertexShader = "varying vec3 vWPos;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n vWPos = (modelMatrix*vec4(transformed, 1.0)).xyz;");
+  sh.fragmentShader = "varying vec3 vWPos;" + WEATHER_GLSL + "\n" + sh.fragmentShader.replace("#include <color_fragment>", `#include <color_fragment>
+    { vec2 cell = floor(vec2((vWPos.x + vWPos.z)*0.55, vWPos.y*0.3)); float r = wHash(cell), up = fract(vWPos.y*0.3);
+      vec3 room = mix(vec3(0.05, 0.055, 0.06), vec3(0.32, 0.3, 0.26), smoothstep(0.55, 0.95, up)*step(0.35, r)); // a ceiling showing in most
+      room = mix(room, vec3(0.5, 0.46, 0.36), step(0.86, r)*smoothstep(0.2, 0.9, up)); // the odd lit room
+      room = mix(room, vec3(0.42, 0.42, 0.4), step(0.1, r)*step(r, 0.25)*step(0.62, up)); // a blind half down
+      diffuseColor.rgb = mix(diffuseColor.rgb, room, 0.55); }`);
+};
+M.window.customProgramCacheKey = () => "glass";
 for (const st in STYLES) weather(M["clad_"+st]);
 function setSeatColours(){
   M.seated.color.set(S.seat); M.seatBack.color.set(S.seat).multiplyScalar(0.8); M.rail.color.set(S.seat);
