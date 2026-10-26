@@ -206,5 +206,26 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
     for (const [list, mat, sides] of [[steel, M.steel, 6], [cables, M.cable, 8], [glow, M.archGlow, 8]]) if (list.length){
       const mesh = tubesMesh(list, sides, mat); mesh.castShadow = mat !== M.archGlow; mesh.userData.stadium = true; group.add(mesh); }
   }
+  /* Masts and cables, like Cardiff's Principality Stadium: tall steel masts holding the roofs up on round cables that run
+     from the mast tops to the roofs' front edges, with a backstay down to the ground behind each. Four at the corners, or
+     a row along the back of the main stand. The tips carry a lamp that shows at night. */
+  if (A.masts === "corners" || A.masts === "main"){
+    const fx = F.W/2 + set, fz = F.H/2 + set, hm = Math.max(H*2.3, H + 32), yF = Math.max(4, H*0.92), mastL = [], cab = [], v3 = (x, y, z) => new THREE.Vector3(x, y, z);
+    const inside = (x, z) => { if (!poly) return [x, z]; for (let k=0;k<20 && !inPoly([x, z], poly);k++){ x *= .95; z *= .95; } return [x, z]; }; // kept on the plot
+    const mast = (x, z, targets, stay) => { const t = v3(x, hm*.97, z);
+      mastL.push([v3(x, 0, z), v3(x, hm*.45, z), 1.5], [v3(x, hm*.45, z), v3(x, hm*.8, z), 1.15], [v3(x, hm*.8, z), v3(x, hm, z), .8]); // tapering in three lengths
+      for (const [tx, tz] of targets) cab.push([t, v3(tx, yF, tz), .12]);
+      cab.push([t, v3(stay[0], 0, stay[1]), .16]); post(bf("concrete"), stay[0], stay[1], 0, .8, 2.2); // the backstay and its anchor block
+      post(bf("lamp"), x, z, hm, hm + 1.4, 1.1); post(bf("steel"), x, z, hm + 1.4, hm + 4, .15);
+      ext[0] = Math.max(ext[0], Math.abs(x) + 3); ext[1] = Math.max(ext[1], Math.abs(z) + 3); };
+    if (A.masts === "corners") for (const [sx, sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]){
+      const [x, z] = inside(sx*(sext[0] + 8), sz*(sext[1] + 8));
+      mast(x, z, [[sx*fx*.85, sz*fz], [sx*fx*.6, sz*fz], [sx*fx*.35, sz*fz], [sx*fx, sz*fz*.8], [sx*fx, sz*fz*.5]], [x + sx*hm*.32, z + sz*hm*.32]); }
+    else { const count = fx > 70 ? 5 : 4, z = -(sext[1] + 8);
+      for (let k=0;k<count;k++){ const [x, zz] = inside(-fx*.75 + 1.5*fx*k/(count - 1), z);
+        mast(x, zz, [[x - 7, -fz], [x + 7, -fz]], [x, zz - hm*.4]); } }
+    for (const [list, mat, sides] of [[mastL, M.mast, 12], [cab, M.cable, 8]]){ const mesh = tubesMesh(list, sides, mat); mesh.castShadow = true; mesh.userData.stadium = true; group.add(mesh); }
+    top = Math.max(top, hm + 4);
+  }
   return top;
 }
