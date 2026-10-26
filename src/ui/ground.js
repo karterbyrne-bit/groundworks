@@ -304,6 +304,7 @@ $("skin").addEventListener("change", e => { archOf().skin = e.target.value; chan
 bindRadio("skinShape", v => { archOf().skinShape = v; changed(); });
 for (const k of ["arch","ramps","towers","plaza"]) $("a-"+k).addEventListener("change", e => { archOf()[k] = e.target.checked; changed(); });
 $("archAt").addEventListener("change", e => { archOf().archAt = e.target.value; changed(); });
+$("statues").addEventListener("change", e => { S.statues = Math.max(0, Math.min(4, +e.target.value || 0)); changed(); });
 $("a-masts").addEventListener("change", e => { archOf().masts = e.target.value; changed(); });
 function openState(st, sideTab, tweak){
   S = upgradeCorners(st); quiet = true; if (tweak) tweak(); tab = isHybrid() ? "B" : (sideTab || "N");

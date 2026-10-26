@@ -47,6 +47,26 @@ function skinTexture(kind){
   else { g.fillStyle = "#7fa9bf"; g.fillRect(0,0,256,256); g.fillStyle = "rgba(255,255,255,.35)"; g.fillRect(0,0,256,40); g.fillStyle = "#2f3a40"; g.fillRect(0,0,6,256); g.fillRect(0,0,256,6); g.fillRect(0,128,256,4); }
   const t = canvasTex(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.keep = true; return (skinTex[kind] = t);
 }
+/* Statues outside the main entrance: up to four generic bronze figures on stone plinths, each in its own pose (arms raised
+   in triumph, pointing, striding onto a ball, hands on hips). Nobody in particular. All of them one merged mesh. */
+function addStatues(n, bounds, poly, bf){
+  const s = 1.25, ph = 2.2;
+  for (let k=0;k<n;k++){
+    let x = (k - (n - 1)/2)*9, z = bounds[2] - 7;
+    if (poly && !inPoly([x, z], poly)){ z = bounds[2] - 3; if (!inPoly([x, z], poly)) continue; } // kept on the plot
+    post(bf("stone"), x, z, 0, ph, 2.2); post(bf("stone"), x, z, ph, ph + .25, 2.6); // the plinth and its cap
+    const y0 = ph + .25, P = (dx, dy, dz) => [x + dx*s, y0 + dy*s, z - dz*s], b = bf("bronze"); // facing out, away from the ground
+    const sh = P(0, 1.47, 0), shL = P(-.25, 1.44, 0), shR = P(.25, 1.44, 0), hipL = P(-.12, .95, 0), hipR = P(.12, .95, 0), pose = k % 4;
+    const [fL, fR, hL, hR] = pose === 0 ? [P(-.24, 0, 0), P(.24, 0, 0), P(-.6, 2.05, .1), P(.6, 2.05, .1)]   // arms up
+      : pose === 1 ? [P(-.15, 0, -.05), P(.17, 0, .1), P(-.3, .85, 0), P(.35, 1.55, .75)]                     // pointing
+      : pose === 2 ? [P(-.12, 0, -.35), P(.16, .1, .45), P(-.45, 1.05, .25), P(.45, 1.05, -.3)]               // striding onto a ball
+      : [P(-.2, 0, 0), P(.2, 0, 0), P(-.38, 1.0, -.05), P(.38, 1.0, -.05)];                                    // hands on hips
+    bar(b, P(0, .9, 0), sh, .46); bar(b, P(0, 1.56, 0), P(0, 1.9, 0), .27); // body and head
+    bar(b, hipL, fL, .19); bar(b, hipR, fR, .19); bar(b, shL, hL, .14); bar(b, shR, hR, .14);
+    if (pose === 3){ bar(b, hL, P(-.12, .95, 0), .13); bar(b, hR, P(.12, .95, 0), .13); } // elbows out, hands on hips
+    if (pose === 2){ const f = P(.2, .1, .62); post(b, f[0], f[2], y0, y0 + .28*s, .28*s); } // the ball
+  }
+}
 /* Many round members (lattice steel, cables) as one smooth-shaded mesh: each [from, to, radius] becomes a short tube. */
 function tubesMesh(list, sides, mat){
   const pos = [], nor = [], idx = [], up = new THREE.Vector3(0, 1, 0), side = new THREE.Vector3(), nrm = new THREE.Vector3(), d = new THREE.Vector3(), q = new THREE.Vector3();

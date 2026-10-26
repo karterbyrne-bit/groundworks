@@ -749,14 +749,20 @@ function build(){
         const f0 = Math.max(.02, edge), steps = Math.max(2, nS*2);
         for (let q=0;q<steps;q++){ const fa = lerp(f0, .98, q/steps), fb = lerp(f0, .98, (q+1)/steps), da = .35 + 1.7*fa, db = .35 + 1.7*fb;
           quad(buf("column"), V(i,at(a,fa),a.y(fa)-.3), V(i,at(a,fb),a.y(fb)-.3), V(i,at(a,fb),a.y(fb)-.3-db), V(i,at(a,fa),a.y(fa)-.3-da)); } }
-      if (rf.support === "toptruss"){ // a deep lattice truss along the top of the roof, the full length of the stand
-        const sb = buf("steel"), fT = .38, D = 5.5, live = []; for (let i=0;i<m;i++) if (RR[i]) live.push(i);
-        const P3 = (i, up) => { const a = RR[i], q = pt(i, at(a, fT)); return [q[0], a.y(fT) + .3 + up, q[1]]; };
+      /* A big steel girder along the top of the roof, the full length of the stand, like Old Trafford's: a box truss with
+         four chords, bracing zigzagging along its front and back faces and across its top, carried down to the ground at
+         the ends of an open stand. A roof support style of its own, or added to any roof on top of its usual support. */
+      if (rf.support === "toptruss" || rf.topTruss){
+        const sb = buf("steel"), fT = .38, D = 5.5, half = 1.7, live = []; for (let i=0;i<m;i++) if (RR[i]) live.push(i);
+        const P3 = (i, up, side) => { const a = RR[i], q = pt(i, at(a, fT) + side*half); return [q[0], a.y(fT) + .3 + up, q[1]]; };
         for (let n=0;n<live.length;n++){ const i = live[n], j = live[n+1] != null ? live[n+1] : (closed ? live[0] : null); if (j == null || (!closed && j !== i + 1)) continue;
-          bar(sb, P3(i, 0), P3(j, 0), .5); bar(sb, P3(i, D), P3(j, D), .5); bar(sb, n % 2 ? P3(i, 0) : P3(i, D), n % 2 ? P3(j, D) : P3(j, 0), .3); bar(sb, P3(i, 0), P3(i, D), .25); }
-        if (!closed) for (const i of [live[0], live[live.length-1]]) if (i != null){ const tg = tangent(i), s2 = i === live[0] ? -1 : 1, q = P3(i, D), b0 = pt(i, at(RR[i], fT));
+          for (const sd of [-1, 1]){ bar(sb, P3(i, 0, sd), P3(j, 0, sd), .5); bar(sb, P3(i, D, sd), P3(j, D, sd), .5); // the four chords
+            bar(sb, n % 2 ? P3(i, 0, sd) : P3(i, D, sd), n % 2 ? P3(j, D, sd) : P3(j, 0, sd), .3); } // diagonals down each face
+          bar(sb, P3(i, 0, -1), P3(i, D, -1), .25); bar(sb, P3(i, 0, 1), P3(i, D, 1), .25); // verticals
+          bar(sb, P3(i, D, -1), P3(i, D, 1), .22); bar(sb, n % 2 ? P3(i, D, -1) : P3(i, D, 1), n % 2 ? P3(j, D, 1) : P3(j, D, -1), .18); bar(sb, P3(i, 0, -1), P3(i, 0, 1), .22); } // and across
+        if (!closed) for (const i of [live[0], live[live.length-1]]) if (i != null){ const tg = tangent(i), s2 = i === live[0] ? -1 : 1, q = P3(i, D, 0), b0 = pt(i, at(RR[i], fT));
           post(sb, b0[0] + tg[0]*s2*2.5, b0[1] + tg[1]*s2*2.5, 0, q[1] + .5, 1.8); } // end posts carry it to the ground
-        topAll = Math.max(topAll, ...live.map(i => P3(i, D)[1] + .5));
+        topAll = Math.max(topAll, ...live.map(i => P3(i, D, 0)[1] + .5));
       }
       for (let i=0;i<m;i++){ const a = RR[i]; if (!a) continue;
         const peak = gable ? a.y(.5) : Math.max(a.y(0), a.y(1), a.y(.5));
@@ -1242,6 +1248,7 @@ function build(){
   const A = S.arch || {}, B2 = {}, buf2 = k => (B2[k] = B2[k] || []);
   drawSite(site, buf2, ext);
   if (!DRY) drawNeighbourhood(poly, ext.slice(), site, buf2);
+  if (!DRY && S.statues > 0) addStatues(Math.min(4, S.statues | 0), bounds, poly, buf2);
   const archTop = addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, buf2, ext);
   result.maxH = Math.max(result.maxH, archTop);
   if (window.__gwCheck){ let bad = 0; for (const k in B2) for (const v of B2[k]) if (!isFinite(v)) bad++; group.traverse(o => { const a = o.geometry && o.geometry.attributes && o.geometry.attributes.position; if (a && a.array) for (const v of a.array) if (!isFinite(v)) bad++; }); result.archNan = bad; }
