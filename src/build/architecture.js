@@ -258,7 +258,7 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
     const fx = F.W/2 + set, fz = F.H/2 + set, {spots, hm} = sigMastSpots(A, F, set, sext, H, poly), yF = Math.max(4, H*0.92), mastL = [], cab = [], v3 = (x, y, z) => new THREE.Vector3(x, y, z);
     const mast = (x, z, targets, stay) => { const t = v3(x, hm*.97, z);
       mastL.push([v3(x, 0, z), v3(x, hm*.45, z), 1.5], [v3(x, hm*.45, z), v3(x, hm*.8, z), 1.15], [v3(x, hm*.8, z), v3(x, hm, z), .8]); // tapering in three lengths
-      for (const [tx, tz] of targets) cab.push([t, v3(tx, yF, tz), .12]);
+      for (const [tx, tz] of targets){ const q = roofFrontNear(anchors, tx, tz, 30); cab.push([t, q ? v3(q[0], q[1], q[2]) : v3(tx, yF, tz), .12]); } // down onto the roof's front edge
       cab.push([t, v3(stay[0], 0, stay[1]), .16]); post(bf("concrete"), stay[0], stay[1], 0, .8, 2.2); // the backstay and its anchor block
       post(bf("lamp"), x, z, hm, hm + 1.4, 1.1); post(bf("steel"), x, z, hm + 1.4, hm + 4, .15);
       ext[0] = Math.max(ext[0], Math.abs(x) + 3); ext[1] = Math.max(ext[1], Math.abs(z) + 3); };
