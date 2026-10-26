@@ -31,7 +31,7 @@ const M_BASE = new Set(Object.keys(M)), M_USED = new Set();
 function tint(base, hex){
   if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) return base;
   const k = base + "_" + hex.slice(1).toLowerCase();
-  if (!M[k]){ M[k] = M[base].clone(); M[k].color.set(hex); if (base === "seatBack") M[k].color.multiplyScalar(0.8); }
+  if (!M[k]){ M[k] = M[base].clone(); M[k].color.set(hex); if (base === "seatBack") M[k].color.multiplyScalar(0.8); if (M[k].userData.weather) weather(M[k], M[k].userData.weather); }
   M_USED.add(k); return k;
 }
 function sweepMats(){

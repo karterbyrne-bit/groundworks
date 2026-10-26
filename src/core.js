@@ -337,6 +337,33 @@ const M = {
   ballast: std({color:0x857d72, roughness:1}), slate: std({color:0x3c4248, roughness:.75}), outfield: std({color:0x23452c, roughness:.85}), track: std({color:0xb4513a, roughness:.9})
 };
 for (const st in STYLES) M["clad_"+st] = std({color:STYLES[st].clad, roughness: [0x8b4636,0x9a4a3a,0x7d3b2c].includes(STYLES[st].clad) ? .95 : .6, metalness: st === "showpiece" ? .3 : .15});
+/* Weathering, worked out on the graphics card from where each point is, so it needs no extra pictures and costs phones
+   next to nothing: big soft patches of lighter and darker tone across each stand, rain streaks running down the walls
+   from ledges and roof edges, and grime along the bottom few metres where splashes and feet reach. */
+const WEATHER_GLSL = `
+float wHash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)))*43758.5453); }
+float wNoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f);
+  return mix(mix(wHash(i), wHash(i + vec2(1.0, 0.0)), f.x), mix(wHash(i + vec2(0.0, 1.0)), wHash(i + vec2(1.0, 1.0)), f.x), f.y); }`;
+function weather(m, streaks){
+  m.userData.weather = streaks == null ? 1 : streaks;
+  m.onBeforeCompile = sh => {
+    sh.uniforms.wStreak = {value: m.userData.weather};
+    sh.vertexShader = "varying vec3 vWPos; varying vec3 vWN;\n" + sh.vertexShader.replace("#include <begin_vertex>",
+      "#include <begin_vertex>\n vWPos = (modelMatrix*vec4(transformed, 1.0)).xyz; vWN = normalize(mat3(modelMatrix)*objectNormal);");
+    sh.fragmentShader = "varying vec3 vWPos; varying vec3 vWN; uniform float wStreak;" + WEATHER_GLSL + "\n" + sh.fragmentShader.replace("#include <color_fragment>", `#include <color_fragment>
+      { float tone = 1.0 + (wNoise(vWPos.xz*0.035) - 0.5)*0.24 + (wNoise(vWPos.xz*0.21 + 7.0) - 0.5)*0.08;
+        float wall = smoothstep(0.35, 0.9, 1.0 - abs(vWN.y));
+        vec2 side = normalize(vec2(-vWN.z, vWN.x) + vec2(1e-4)); float along = dot(vWPos.xz, side);
+        float streak = smoothstep(0.5, 0.9, wNoise(vec2(along*0.85, vWPos.y*0.06)))*wall*wStreak;
+        float grime = (1.0 - smoothstep(0.2, 4.0, vWPos.y))*(0.6 + 0.4*wNoise(vWPos.xz*0.4))*wall;
+        diffuseColor.rgb *= tone*(1.0 - 0.3*streak)*(1.0 - 0.38*grime); }`);
+  };
+  m.customProgramCacheKey = () => "weather";
+  return m;
+}
+for (const k of ["concrete", "riser", "soffit", "tower", "terrace", "fascia", "gate", "trim", "pavement"]) weather(M[k]);
+for (const k of ["roofSolid", "roofConcrete", "roofGreen", "roofEdge"]) weather(M[k], 0.6);
+for (const st in STYLES) weather(M["clad_"+st]);
 function setSeatColours(){
   M.seated.color.set(S.seat); M.seatBack.color.set(S.seat).multiplyScalar(0.8); M.rail.color.set(S.seat);
   M.exec.color.set(S.seat).multiplyScalar(0.5); M.lattice.color.set(S.seat);
@@ -369,6 +396,30 @@ function rr(ctx,w,h,r){
   ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.arc(x+w-r,y+r,r,-Math.PI/2,0);
   ctx.lineTo(x+w,y+h-r); ctx.arc(x+w-r,y+h-r,r,0,Math.PI/2); ctx.lineTo(x+r,y+h); ctx.arc(x+r,y+h-r,r,Math.PI/2,Math.PI);
   ctx.lineTo(x,y+r); ctx.arc(x+r,y+r,r,Math.PI,Math.PI*1.5); ctx.closePath();
+}
+/* Real turf: mowing stripes (alternate bands mown in opposite directions, so one looks lighter), gentle patches of
+   lighter and darker grass, and wear where play is heaviest. The patchiness comes from one small shared tile, so redrawing
+   the pitch stays cheap. wear: [x, z, half-length, half-width, strength] ellipses in metres. */
+let turfTile = null;
+function turfNoise(){
+  if (turfTile) return turfTile;
+  const N = 128, c = document.createElement("canvas"); c.width = c.height = N; const g = c.getContext("2d");
+  let seed = 7; const rnd = () => { seed = (seed*16807) % 2147483647; return seed/2147483647; };
+  for (let i=0;i<70;i++){ const x = rnd()*N, y = rnd()*N, r = 6 + rnd()*22, light = rnd() < .5;
+    for (const dx of [-N, 0, N]) for (const dy of [-N, 0, N]){ // drawn on every side, so the tile repeats without seams
+      const gr = g.createRadialGradient(x+dx, y+dy, 0, x+dx, y+dy, r); gr.addColorStop(0, light ? "rgba(214,232,150,.16)" : "rgba(18,40,12,.16)"); gr.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = gr; g.fillRect(x+dx-r, y+dy-r, 2*r, 2*r); } }
+  for (let i=0;i<2600;i++){ g.fillStyle = rnd() < .5 ? "rgba(255,255,230,.05)" : "rgba(0,20,0,.06)"; g.fillRect(rnd()*N, rnd()*N, 1, 1); }
+  return (turfTile = c);
+}
+function turf(ctx, x0, z0, w, h, band, light, dark, wear){
+  ctx.fillStyle = dark; ctx.fillRect(x0, z0, w, h);
+  ctx.fillStyle = light; for (let x = 0, i = 0; x < w; x += band, i++) if (i % 2) ctx.fillRect(x0 + x, z0, Math.min(band, w - x), h);
+  const pat = ctx.createPattern(turfNoise(), "repeat"); if (pat.setTransform) pat.setTransform(new DOMMatrix().scale(0.3));
+  ctx.fillStyle = pat; ctx.fillRect(x0, z0, w, h);
+  for (const [x, z, a, b, s] of wear || []){ ctx.save(); ctx.translate(x, z); ctx.scale(a, b);
+    const gr = ctx.createRadialGradient(0, 0, 0, 0, 0, 1); gr.addColorStop(0, `rgba(150,132,84,${s})`); gr.addColorStop(.55, `rgba(120,126,70,${s*.45})`); gr.addColorStop(1, "rgba(120,126,70,0)");
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI*2); ctx.fill(); ctx.restore(); }
 }
 function drawFootball(ctx){
   ctx.strokeRect(-52.5,-34,105,68);
@@ -420,7 +471,7 @@ function drawKind(ctx, F, Wt, Ht, lw, shaped){
   if (k === "wrestleball"){
     const z = F.zones, tot = z.reduce((a,b) => a+b, 0), sc = W/tot;
     let x = -W/2;
-    for (let s = -Wt/2, n = 0; s < Wt/2; s += 1.5, n++){ ctx.fillStyle = n % 2 ? "#41853b" : "#3b7a36"; ctx.fillRect(s, -Ht/2, 1.5, Ht); }
+    turf(ctx, -Wt/2, -Ht/2, Wt, Ht, 1.5, "#45893e", "#397535", [[W/2 - 1.4, 0, 1.6, H*0.35, .4], [-W/2 + 1.4, 0, 1.6, H*0.35, .4], [0, 0, W*0.22, H*0.22, .2]]);
     z.forEach((len, i) => { if (i !== 1){ ctx.fillStyle = "rgba(255,255,255,.13)"; ctx.fillRect(x, -H/2, len*sc, H); } x += len*sc; });
     x = -W/2;
     ctx.strokeStyle = "#ffffff"; ctx.lineWidth = Math.max(lw, 0.05);
@@ -466,8 +517,10 @@ function floorTexture(F, set, sp){
     for (let k=-4;k<=4;k++){ ctx.fillStyle = k === 0 ? "#cdb98a" : k % 2 ? "#5d8f4a" : "#6b9a52"; ctx.fillRect(-12, -1.525 + k*3.05, 24, 3.05); } // the square: a row of pitches, today's in the middle
     ctx.fillStyle = "#ffffff"; for (const s of [-1,1]) ctx.fillRect(s*8.84-0.05,-1.32,0.1,2.64);
   } else {
-    ctx.fillStyle = "#3d7a38"; ctx.fillRect(-Wt/2,-Ht/2,Wt,Ht);
-    ctx.fillStyle = "#468a40"; for (let x=-Wt/2,i=0;x<Wt/2;x+=5.25,i++) if (i%2) ctx.fillRect(x,-Ht/2,5.25,Ht);
+    // worn in the goalmouths (or in front of the posts) and down the middle, where the play is heaviest
+    const ends = sport === "rugby" ? 47 : 49.5;
+    turf(ctx, -Wt/2, -Ht/2, Wt, Ht, 5.25, "#4a8f43", "#3b7636", sport === "athletics" ? [] :
+      [[ends, 0, 7, 5.5, .5], [-ends, 0, 7, 5.5, .5], [ends + 2.2, 0, 2.6, 2.2, .45], [-ends - 2.2, 0, 2.6, 2.2, .45], [0, 0, 38, 7, .16], [0, 0, 6, 4, .22]]);
     ctx.fillStyle = "rgba(255,255,255,.92)";
     if (sport === "football") drawFootball(ctx);
     if (sport === "rugby"){
