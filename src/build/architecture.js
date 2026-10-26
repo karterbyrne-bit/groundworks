@@ -153,11 +153,14 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
     P.forEach((p,i) => { const q = [p[0] + N[i][0]*outerD[i], p[1] + N[i][1]*outerD[i]]; ext[0] = Math.max(ext[0], Math.abs(q[0])); ext[1] = Math.max(ext[1], Math.abs(q[1])); });
   }
   /* Spiral ramps, San Siro style: an open helix of concrete deck round an empty middle, held up on slim columns, with a
-     parapet and a steel rail on each edge, and a short bridge across to the stand at every level. */
+     parapet and a steel rail on each edge, and a short bridge across to the stand at every level. One at each corner of
+     the ground: the point of the outline furthest out that way. */
   if (A.ramps){
-    const count = Math.max(4, Math.min(10, Math.round(perim/90))), R0 = 4.5, R1 = 10.5, h = H*0.92, turns = Math.max(1.5, h/8), gap = 3.5, per = 32;
-    for (let t=0;t<count;t++){
-      const i = Math.floor((t + 0.5)*n/count), c = [P[i][0] + N[i][0]*(R1 + gap), P[i][1] + N[i][1]*(R1 + gap)];
+    const R0 = 4.5, R1 = 10.5, h = H*0.92, turns = Math.max(1.5, h/8), gap = 3.5, per = 32;
+    const corners = [[1,1],[1,-1],[-1,-1],[-1,1]].map(([sx, sz]) => { let bi = 0, bv = -Infinity;
+      for (let i=0;i<n;i++){ const v = P[i][0]*sx/(sext[0] || 1) + P[i][1]*sz/(sext[1] || 1); if (v > bv){ bv = v; bi = i; } } return bi; });
+    for (const i of corners){
+      const c = [P[i][0] + N[i][0]*(R1 + gap), P[i][1] + N[i][1]*(R1 + gap)];
       const segs = Math.round(turns*per), ph = Math.atan2(-N[i][1], -N[i][0]);
       const at = (q, r, y) => [c[0] + Math.cos(q)*r, y, c[1] + Math.sin(q)*r];
       for (let s=0;s<segs;s++){ const q0 = ph + s/per*Math.PI*2, q1 = ph + (s+1)/per*Math.PI*2, y0 = h*s/segs, y1 = h*(s+1)/segs;
