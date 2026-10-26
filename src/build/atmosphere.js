@@ -84,16 +84,20 @@ function addCrowd(recs, F){
   const bodies = mk(crowdGeo.body), heads = mk(crowdGeo.head);
   const club = new THREE.Color(S.seat), club2 = new THREE.Color(S.seat2 || "#f2f2f2"), dark = club.clone().multiplyScalar(0.7);
   const A = awayOf(), away = new THREE.Color(A.colour), HE = homeEndOf();
+  /* No two shirts quite the same: old and new kits, faded and fresh, a scarf over one. A few shades of each colour. */
+  const shades = col => [0.8, 0.9, 1, 1, 1.1].map(k => col.clone().multiplyScalar(k)), clubS = shades(club), club2S = shades(club2), awayS = shades(away);
   const full = S.crowdFill == null ? 0.93 : Math.max(0, Math.min(1, S.crowdFill));
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), up = new THREE.Vector3(0,1,0), hsc = new THREE.Vector3(1,1,1);
   const phase = [], baseY = [], flags = [];
   let c = 0, carry = 0, seed = 1;
   const rnd = () => { seed = (seed*16807) % 2147483647; return seed/2147483647; };
-  const place = (x, y, z, hgt, w, shirt, head, ph) => {
-    pos.set(x, y, z); sc.set(w, hgt, 1); m4.compose(pos, q, sc); bodies.setMatrixAt(c, m4); bodies.setColorAt(c, shirt);
-    pos.y = y + hgt/2 + 0.1; m4.compose(pos, q, hsc); heads.setMatrixAt(c, m4); heads.setColorAt(c, head);
+  const pick = list => list[Math.floor(rnd()*list.length)];
+  const place = (x, y, z, hgt, w, shirt, head, ph, d) => {
+    pos.set(x, y, z); sc.set(w, hgt, d || 1); m4.compose(pos, q, sc); bodies.setMatrixAt(c, m4); bodies.setColorAt(c, shirt);
+    pos.y = y + hgt/2 + 0.1; hsc.setScalar(0.9 + rnd()*0.2); m4.compose(pos, q, hsc); heads.setMatrixAt(c, m4); heads.setColorAt(c, head);
     phase.push(ph); baseY.push(y); c++; };
   const angle = (x, z) => Math.atan2(z, x);
+  let gapRun = 0; // empty seats come in twos and threes, as real gaps do, not one at a time
   for (const r of recs){
     const want = (r.seats || 0)/step + carry, n = Math.floor(want); carry = want - n; if (n < 1) continue;
     const dx = r.m1[0]-r.m0[0], dz = r.m1[1]-r.m0[1]; q.setFromAxisAngle(up, Math.atan2(-dz, dx));
@@ -101,17 +105,20 @@ function addCrowd(recs, F){
     if (r.empty) continue; // the segregation gap round the away end
     const a = angle(r.x, r.z), inAway = !!r.away, kop = !inAway && !!r.home; // the home end: all in the club's colours, full and on its feet
     for (let k=0;k<n && c<n0 - 400;k++){
-      if (rnd() > (kop ? Math.max(fill, .99) : fill)) continue;
+      const fillHere = kop ? Math.max(fill, .99) : fill;
+      if (gapRun > 0 && fillHere < .995){ gapRun--; continue; }
+      if (rnd() > 1 - (1 - fillHere)/1.6){ gapRun = rnd() < .45 ? 1 + Math.floor(rnd()*2) : 0; continue; }
       const f = (k + 0.5 + (rnd()-0.5)*0.3)/n, x = r.m0[0] + dx*f, z = r.m0[1] + dz*f;
-      const v = rnd(), shirt = inAway ? (v < .7 ? away : CLOTHES[Math.floor(rnd()*CLOTHES.length)])
+      const v = rnd(), shirt = inAway ? (v < .7 ? pick(awayS) : CLOTHES[Math.floor(rnd()*CLOTHES.length)])
         : r.type === "exec" ? CLOTHES[Math.floor(rnd()*4)] // suits and smart coats in the boxes
         : kop && HE.tifo ? (Math.floor(r.j/3) % 2 ? club2 : club) // a card display: bands of colour held up row by row
-        : kop ? (v < .7 ? club : v < .85 ? dark : club2)
-        : v < .45 ? club : v < .55 ? dark : v < .62 ? club2 : CLOTHES[Math.floor(rnd()*CLOTHES.length)];
+        : kop ? (v < .7 ? pick(clubS) : v < .85 ? dark : pick(club2S))
+        : v < .42 ? pick(clubS) : v < .52 ? dark : v < .59 ? pick(club2S) : CLOTHES[Math.floor(rnd()*CLOTHES.length)]; // and plenty in their own clothes
       const head = kop && HE.tifo ? shirt : rnd() < .14 ? (inAway ? away : rnd() < .7 ? club : CLOTHES[0]) : SKIN[Math.floor(rnd()*SKIN.length)]; // a bobble hat or a cap now and then; cards held over faces
-      const h = hgt*(0.9 + rnd()*0.2), y = lerp(r.h0, r.h1, f) + (standing ? 0.05 + h/2 + 0.35 : 0.42 + h/2) + (rnd()-0.5)*0.05;
+      // tall and short, broad and slight, and the odd child next to a parent
+      const h = hgt*(0.86 + rnd()*0.28)*(rnd() < .05 ? 0.76 : 1), y = lerp(r.h0, r.h1, f) + (standing ? 0.05 + h/2 + 0.35 : 0.42 + h/2) + (rnd()-0.5)*0.05;
       if (nearEye(x, y, z)) continue; // cleared for the view from a seat
-      place(x, y, z, h, widen*(0.9 + rnd()*0.2), shirt, head, a);
+      place(x, y, z, h, widen*(0.8 + rnd()*0.42), shirt, head, a, 0.88 + rnd()*0.3);
       if ((kop && HE.flags && !HE.tifo && rnd() < .05) || (inAway && HE.flags && rnd() < .03)) flags.push([x, y + h/2 + 1.25, z, inAway ? (rnd() < .6 ? away : club2.clone().lerp(away, .3)) : rnd() < .55 ? club : club2, q.clone()]);
     }
   }
