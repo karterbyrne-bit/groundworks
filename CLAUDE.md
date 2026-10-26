@@ -41,6 +41,8 @@ Groundworks is for football and rugby fans sketching their dream grounds. Fun co
 | `src/build/fittings.js` | Floodlights, screens, sponsors' boards and banners, the tunnel and dugouts, wheelchair spaces, facilities, entrances |
 | `src/build/walls.js` | The outside walls: façade looks, brick/concrete/metal/timber textures, lettering, windows |
 | `src/build/roofs-site.js` | Roof-edge floodlights, the surroundings (roads, rivers, houses), roof trusses and lamp heads, convertible grounds, roof sheeting |
+| `src/build/neighbourhood.js` | The streets, terraced houses, car park, trees and bigger buildings round the ground (decoration only), and roads that snap to the plot's edge |
+| `src/build/views.js` | Obstructed views: which seats have pillars, overhangs, masts or screens in the way, and how badly, plus the amber/red colouring |
 | `src/build/stadium.js` | `build()`: builds the whole stadium, works out capacity, runs every check, plus the one-tap fix search |
 | `src/ui/readout.js` | The results readout, the architect's notes, pop-up messages, one-tap fixes, and the panes of controls |
 | `src/ui/camera.js` | The camera and saved views, dragging handles in 3D, the drawing loop, light/dark theme, undo/redo and autosave |

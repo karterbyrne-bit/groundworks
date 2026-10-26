@@ -37,6 +37,7 @@
     <div class="quick" data-pane="start">
       <button class="btn hero" id="randomBtn"><span class="dice" aria-hidden="true">🎲</span><span>Surprise me<small>a random stadium to play with</small></span></button>
       <button class="btn hero" id="shareBtn"><span class="dice" aria-hidden="true">🔗</span><span>Share this design<small>copies a link anyone can open</small></span></button>
+      <button class="btn hero" id="imageBtn" data-saveimage><span class="dice" aria-hidden="true">🖼️</span><span>Save as image<small>a picture of this view to share</small></span></button>
     </div>
 
     <section class="group" data-pane="start">
@@ -283,7 +284,9 @@
         <input type="radio" name="skinShape" id="ss-hull" value="hull"><label for="ss-hull">Follows the stands</label>
         <input type="radio" name="skinShape" id="ss-round" value="round"><label for="ss-round">Smooth and rounded</label>
       </div>
-      <label class="toggle"><input type="checkbox" id="a-arch"> A great arch over the main stand</label>
+      <label class="toggle"><input type="checkbox" id="a-arch"> A great arch</label>
+      <div class="row" id="archAtRow"><label for="archAt">Where it goes</label><select id="archAt"><option value="main">Over the main stand</option><option value="diagonal">Diagonally across the ground</option><option value="cross">Two arches crossing</option></select></div>
+      <div class="row"><label for="a-masts">Masts and cables</label><select id="a-masts"><option value="">None</option><option value="corners">Four masts, at the corners</option><option value="main">Along the back of the main stand</option></select></div>
       <label class="toggle"><input type="checkbox" id="a-ramps"> Spiral ramp towers round the outside</label>
       <label class="toggle"><input type="checkbox" id="a-towers"> Twin entrance towers</label>
       <label class="toggle"><input type="checkbox" id="a-plaza"> Raised plaza with steps</label>
@@ -336,6 +339,9 @@
     </section>
 
     <section class="group" data-pane="look">
+      <h2>Kick-off flyover</h2>
+      <p class="hint">A 15-second swoop from high over the town, round and in over the roof, down to the touchline. Tap to stop it.</p>
+      <div class="row"><button class="btn small" data-fly="play">🎬 Play the flyover</button><button class="btn small" data-fly="record">⏺ Record it as a video</button></div>
       <h2>Finishing touches</h2>
       <label class="toggle"><input type="checkbox" id="crowd"> Fill it with a crowd</label>
       <div id="crowdBox">
@@ -360,8 +366,12 @@
         <button class="btn small" id="waveBtn">🙌 Start a Mexican wave</button>
       </div>
       <label class="toggle" id="playersRow"><input type="checkbox" id="players"> Players lined up for kick-off</label>
+      <div class="row"><label for="statues">Statues outside the main entrance</label><select id="statues"><option value="0">None</option><option value="1">One</option><option value="2">Two</option><option value="3">Three</option><option value="4">Four</option></select></div>
       <label class="toggle"><input type="checkbox" id="night"> Night match under the lights</label>
       <div class="row" id="hourRow"><label for="hour">Time of day</label><output id="o-hour"></output><input type="range" id="hour" min="6" max="21" step="0.25"></div>
+      <label class="toggle"><input type="checkbox" id="halo"> An LED halo round the roof edges, in the club's colours</label>
+      <label class="toggle" id="flaresRow"><input type="checkbox" id="flares"> Flares and smoke in the home end</label>
+      <button class="btn small" id="fireworksBtn">🎆 Fireworks over the ground</button>
       <label class="toggle"><input type="checkbox" id="scenery"> Real sky and fields round the ground (untick for a plain model look)</label>
       <label class="toggle"><input type="checkbox" id="seeThrough"> See-through roofs</label>
       <div class="row"><label>Seat colour</label></div>
@@ -406,7 +416,8 @@
         <button id="presentBtn">Presentation mode</button>
       </div>
       <div class="bookmarks" id="bookmarks" hidden></div>
-      <button class="exitp" id="exitPresent">Exit presentation</button>
+      <div class="exitp"><button data-fly="play">Kick-off flyover</button><button id="presentImage" data-saveimage>Save as image</button><button id="exitPresent">Exit presentation</button></div>
+      <div class="veil" id="veil" aria-hidden="true"></div>
       <p class="tip" id="tip"></p>
       <button class="hud" id="hud" aria-label="Open results"><b id="hudCap">0</b><span id="hudChecks"></span></button>
     </div>

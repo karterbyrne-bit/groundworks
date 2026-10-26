@@ -73,6 +73,10 @@ function syncUI(){
   const AR = Object.assign({skin:"none", skinShape:"round"}, S.arch || {});
   $("skin").value = AR.skin; document.querySelector(`input[name=skinShape][value=${AR.skinShape}]`).checked = true; $("skinShapeRow").hidden = AR.skin === "none";
   for (const k of ["arch","ramps","towers","plaza"]) $("a-"+k).checked = !!AR[k];
+  $("archAt").value = ["main", "diagonal", "cross"].includes(AR.archAt) ? AR.archAt : "main"; $("archAtRow").hidden = !AR.arch;
+  $("a-masts").value = ["corners", "main"].includes(AR.masts) ? AR.masts : "";
+  $("statues").value = String(Math.max(0, Math.min(4, S.statues | 0)));
+  $("halo").checked = !!S.halo; $("flares").checked = !!S.flares;
   $("flood").value = floodMode(); if (!$("screens").contains(document.activeElement) && screensDrawn !== JSON.stringify(Array.isArray(S.screens) ? S.screens : screenList(LAST && LAST.closedAt))) renderScreens();
   { const SP = sponsorsOf(); if (document.activeElement !== $("spTitle")) $("spTitle").value = SP.title || "";
     if (document.activeElement !== $("spNames")) $("spNames").value = SP.names.join("\n");
@@ -141,7 +145,7 @@ function keepPitchClear(){
 }
 function changed(moveCam, coalesce){
   if (moveCam) recam = true;
-  keepPitchClear();
+  keepPitchClear(); followSnappedRoads(); // roads that run along the plot's edge move with it
   syncUI(); renderTabs(); save(coalesce);
   if (pending) return; pending = true;
   requestAnimationFrame(() => { pending = false; build(); if (wire) applyWire(); syncUI(); renderSummary(); if (recam){ recam = false; if (camMode !== "seat") goCam(camMode); } });
@@ -158,4 +162,4 @@ requestAnimationFrame(() => requestAnimationFrame(async () => {
 }));
 window.addEventListener("hashchange", openFromLink);
 /* read-only hook for automated checks */
-window.__gw = {state:() => JSON.parse(JSON.stringify(S)), last:() => LAST, seat:(x, y, z, standing) => seatView({x, y, z}, standing, true), busy:() => pending, boards:() => { let n = 0; group.traverse(o => { if (o.userData.ads) n++; }); return n > 0; }, crowd:() => { if (!CROWD) return null; const a = CROWD.bodies.instanceMatrix.array; let up = 0; for (let i=0;i<CROWD.n;i++) if (a[i*16+13] > CROWD.base[0][i*16+13] + 0.05) up++; return {n:CROWD.n, standing:up}; }, memory:() => Object.assign({materials:Object.keys(M).length, programs:renderer.info.programs.length}, renderer.info.memory), regions:() => LAST_REGIONS, look:(p, t, stand) => { anim = null; if (stand){ picking = false; setLook(true); } moveCam(new THREE.Vector3(...p), new THREE.Vector3(...t), true); invalidate(); }};
+window.__gw = {state:() => JSON.parse(JSON.stringify(S)), last:() => LAST, seat:(x, y, z, standing) => seatView({x, y, z}, standing, true), busy:() => pending, boards:() => { let n = 0; group.traverse(o => { if (o.userData.ads) n++; }); return n > 0; }, crowd:() => { if (!CROWD) return null; const a = CROWD.bodies.instanceMatrix.array; let up = 0; for (let i=0;i<CROWD.n;i++) if (a[i*16+13] > CROWD.base[0][i*16+13] + 0.05) up++; return {n:CROWD.n, standing:up}; }, memory:() => Object.assign({materials:Object.keys(M).length, programs:renderer.info.programs.length}, renderer.info.memory), regions:() => LAST_REGIONS, obsShown:() => { let n = 0; group.traverse(o => { if (o.material === M.obsSlight || o.material === M.obsBad) n++; }); return n; }, settle:settleNow, ao:() => AO && {on:!AO.off, frames:AO.frames, ms:AO.ms}, look:(p, t, stand) => { anim = null; if (stand){ picking = false; setLook(true); } moveCam(new THREE.Vector3(...p), new THREE.Vector3(...t), true); invalidate(); }};

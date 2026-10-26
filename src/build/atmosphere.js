@@ -86,16 +86,21 @@ function addCrowd(recs, F){
   const bodies = mk(crowdGeo.body), heads = mk(crowdGeo.head);
   const club = new THREE.Color(S.seat), club2 = new THREE.Color(S.seat2 || "#f2f2f2"), dark = club.clone().multiplyScalar(0.7);
   const A = awayOf(), away = new THREE.Color(A.colour), HE = homeEndOf();
+  /* No two shirts quite the same: old and new kits, faded and fresh, a scarf over one. A few shades of each colour. */
+  const shades = col => [0.8, 0.9, 1, 1, 1.1].map(k => col.clone().multiplyScalar(k)), clubS = shades(club), club2S = shades(club2), awayS = shades(away);
+  const obsCol = S.showObstructed ? [null, new THREE.Color(0xffb020), new THREE.Color(0xe5322b)] : null; // "Show obstructed views": fans with a restricted view in amber, badly restricted in red
   const full = S.crowdFill == null ? 0.93 : Math.max(0, Math.min(1, S.crowdFill));
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), up = new THREE.Vector3(0,1,0), hsc = new THREE.Vector3(1,1,1);
   const phase = [], baseY = [], flags = [];
   let c = 0, carry = 0, seed = 1;
   const rnd = () => { seed = (seed*16807) % 2147483647; return seed/2147483647; };
-  const place = (x, y, z, hgt, w, shirt, head, ph) => {
-    pos.set(x, y, z); sc.set(w, hgt, 1); m4.compose(pos, q, sc); bodies.setMatrixAt(c, m4); bodies.setColorAt(c, shirt);
-    pos.y = y + hgt/2 + 0.1; m4.compose(pos, q, hsc); heads.setMatrixAt(c, m4); heads.setColorAt(c, head);
+  const pick = list => list[Math.floor(rnd()*list.length)];
+  const place = (x, y, z, hgt, w, shirt, head, ph, d) => {
+    pos.set(x, y, z); sc.set(w, hgt, d || 1); m4.compose(pos, q, sc); bodies.setMatrixAt(c, m4); bodies.setColorAt(c, shirt);
+    pos.y = y + hgt/2 + 0.1; hsc.setScalar(0.9 + rnd()*0.2); m4.compose(pos, q, hsc); heads.setMatrixAt(c, m4); heads.setColorAt(c, head);
     phase.push(ph); baseY.push(y); c++; };
   const angle = (x, z) => Math.atan2(z, x);
+  let gapRun = 0; // empty seats come in twos and threes, as real gaps do, not one at a time
   for (const r of recs){
     const want = (r.seats || 0)/step + carry, n = Math.floor(want); carry = want - n; if (n < 1) continue;
     const dx = r.m1[0]-r.m0[0], dz = r.m1[1]-r.m0[1]; q.setFromAxisAngle(up, Math.atan2(-dz, dx));
@@ -103,17 +108,21 @@ function addCrowd(recs, F){
     if (r.empty) continue; // the segregation gap round the away end
     const a = angle(r.x, r.z), inAway = !!r.away, kop = !inAway && !!r.home; // the home end: all in the club's colours, full and on its feet
     for (let k=0;k<n && c<n0 - 400;k++){
-      if (rnd() > (kop ? Math.max(fill, .99) : fill)) continue;
+      const fillHere = kop ? Math.max(fill, .99) : fill;
+      if (gapRun > 0 && fillHere < .995){ gapRun--; continue; }
+      if (rnd() > 1 - (1 - fillHere)/1.6){ gapRun = rnd() < .45 ? 1 + Math.floor(rnd()*2) : 0; continue; }
       const f = (k + 0.5 + (rnd()-0.5)*0.3)/n, x = r.m0[0] + dx*f, z = r.m0[1] + dz*f;
-      const v = rnd(), shirt = inAway ? (v < .7 ? away : CLOTHES[Math.floor(rnd()*CLOTHES.length)])
+      const v = rnd(), shirt = inAway ? (v < .7 ? pick(awayS) : CLOTHES[Math.floor(rnd()*CLOTHES.length)])
         : r.type === "exec" ? CLOTHES[Math.floor(rnd()*4)] // suits and smart coats in the boxes
         : kop && HE.tifo ? (Math.floor(r.j/3) % 2 ? club2 : club) // a card display: bands of colour held up row by row
-        : kop ? (v < .7 ? club : v < .85 ? dark : club2)
-        : v < .45 ? club : v < .55 ? dark : v < .62 ? club2 : CLOTHES[Math.floor(rnd()*CLOTHES.length)];
+        : kop ? (v < .7 ? pick(clubS) : v < .85 ? dark : pick(club2S))
+        : v < .42 ? pick(clubS) : v < .52 ? dark : v < .59 ? pick(club2S) : CLOTHES[Math.floor(rnd()*CLOTHES.length)]; // and plenty in their own clothes
       const head = kop && HE.tifo ? shirt : rnd() < .14 ? (inAway ? away : rnd() < .7 ? club : CLOTHES[0]) : SKIN[Math.floor(rnd()*SKIN.length)]; // a bobble hat or a cap now and then; cards held over faces
-      const h = hgt*(0.9 + rnd()*0.2), y = lerp(r.h0, r.h1, f) + (standing ? 0.05 + h/2 + 0.35 : 0.42 + h/2) + (rnd()-0.5)*0.05;
+      // tall and short, broad and slight, and the odd child next to a parent
+      const h = hgt*(0.86 + rnd()*0.28)*(rnd() < .05 ? 0.76 : 1), y = lerp(r.h0, r.h1, f) + (standing ? 0.05 + h/2 + 0.35 : 0.42 + h/2) + (rnd()-0.5)*0.05;
       if (nearEye(x, y, z)) continue; // cleared for the view from a seat
-      place(x, y, z, h, widen*(0.9 + rnd()*0.2), shirt, head, a);
+      const oc = obsCol && r.obs ? obsCol[r.obs] : null;
+      place(x, y, z, h, widen*(0.8 + rnd()*0.42), oc || shirt, oc || head, a, 0.88 + rnd()*0.3);
       if ((kop && HE.flags && !HE.tifo && rnd() < .05) || (inAway && HE.flags && rnd() < .03)) flags.push([x, y + h/2 + 1.25, z, inAway ? (rnd() < .6 ? away : club2.clone().lerp(away, .3)) : rnd() < .55 ? club : club2, q.clone()]);
     }
   }
@@ -225,7 +234,8 @@ function applyMood(){
     sun.position.set(R*Math.cos(el)*Math.cos(az), R*Math.sin(el), R*Math.cos(el)*Math.sin(az));
     const warm = Math.max(0, Math.min(1, (22 - elD)/18)); sun.color.lerp(new THREE.Color(0xffa860), warm); hemi.color.lerp(new THREE.Color(0xffd2a8), warm*0.5);
     sun.intensity = lerp(LUX.sun, LUX.eveSun, warm); hemi.intensity = lerp(LUX.hemi, LUX.eveHemi, warm); scene.environmentIntensity = lerp(LUX.env, LUX.eveEnv, warm); }
-  M.lamp.emissiveIntensity = night ? 2.2 : 0.9; M.band.emissive.set(night ? 0xffc46b : 0x000000); M.band.emissiveIntensity = night ? 0.55 : 0;
+  updateClocks();
+  M.lamp.emissiveIntensity = night ? 2.2 : 0.9; M.haloA.emissiveIntensity = M.haloB.emissiveIntensity = night ? 4 : .9; M.band.emissive.set(night ? 0xffc46b : 0x000000); M.band.emissiveIntensity = night ? 0.55 : 0;
   M.board.emissiveIntensity = night ? 1.6 : 0.8; M.screen.emissiveIntensity = night ? 1.4 : 0.7;
   M.window.emissive.set(night ? 0xffc77a : 0x000000); M.window.emissiveIntensity = night ? 0.6 : 0;
   if (night && S.scenery !== "model") realScenery(true);
@@ -234,4 +244,70 @@ function applyMood(){
   const see = !!S.seeThrough;
   for (const [k, o] of [["roof",.92],["roofSolid",1],["roofGreen",1],["roofConcrete",1],["roofClosed",.45],["roofGlass",.45],["roofEdge",1]]){
     const m = M[k]; if (!m) continue; m.transparent = see || o < 1; m.opacity = see ? Math.min(o, 0.18) : o; m.depthWrite = !see && o >= 1; m.needsUpdate = true; }
+}
+/* ================= night-match spectacle =================
+   An LED halo along the roof fronts in the club's colours, flares and drifting smoke in the home end, and fireworks over
+   the ground. The flares and smoke move only while someone is looking at them: a few seconds after the last touch or
+   drag they settle and stop, so an idle stadium still sleeps. Phones get fewer particles. */
+var SPECTACLE = null, spectacleSeen = 0; // var: wake() can look before this line has run
+function softDot(){ // one shared round, soft-edged dot for smoke and sparks
+  if (sceneryTex.dot) return sceneryTex.dot;
+  const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(.4, "rgba(255,255,255,.55)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  const t = canvasTex(c); t.keep = true; return (sceneryTex.dot = t);
+}
+function addHalo(anchors, bf){
+  for (const g of anchors){ if (!g.RR) continue;
+    for (let i=0;i<g.m;i++){ const j = g.closed ? (i + 1) % g.m : i + 1; if (j >= g.m) continue; const a = g.RR[i], b = g.RR[j]; if (!a || !b) continue;
+      const P = (k, R) => [g.o[k][0] + g.v[k][0]*(R.inner - .2), g.o[k][1] + g.v[k][1]*(R.inner - .2)], p = P(i, a), q = P(j, b);
+      quad(bf(Math.floor(i/3) % 2 ? "haloB" : "haloA"), [p[0], a.y(0) - 1.6, p[1]], [q[0], b.y(0) - 1.6, q[1]], [q[0], b.y(0) - .2, q[1]], [p[0], a.y(0) - .2, p[1]]); } }
+}
+function addFlares(recs){
+  SPECTACLE = null;
+  const home = recs.filter(r => r.home && !r.away && !r.floor && r.seats > 0); if (!home.length) return;
+  const nF = Math.min(home.length, LIGHT ? 5 : 10), per = LIGHT ? 14 : 26, pos = [];
+  for (let k=0;k<nF;k++){ const r = home[Math.floor((k + .5)*home.length/nF)]; pos.push([r.x, r.h1 + 1.9, r.z]); }
+  const core = new THREE.InstancedMesh(new THREE.SphereGeometry(.22, 8, 6), M.flare, nF), m4 = new THREE.Matrix4();
+  pos.forEach((p, i) => { core.setMatrixAt(i, m4.makeTranslation(p[0], p[1], p[2])); }); core.userData.stadium = true; group.add(core);
+  const N = nF*per, geo = new THREE.BufferGeometry(), arr = new Float32Array(N*3), seed = [];
+  for (let i=0;i<N;i++){ const f = pos[i % nF], age = (i/N); seed.push([f, age, Math.random()*6.3]); arr.set([f[0], f[1] + age*14, f[2]], i*3); }
+  geo.setAttribute("position", new THREE.BufferAttribute(arr, 3));
+  const smoke = new THREE.Points(geo, new THREE.PointsMaterial({map: softDot(), color: S.night ? 0xc8b8bc : 0xd8d2d4, size: 7, transparent: true, opacity: .42, depthWrite: false}));
+  smoke.userData.stadium = true; group.add(smoke);
+  const glow = new THREE.Points(new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute(pos.flat(), 3)),
+    new THREE.PointsMaterial({map: softDot(), color: 0xff4a24, size: 5, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false}));
+  glow.userData.stadium = true; group.add(glow);
+  SPECTACLE = {smoke, seed, glow, ticking: false};
+  spectacleWake();
+}
+/* Called whenever the view wakes: keep the smoke drifting for a few seconds more. */
+function spectacleWake(){
+  spectacleSeen = performance.now(); if (!SPECTACLE || SPECTACLE.ticking) return; SPECTACLE.ticking = true;
+  const sp = SPECTACLE, t0 = performance.now();
+  TICKERS.add(now => {
+    if (SPECTACLE !== sp || now - spectacleSeen > 8000){ sp.ticking = false; return false; } // nobody looking: let it rest
+    const t = (now - t0)/1000, a = sp.smoke.geometry.attributes.position.array;
+    sp.seed.forEach(([f, age, ph], i) => { const life = (age + t*.09) % 1; // each puff rises, drifts with the breeze and spreads
+      a[i*3] = f[0] + Math.sin(ph + life*3)*(.5 + life*3) + life*6; a[i*3+1] = f[1] + life*16; a[i*3+2] = f[2] + Math.cos(ph + life*2)*(.5 + life*3); });
+    sp.smoke.geometry.attributes.position.needsUpdate = true; sp.glow.material.size = 4.4 + Math.sin(now*.03)*.7 + Math.sin(now*.071)*.5; // flicker
+    return true; });
+  wake();
+}
+/* Fireworks over the ground: a few bursts in the club's colours and gold, rising, opening and falling away. */
+function startFireworks(){
+  const D = LAST; if (!D) return;
+  const bursts = 7, per = LIGHT ? 70 : 150, N = bursts*per, geo = new THREE.BufferGeometry(), pos = new Float32Array(N*3), col = new Float32Array(N*3), cols = [new THREE.Color(S.seat), new THREE.Color(S.seat2 || "#ffffff"), new THREE.Color(0xffd36b), new THREE.Color(0xffffff)];
+  const parts = []; for (let b=0;b<bursts;b++){ const c = [(Math.random() - .5)*D.F.W*.8, D.maxH + 10 + Math.random()*14, (Math.random() - .5)*D.F.H*.8], cc = cols[b % cols.length], sp = 13 + Math.random()*6;
+    for (let k=0;k<per;k++){ const u = Math.random()*2 - 1, th = Math.random()*6.283, r = Math.sqrt(1 - u*u); parts.push({c, v:[r*Math.cos(th)*sp, u*sp, r*Math.sin(th)*sp], t0: b*.85, col: cc}); } }
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3)); geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({map: softDot(), size: 7, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false}));
+  pts.frustumCulled = false; scene.add(pts); const start = performance.now();
+  TICKERS.add(now => { const t = (now - start)/1000;
+    parts.forEach((p, i) => { const s = t - p.t0, live = s > 0 && s < 2.4, k = live ? Math.max(0, 1 - s/2.4) : 0;
+      pos[i*3] = p.c[0] + p.v[0]*Math.max(0, s); pos[i*3+1] = p.c[1] + p.v[1]*Math.max(0, s) - 4.5*Math.max(0, s)*Math.max(0, s); pos[i*3+2] = p.c[2] + p.v[2]*Math.max(0, s);
+      col[i*3] = p.col.r*k; col[i*3+1] = p.col.g*k; col[i*3+2] = p.col.b*k; });
+    geo.attributes.position.needsUpdate = true; geo.attributes.color.needsUpdate = true;
+    if (t > bursts*.85 + 2.6){ scene.remove(pts); geo.dispose(); pts.material.dispose(); invalidate(); return false; }
+    return true; });
+  wake();
 }

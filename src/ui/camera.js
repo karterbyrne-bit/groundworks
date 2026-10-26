@@ -10,7 +10,7 @@ function setTip(){
   tipEl.classList.toggle("msg", !!(tipOverride || picking || look));
 }
 function setLook(on){
-  look = on; if (!on && crowdClear) clearCrowdNear(null);
+  look = on; if (!on && crowdClear) clearCrowdNear(null); if (!on) clearObsOutline();
   controls.enableZoom = !on; controls.enablePan = !on;
   controls.rotateSpeed = on ? -0.35 : 1;
   controls.maxPolarAngle = on ? Math.PI*0.8 : Math.PI*0.49;
@@ -45,7 +45,11 @@ function camTarget(mode){
     const vl = Math.hypot(r.v[i][0], r.v[i][1]) || 1, u = [r.v[i][0]/vl, r.v[i][1]/vl];
     if (mode === "exterior"){
       const b = [r.o[i][0] + r.v[i][0]*back, r.o[i][1] + r.v[i][1]*back];
-      return {p:new THREE.Vector3(b[0] + u[0]*(top*1.6 + 40), 3 + top*0.15, b[1] + u[1]*(top*1.6 + 40)), t:new THREE.Vector3(b[0], top*0.55, b[1])};
+      let out = top*1.6 + 40;
+      if (S.scenery !== "model"){ // stand in the street outside the ground, not among the houses round it
+        const ex = D.ext[0] + 10, ez = D.ext[1] + 10, P = S.plot.on && S.plot.pts ? S.plot.pts : [[-ex,-ez],[ex,-ez],[ex,ez],[-ex,ez]], e = exitDist(P, b, u, 0);
+        if (e > 0 && e < 1e3) out = Math.min(out, e + 7); }
+      return {p:new THREE.Vector3(b[0] + u[0]*out, 3 + top*0.15, b[1] + u[1]*out), t:new THREE.Vector3(b[0], top*0.55, b[1])};
     }
     const p0 = live[live.length-1], n = nRows(p0), d = p0.front + (n - 1.5)*p0.T, q = [r.o[i][0] + r.v[i][0]*d, r.o[i][1] + r.v[i][1]*d];
     const p = new THREE.Vector3(q[0], p0.hs[n-2 >= 0 ? n-2 : 0] + 1.2, q[1]);
@@ -61,6 +65,7 @@ function moveCam(p, t, instant){
   anim = {p0:camera.position.clone(), t0:controls.target.clone(), p, t, start:performance.now()}; wake();
 }
 function goCam(mode, instant){
+  clearObsOutline();
   picking = mode === "seat"; tipOverride = null;
   view.classList.toggle("picking", picking);
   camMode = mode;
@@ -122,6 +127,54 @@ function plotHandleNear(p){
 function handleHit(e){ if (look || picking) return null; setNdc(e); const hs = group.children.filter(m => m.userData.handle); const h = ray.intersectObjects(hs, false); return h.length ? h[0].object.userData.handle : null; }
 const clamp = (x,a,b) => Math.max(a, Math.min(b, x));
 const r05 = x => Math.round(x*2)/2;
+/* ================= kick-off flyover =================
+   A 15-second swoop: from high outside the ground, round and in over the roof, then down to the touchline for kick-off,
+   where it hands over to the Pitchside view. A tap or a key stops it where it is. Where the browser can record the view
+   it can be saved as a short video to share. With reduced motion asked for, it's a slow fade between four views. */
+let fly = null, touring = null;
+const ease = f => f < .5 ? 2*f*f : 1 - Math.pow(-2*f + 2, 2)/2;
+function flyPose(k){
+  const D = LAST, R = Math.max(D.ext[0], D.ext[1]), H = Math.max(D.maxH, 12);
+  if (k < .78){ const f = ease(k/.78), th = Math.PI/2 + .15 - (1 - f)*Math.PI*1.3, r = lerp(R*2.6, R*.7, f), y = lerp(R*1.2, H + 16, Math.pow(f, .8));
+    return {p:new THREE.Vector3(Math.cos(th)*r, y, Math.sin(th)*r), t:new THREE.Vector3(0, lerp(12, 4, f), 0)}; }
+  const a = flyPose(.7799), end = camTarget("pitch"), f = ease((k - .78)/.22); // the last stretch: over the roof and down to the touchline
+  return {p:a.p.lerp(end.p, f), t:a.t.lerp(end.t.clone().add(end.t.clone().sub(end.p).multiplyScalar(60)), f)};
+}
+const canRecord = !!(window.MediaRecorder && HTMLCanvasElement.prototype.captureStream);
+function recordView(){
+  const types = ["video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"], type = types.find(t => MediaRecorder.isTypeSupported(t));
+  const stream = renderer.domElement.captureStream(30), rec = new MediaRecorder(stream, type ? {mimeType:type, videoBitsPerSecond:8e6} : undefined), chunks = [];
+  rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  rec.onstop = async () => { stream.getTracks().forEach(t => t.stop()); if (!chunks.length) return;
+    const blob = new Blob(chunks, {type: rec.mimeType || "video/webm"}), fname = "kick-off-flyover." + (/mp4/.test(blob.type) ? "mp4" : "webm"), file = new File([blob], fname, {type:blob.type});
+    if (navigator.canShare && matchMedia("(pointer:coarse)").matches && navigator.canShare({files:[file]})){ try { await navigator.share({files:[file], title:"Kick-off at " + (sponsorsOf().title || "my stadium")}); return; } catch(e) { if (e && e.name === "AbortError") return; } }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = fname; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    toast("<b>Flyover saved as a video.</b> Look for it in your downloads."); };
+  rec.start(500); return rec;
+}
+function kickoff(record){
+  if (!LAST || fly || touring) return; closeMore(); if (camera !== persp) setOrtho(false);
+  picking = false; view.classList.remove("picking"); setLook(false); controls.autoRotate = false; anim = null;
+  const rec = record && canRecord ? recordView() : null;
+  if (reduce) return fadeTour(rec);
+  fly = {start: performance.now(), dur: 15000, rec}; wake();
+}
+/* With reduced motion: four views, faded through black, about four seconds each. */
+function fadeTour(rec){
+  const veil = document.getElementById("veil"), views = ["aerial", "side", "exterior", "pitch"]; let i = 0; touring = {rec};
+  const next = () => { if (!touring) return; veil.classList.add("on");
+    setTimeout(() => { if (!touring) return; goCam(views[i], true); veil.classList.remove("on"); i++;
+      if (i < views.length) touring.t = setTimeout(next, 3200); else { touring.t = setTimeout(() => { if (touring && touring.rec) touring.rec.stop(); touring = null; }, 2400); } }, 900); };
+  next();
+}
+function stopFlying(){
+  if (fly){ const f = fly; fly = null; controls.update(); if (f.rec) f.rec.stop(); invalidate(); }
+  if (touring){ clearTimeout(touring.t); if (touring.rec) touring.rec.stop(); touring = null; document.getElementById("veil").classList.remove("on"); }
+}
+addEventListener("pointerdown", e => { if ((fly || touring) && !e.target.closest("[data-fly]")) stopFlying(); }, true);
+addEventListener("keydown", () => { if (fly || touring) stopFlying(); }, true);
+document.querySelectorAll("[data-fly]").forEach(b => b.addEventListener("click", () => kickoff(b.dataset.fly === "record")));
+document.querySelectorAll("[data-fly='record']").forEach(b => { b.hidden = !canRecord; });
 renderer.domElement.addEventListener("pointerdown", e => {
   downAt = [e.clientX, e.clientY]; if (e.button !== 0) return;
   const h = handleHit(e);
@@ -146,7 +199,7 @@ renderer.domElement.addEventListener("pointermove", e => {
     const p = groundAt(e); if (!p) return;
     if (drag.type === "site"){ const f = S.site[drag.i]; if (!f) return;
       if (drag.end){ f.angle = Math.round(((Math.atan2(p.z - f.z, p.x - f.x)*180/Math.PI) + 360) % 180); f.length = Math.max(5, Math.round(2*Math.hypot(p.x - f.x, p.z - f.z))); }
-      else { f.x = Math.round(p.x); f.z = Math.round(p.z); }
+      else { f.x = Math.round(p.x); f.z = Math.round(p.z); snapRoad(f); } // a road brought near the plot's edge runs along it
       changed(false, true); return; }
     const dx = p.x - drag.start[0], dz = p.z - drag.start[1], pts = clone(drag.pts);
     if (drag.type === "v"){ pts[drag.i] = [Math.round(drag.pts[drag.i][0] + dx), Math.round(drag.pts[drag.i][1] + dz)]; }
@@ -177,6 +230,34 @@ function seatView(h, standing, instant){
   const f = LAST.F.home || [0,0], p = new THREE.Vector3(h.x, h.y + (standing ? 1.65 : 1.2), h.z);
   const aim = new THREE.Vector3(f[0], focusY + 1, f[1]).sub(p).normalize().multiplyScalar(0.5);
   picking = false; view.classList.remove("picking"); setLook(true); clearCrowdNear([h.x, h.y + 1, h.z]); moveCam(p, p.clone().add(aim), instant); setTip();
+  seatObstruction(h);
+}
+/* In a seat with a restricted view: say so, and outline what's in the way in yellow until the camera moves on. */
+var obsOutline = null; // var: setLook can clear it before this line has run
+function clearObsOutline(){ if (obsOutline){ obsOutline.parent && obsOutline.parent.remove(obsOutline); obsOutline.geometry.dispose(); obsOutline = null; } }
+function seatObstruction(h){
+  clearObsOutline(); const O = LAST && LAST.obstructed; if (!O) return;
+  let best = null, bd = 5; for (const b of O.blocks){ const d = Math.hypot(b.x - h.x, b.z - h.z, (b.y - h.y - 1.2)*.5); if (d < bd){ bd = d; best = b; } }
+  if (!best) return;
+  toast(`<b>${best.sev === 2 ? "Badly restricted view" : "Restricted view"}:</b> this seat is ${VIEW_CAUSES[best.cause]}, so part of the play is hidden. It's outlined in yellow.`);
+  const w = best.blocker, pts = []; if (!w) return;
+  const box = (x0, y0, z0, x1, y1, z1) => { const c = [[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1],[x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1]];
+    for (const [a, b] of [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]]) pts.push(...c[a], ...c[b]); };
+  if (w.post){ const p = w.post, r = Math.max(.4, p.r); box(p.x - r, p.y0, p.z - r, p.x + r, Math.min(p.y1, h.y + 40), p.z + r); }
+  else if (w.edge){ const o = w.edge.o[w.i], v = w.edge.v[w.i], vl = Math.hypot(v[0], v[1]) || 1, t = [-v[1]/vl*8, v[0]/vl*8], c = [o[0] + v[0]*w.q, o[1] + v[1]*w.q];
+    pts.push(c[0] - t[0], w.y, c[1] - t[1], c[0] + t[0], w.y, c[1] + t[1], c[0] - t[0], w.y - .3, c[1] - t[1], c[0] + t[0], w.y - .3, c[1] + t[1]); }
+  else if (w.a){ const y0 = w.wall ? w.wall.y0 : 0, y1 = w.wall ? w.wall.y1 : w.a[1];
+    pts.push(w.a[0], y0, w.a[2], w.b[0], y0, w.b[2], w.a[0], y1, w.a[2], w.b[0], y1, w.b[2], w.a[0], y0, w.a[2], w.a[0], y1, w.a[2], w.b[0], y0, w.b[2], w.b[0], y1, w.b[2]); }
+  if (!pts.length) return;
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+  obsOutline = new THREE.LineSegments(g, new THREE.LineBasicMaterial({color:0xffd400, depthTest:false, transparent:true}));
+  obsOutline.renderOrder = 20; scene.add(obsOutline); wake();
+}
+/* "Show me" for restricted views: from over the play, looking at the spot in the stand. */
+function showObstructedAt(at){
+  clearObsOutline(); if (camMode === "seat" || look) goCam("aerial", true);
+  const d = Math.hypot(at[0], at[2]) || 1, out = [at[0]/d, at[2]/d], back = Math.min(60, d*.7);
+  moveCam(new THREE.Vector3(at[0] - out[0]*back, at[1] + 28, at[2] - out[1]*back), new THREE.Vector3(at[0], at[1], at[2]));
 }
 /* Which stand is under a point: the region whose seating slice lies nearest. */
 function standAt(p){
@@ -208,7 +289,7 @@ function selectTab(key, fromView){
 }
 /* Keep the orbiting camera out of solid structure but let it go anywhere above the seats, including under roofs. */
 function constrain(){
-  const D = LAST; if (!D || look || anim) return;
+  const D = LAST; if (!D || look || anim || fly) return;
   const fx = D.F.W/2 + D.set, fz = D.F.H/2 + D.set, tg = controls.target, c = camera.position;
   tg.x = clamp(tg.x, -fx*1.5, fx*1.5); tg.z = clamp(tg.z, -fz*1.5, fz*1.5); tg.y = clamp(tg.y, 0, Math.max(30, D.maxH));
   let minY = 1.2 + focusY;
@@ -223,21 +304,39 @@ function constrain(){
   if (c.y < minY) c.y = minY;
 }
 function resize(){ const w = view.clientWidth, h = view.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); persp.aspect = w/h; persp.updateProjectionMatrix(); invalidate();
+  if (AO){ const pr = LIGHT ? 1 : renderer.getPixelRatio(); AO.gtao.setSize(Math.round(w*pr), Math.round(h*pr)); }
   if (camera === ortho){ const hh = (ortho.top - ortho.bottom)/2; ortho.left = -hh*w/h; ortho.right = hh*w/h; ortho.updateProjectionMatrix(); } }
 new ResizeObserver(resize).observe(view);
 /* The frame loop stops altogether once nothing has moved for half a second, so a stadium left on screen uses no power.
    Anything that changes the view (a touch, a key, a camera move or a rebuild) wakes it again. */
-var awake = false, idle = 0;
+var awake = false, idle = 0, aoTimer = 0;
+/* Where the camera was last drawn from: the controls can report a "change" every frame while held at a distance limit
+   (as in the pitchside view) without the view moving at all, so only a real shift counts as a move. */
+const lastCamP = new THREE.Vector3(), lastCamT = new THREE.Vector3();
+/* A moment after the last ordinary frame, if nothing has moved since, draw it once more with ambient occlusion
+   (perspective views only). A timer rather than counting frames, since some browsers stop sending frames once the
+   picture stops changing. */
+/* Finish any camera glide at once (for automated checks and screenshots, where frames come slowly). */
+function settleNow(){
+  if (anim){ camera.position.copy(anim.p); controls.target.copy(anim.t); anim = null; applyLimits(); }
+  const d = controls.enableDamping; controls.enableDamping = false; controls.update(); controls.enableDamping = d; redraw();
+}
+function settleAO(){ clearTimeout(aoTimer); aoTimer = setTimeout(() => { if (AO && !AO.off && camera === persp && !anim && !controls.autoRotate) requestAnimationFrame(() => { if (!anim && !dirty){ drawAO(); idle = 31; } }); }, 300); } // the still frame is the last: sleep straight after it
 /* Things that move on their own for a while (a Mexican wave). Each is called every frame until it returns false. */
 var TICKERS = new Set(); // var: invalidate() can call wake() before this line has run
-function wake(){ idle = 0; if (!awake){ awake = true; requestAnimationFrame(loop); } }
+function wake(){ idle = 0; if (!awake){ awake = true; requestAnimationFrame(loop); } if (SPECTACLE && !SPECTACLE.ticking) spectacleWake(); }
 function loop(now){
+  if (fly){ const k = Math.min(1, (now - fly.start)/fly.dur), q = flyPose(k); // the kick-off flyover: the camera is flown, not orbited
+    camera.position.copy(q.p); controls.target.copy(q.t); camera.lookAt(q.t); renderer.render(scene, camera); idle = 0;
+    if (k >= 1){ const f = fly; fly = null; goCam("pitch", true); if (f.rec) f.rec.stop(); }
+    requestAnimationFrame(loop); return; }
   if (anim){ const k = Math.min(1, (now - anim.start)/850), e = 1 - Math.pow(1-k, 3);
     camera.position.lerpVectors(anim.p0, anim.p, e); controls.target.lerpVectors(anim.t0, anim.t, e);
     if (k===1){ anim = null; applyLimits(); } }
-  const moved = controls.update(); constrain();
+  const moved = controls.update() && (camera.position.distanceToSquared(lastCamP) > 1e-6 || controls.target.distanceToSquared(lastCamT) > 1e-6); constrain();
+  lastCamP.copy(camera.position); lastCamT.copy(controls.target);
   let ticked = false; for (const f of TICKERS){ ticked = true; if (!f(now)) TICKERS.delete(f); }
-  if (moved || anim || ticked || dirty > 0){ renderer.render(scene, camera); if (dirty > 0) dirty--; idle = 0; }
+  if (moved || anim || ticked || dirty > 0){ renderer.render(scene, camera); if (dirty > 0) dirty--; idle = 0; settleAO(); }
   else idle++;
   if (idle > 30 && !controls.autoRotate && !document.hidden){ awake = false; return; }
   requestAnimationFrame(loop);

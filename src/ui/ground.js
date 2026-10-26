@@ -114,7 +114,8 @@ function renderSite(){
     return `<div class="screen"><div class="tier-h"><span>${K.label}</span><span class="acts-row"><button class="mini" data-sdel="${i}">Remove</button></span></div>
       ${num(i, "x", "East–west position", f.x, -600, 600, 1, "m")}${num(i, "z", "North–south position", f.z, -600, 600, 1, "m")}
       ${num(i, "angle", "Angle", f.angle || 0, 0, 180, 1, "°")}${num(i, "length", "Length", f.length, 5, 1000, 1, "m")}${num(i, "width", "Width", f.width, 3, 200, 0.5, "m")}
-      ${f.height != null ? num(i, "height", "Height", f.height, 3, 150, 0.5, "m") : ""}</div>`; }).join("") || `<p class="hint">Nothing round the ground yet.</p>`;
+      ${f.height != null ? num(i, "height", "Height", f.height, 3, 150, 0.5, "m") : ""}
+      ${f.kind === "road" ? `<label class="toggle"><input type="checkbox" data-sfover="${i}"${f.over ? " checked" : ""}> Stand built over it (on columns, with a 5 m opening for the road)</label>` : ""}</div>`; }).join("") || `<p class="hint">Nothing round the ground yet.</p>`;
 }
 $("siteAdd").addEventListener("click", e => { const b = e.target.closest("[data-site]"); if (!b) return;
   const K = SITE_KINDS[b.dataset.site], list = siteOf(), bd = LAST ? LAST.bounds : [-80, 80, -60, 60];
@@ -126,7 +127,9 @@ $("siteAdd").addEventListener("click", e => { const b = e.target.closest("[data-
   f.x = Math.round(f.x); f.z = Math.round(f.z); list.push(f); siteDrawn = null; changed(true);
   toast(`<b>${K.label} added</b> beside the ground. Drag its yellow posts in the 3D view, or type where it goes.`, UNDO); });
 $("siteList").addEventListener("input", e => { const el = e.target; if (!el.dataset.sf2) return; const v = +el.value; if (!isFinite(v)) return;
-  siteOf()[+el.dataset.i][el.dataset.sf2] = v; el.closest(".row").querySelectorAll("input").forEach(o => { if (o !== el) o.value = el.value; }); changed(false, true); });
+  const f = siteOf()[+el.dataset.i]; f[el.dataset.sf2] = v; if (["x", "z", "angle"].includes(el.dataset.sf2)) delete f.snap; // typed where it goes: free of the plot's edge
+  el.closest(".row").querySelectorAll("input").forEach(o => { if (o !== el) o.value = el.value; }); changed(false, true); });
+$("siteList").addEventListener("change", e => { const el = e.target; if (el.dataset.sfover == null) return; siteOf()[+el.dataset.sfover].over = el.checked; changed(); });
 $("siteList").addEventListener("click", e => { const b = e.target.closest("[data-sdel]"); if (!b) return; siteOf().splice(+b.dataset.sdel, 1); siteDrawn = null; renderSite(); changed(); });
 function siteHandleNear(p){
   if (!p || look || picking || !Array.isArray(S.site)) return null;
@@ -280,6 +283,9 @@ $("waveBtn").addEventListener("click", () => {
   if (camMode === "plan") goCam("aerial");
 });
 $("seeBtn").addEventListener("click", () => { S.seeThrough = !S.seeThrough; changed(); });
+$("halo").addEventListener("change", e => { S.halo = e.target.checked; changed(); });
+$("flares").addEventListener("change", e => { S.flares = e.target.checked; if (S.flares && !homeEndOf().at) toast("<b>Flares need a home end.</b> Pick one under Home end above."); changed(); });
+$("fireworksBtn").addEventListener("click", () => { if (camMode === "plan") goCam("aerial"); startFireworks(); });
 $("nightBtn").addEventListener("click", () => { S.night = !S.night; changed(); });
 $("seatPattern").addEventListener("change", e => { S.seatPattern = e.target.value; changed(); });
 $("seat2").addEventListener("input", e => { S.seat2 = e.target.value; setSeatColours(); save(true); });
@@ -300,6 +306,9 @@ $("skin").innerHTML = Object.entries(SKINS).map(([k,v]) => `<option value="${k}"
 $("skin").addEventListener("change", e => { archOf().skin = e.target.value; changed(); });
 bindRadio("skinShape", v => { archOf().skinShape = v; changed(); });
 for (const k of ["arch","ramps","towers","plaza"]) $("a-"+k).addEventListener("change", e => { archOf()[k] = e.target.checked; changed(); });
+$("archAt").addEventListener("change", e => { archOf().archAt = e.target.value; changed(); });
+$("statues").addEventListener("change", e => { S.statues = Math.max(0, Math.min(4, +e.target.value || 0)); changed(); });
+$("a-masts").addEventListener("change", e => { archOf().masts = e.target.value; changed(); });
 function openState(st, sideTab, tweak){
   S = upgradeCorners(st); quiet = true; if (tweak) tweak(); tab = isHybrid() ? "B" : (sideTab || "N");
   setSeatColours(); renderTypeSizes(); renderEditor(); renderViews(); changed(true);

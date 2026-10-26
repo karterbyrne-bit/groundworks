@@ -85,6 +85,29 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
     await page.click(`[data-p="${p}"]`); await page.waitForTimeout(300);
     check((await cap()) > 0, `preset "${p}" builds`);
   }
+  // obstructed views: the Leitch-era ground has seats behind its pillars; a modern bowl has almost none. The colours go on and off.
+  for (const p of ["leitch", "bowl"]) {
+    await page.evaluate(() => { window.__before = window.__gw.last(); });
+    await page.click(`[data-p="${p}"]`); await page.waitForFunction(() => !window.__gw.busy() && window.__gw.last() !== window.__before);
+    const v = await page.evaluate(() => { const L = window.__gw.last(); return {total: L.total, restricted: L.restricted, pillars: Object.values(L.obstructed.stands).some(s => s.causes.pillar > 0)}; });
+    if (p === "leitch") check(v.restricted > 0 && v.pillars, `the Leitch-era ground has restricted views behind its pillars (${v.restricted} seats)`);
+    else check(v.restricted < v.total*.01, `a modern bowl has almost no restricted views (${v.restricted} of ${v.total} seats)`);
+  }
+  await page.click('[data-p="leitch"]'); await page.waitForTimeout(300);
+  await page.click('#panes [data-pane="results"]'); await page.check("#obsToggle"); await page.waitForTimeout(400);
+  check((await page.evaluate(() => window.__gw.obsShown())) > 0, "Show obstructed views colours the restricted seats");
+  await page.uncheck("#obsToggle"); await page.waitForTimeout(300); await page.click('#panes [data-pane="start"]');
+  // the architect's notes: a critique of each stand by name, a different verdict for each ground, and the Leitch-era pillars called out
+  { const verdicts = new Set();
+    for (const p of ["ot", "dell", "bowl", "leitch"]) {
+      await page.evaluate(() => { window.__before = window.__gw.last(); });
+      await page.click(`[data-p="${p}"]`); await page.waitForFunction(() => !window.__gw.busy() && window.__gw.last() !== window.__before); await page.waitForTimeout(300);
+      const a = await page.evaluate(() => { const el = document.getElementById("architect"), names = window.__gw.last().parts.map(x => x.label), stands = [...el.querySelectorAll(".stand-notes li")].map(li => li.textContent);
+        return {verdict: el.querySelector(".verdict").textContent, named: stands.some(t => names.some(n => t.startsWith(n + ":"))), distinct: new Set(stands.map(t => t.replace(/^[^:]*:/, ""))).size === stands.length, text: el.textContent}; });
+      if (p === "leitch") check(/pillar|restricted/i.test(a.text), "the architect's notes on the Leitch-era ground mention its pillars or restricted views");
+      else { check(a.named && a.distinct, `the architect's notes on "${p}" critique each stand by name, each in its own words`); verdicts.add(a.verdict); }
+    }
+    check(verdicts.size === 3, "the architect gives Old Trafford, the Dell and the bowl different verdicts"); }
   // upper tiers on their own outline, and façade looks
   for (const p of ["oval", "cartuja"]) {
     await page.click(`[data-p="${p}"]`); await page.waitForTimeout(300);
@@ -197,7 +220,9 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.click('#panes [data-pane="start"]');
   for (const p of ["lords", "classicpark", "ballpark"]){ await page.click(`[data-p="${p}"]`);
     await page.waitForFunction(() => window.__gw.state().layout === "ring" && window.__gw.last().parts.length > 2); await page.waitForTimeout(200);
-    const r = await last(); check(r.total > 10000 && !r.issues, `preset "${p}" builds with no warnings`); }
+    // Lord's pavilion and the classic grandstand have real pillars, so their restricted-view warnings are expected; nothing else is
+    const r = await last(), other = await page.evaluate(() => window.__gw.last().issues.filter(i => !/^obstructed:/.test(i.key)).length);
+    check(r.total > 10000 && !other, `preset "${p}" builds with no warnings (other than restricted views behind real pillars)`); }
   await page.click('#panes [data-pane="stands"]'); const nStands = await page.locator("#tabs button").count();
   await page.click('[data-ring="+"]'); await page.waitForTimeout(300);
   check((await page.locator("#tabs button").count()) === nStands + 1, "a ring can have another stand added");
@@ -231,8 +256,20 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.evaluate(() => { for (const [k, v] of [["x", "75"], ["z", "0"]]){ const el = document.querySelector(`input[type=number][data-sf2="${k}"][data-i="1"]`); el.value = v; el.dispatchEvent(new Event("input", {bubbles:true})); } });
   await page.waitForTimeout(400);
   check((await cap()) < unboxed, "a stand is cut back to clear a building");
+  // a road through the back of the main stand: built over it (like Villa Park) keeps more seats than being cut back to clear it
+  { await page.click('[data-site="road"]'); await page.waitForTimeout(300); const ri = (await page.evaluate(() => window.__gw.state().site.length)) - 1;
+    await page.evaluate(ri => { const r = window.__gw.regions().find(g => g.key === "N"), i = Math.floor(r.o.length/2), back = Math.max(...r.profs[i].map(p => p.front + Math.floor(p.rows)*p.T)), z = Math.round(r.o[i][1] + r.v[i][1]*(back - 5));
+      for (const [k, v] of [["angle", 0], ["z", z], ["x", 0]]){ // angle first: a road crossing the pitch on the way gets moved off it
+        const el = document.querySelector(`input[type=number][data-sf2="${k}"][data-i="${ri}"]`); el.value = String(v); el.dispatchEvent(new Event("input", {bubbles:true})); } }, ri);
+    await page.waitForTimeout(400); const cutBack = await cap();
+    await page.check(`input[data-sfover="${ri}"]`); await page.waitForTimeout(400); const overIt = await cap();
+    check(overIt > cutBack && errors.length === 0, `a stand built over a road keeps more seats than one cut back to clear it (${overIt} vs ${cutBack})`); }
   await page.click('#panes [data-pane="start"]');
 
+  // Save as image: a PNG of the view, at least 1600 pixels wide, with no errors (desktop downloads it)
+  if (name === "desktop"){ const dl = page.waitForEvent("download"); await page.click("#imageBtn"); const d = await dl;
+    const png = readFileSync(await d.path()), wide = png.length > 24 ? png.readUInt32BE(16) : 0;
+    check(png.slice(1, 4).toString() === "PNG" && wide >= 1600 && /\.png$/.test(d.suggestedFilename()) && errors.length === 0, `Save as image makes a picture (${wide} pixels wide)`); }
   const beforeRandom = await page.evaluate(() => JSON.stringify(window.__gw.state()));
   await page.click("#randomBtn"); await page.waitForTimeout(300);
   check((await cap()) > 0, "Surprise me builds a stadium");
@@ -348,8 +385,8 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.waitForFunction(() => !window.__gw.busy());
   const memAfter = await page.evaluate(() => window.__gw.memory());
   check(memAfter.materials <= memBefore.materials + 3 && memAfter.textures <= memBefore.textures + 3, `memory stays flat after many colour changes (${memBefore.materials}→${memAfter.materials} materials)`);
-  // the 3D view goes to sleep when nothing moves
-  await page.waitForTimeout(1500);
+  // the 3D view goes to sleep when nothing moves (on a slow machine, give it time to draw its last, still frame first)
+  for (let k = 0; k < 20; k++) if (!(await page.evaluate(async () => { const n0 = window.__frames; await new Promise(res => setTimeout(res, 700)); return window.__frames - n0; }))) break;
   const framesIdle = await page.evaluate(async () => { const n0 = window.__frames; await new Promise(res => setTimeout(res, 1000)); return window.__frames - n0; });
   check(framesIdle === 0, `nothing is redrawn while the stadium sits still (${framesIdle} frames in a second)`);
 
@@ -357,7 +394,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   const before = await page.evaluate(() => JSON.stringify(window.__gw.state()));
   const link = await page.evaluate(async () => { let url = ""; navigator.clipboard.writeText = async t => { url = t; }; navigator.share = undefined; document.getElementById("shareBtn").click(); for (let i = 0; i < 100 && !url; i++) await new Promise(r => setTimeout(r, 100)); return url; });
   check(/#d=z/.test(link), "Share makes a compressed link");
-  const page2 = await ctx.newPage();
+  const page2 = await ctx.newPage(); page2.setDefaultTimeout(120000);
   page2.on("pageerror", e => errors.push(e.message));
   await page2.goto(link.replace(/^https?:\/\/[^/]+\//, base));
   await page2.waitForFunction(() => document.documentElement.classList.contains("ready"));

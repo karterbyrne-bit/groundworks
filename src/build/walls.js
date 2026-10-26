@@ -1,7 +1,8 @@
 /* Façade looks. Each draws onto one stretch of outside wall from a to b (points on the ground), whose top runs from ya to
    yb, facing out along n. Everything stands slightly proud of the wall so it reads from the street and from the air. */
 const FACADE_LOOKS = {brick:"Brick, with rows of windows", timber:"Painted timber", deco:"Art deco ribs", concrete:"Concrete bands",
-  sheet:"Metal cladding with a club-colour stripe", fins:"Metal fins over a glazed concourse", glass:"Glass curtain wall", grid:"Windows all over", plain:"Plain wall"};
+  sheet:"Metal cladding with a club-colour stripe", fins:"Metal fins over a glazed concourse", glass:"Glass curtain wall", grid:"Windows all over",
+  exposed:"Exposed structure: raking beams, stair cores and open concourse bays", plain:"Plain wall"};
 /* Real-looking wall materials: brick courses, board-marked concrete, profiled metal sheet and timber boarding, drawn as
    light patterns that the wall's own colour tints. They repeat every few metres along the wall. */
 const wallTex = {};
@@ -37,10 +38,13 @@ function wallTexture(kind){
   const t = canvasTex(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1/metres, 1/metres);
   t.anisotropy = renderer.capabilities.getMaxAnisotropy(); t.keep = true; return (wallTex[kind] = t);
 }
-const LOOK_TEX = {brick:"brick", timber:"timber", sheet:"cladding", fins:"cladding", deco:"concrete", concrete:"concrete", grid:"concrete", plain:"concrete"};
+const LOOK_TEX = {brick:"brick", timber:"timber", sheet:"cladding", fins:"cladding", deco:"concrete", concrete:"concrete", grid:"concrete", exposed:"concrete", plain:"concrete"};
+/* The same pattern gives the surface a little relief, so mortar joints, board marks and sheet ribs catch the light. */
+const RELIEF = {brick:2.2, concrete:1.2, cladding:2.6, timber:1.6, roofMetal:1.8, roofTin:2.2, roofPoly:.6, roofGlass:.3};
 function textured(key, kind){
   if (!kind) return key; const k = key + "~" + kind;
-  if (!M[k]){ M[k] = M[key].clone(); M[k].map = wallTexture(kind); }
+  if (!M[k]){ M[k] = M[key].clone(); M[k].map = wallTexture(kind); if (RELIEF[kind]){ M[k].bumpMap = M[k].map; M[k].bumpScale = RELIEF[kind]; }
+    if (M[k].userData.weather) weather(M[k], M[k].userData.weather); }
   M_USED.add(k); return k;
 }
 /* Lettering for an outside wall or a roof front, in the club's own words. */
@@ -58,34 +62,73 @@ function signMaterial(text, colour){
   if (cache) signTex[k] = m;
   return m;
 }
+/* A stand clock's face, showing the time of day used for the lighting (3pm for a day match with no time set, quarter to
+   eight for a night match). One picture per quarter of an hour, kept, and the faces in the stadium are updated when the
+   time of day changes. */
+const clockTex = {}, CLOCK_FACES = [];
+const clockTime = () => S.night ? 19.75 : (S.hour == null ? 15 : S.hour);
+function clockTexture(t){
+  const k = Math.round(t*4)/4; if (clockTex[k]) return clockTex[k];
+  const N = 256, c = document.createElement("canvas"); c.width = c.height = N; const g = c.getContext("2d"), R = N/2;
+  g.fillStyle = "#f4f1e6"; g.beginPath(); g.arc(R, R, R - 2, 0, 7); g.fill();
+  g.strokeStyle = "#1d2124"; g.lineCap = "round";
+  for (let i=0;i<60;i++){ const a = i/60*Math.PI*2, big = i % 5 === 0, r0 = R*(big ? .78 : .86); g.lineWidth = big ? 7 : 2.5;
+    g.beginPath(); g.moveTo(R + Math.sin(a)*r0, R - Math.cos(a)*r0); g.lineTo(R + Math.sin(a)*R*.93, R - Math.cos(a)*R*.93); g.stroke(); }
+  const hand = (a, len, w) => { g.lineWidth = w; g.beginPath(); g.moveTo(R - Math.sin(a)*len*.15, R + Math.cos(a)*len*.15); g.lineTo(R + Math.sin(a)*len, R - Math.cos(a)*len); g.stroke(); };
+  hand(((k % 12) + 0)/12*Math.PI*2, R*.5, 11); hand((k % 1)*Math.PI*2, R*.75, 7);
+  g.fillStyle = "#1d2124"; g.beginPath(); g.arc(R, R, 9, 0, 7); g.fill();
+  const tx = canvasTex(c); tx.keep = true; return (clockTex[k] = tx);
+}
+function updateClocks(){ for (const m of CLOCK_FACES){ m.map = m.emissiveMap = clockTexture(clockTime()); m.emissiveIntensity = S.night ? .9 : .08; m.needsUpdate = true; } }
+/* A clock face of radius r at p (on the ground plan, at height y), facing the point it looks at, on a dark surround. */
+function addClock(p, y, look, r){
+  const m = new THREE.MeshStandardMaterial({roughness:.5, emissive:0xffffff}); CLOCK_FACES.push(m);
+  const face = new THREE.Mesh(new THREE.CircleGeometry(r, 40), m), back = new THREE.Mesh(new THREE.CircleGeometry(r*1.13, 40), M.dark);
+  const dir = new THREE.Vector3(look[0] - p[0], 0, look[1] - p[1]).normalize();
+  for (const [o, off] of [[back, 0], [face, .06]]){ o.position.set(p[0] + dir.x*off, y, p[1] + dir.z*off); o.lookAt(p[0] + dir.x*50, y, p[1] + dir.z*50); o.castShadow = true; o.userData.stadium = true; group.add(o); }
+  updateClocks();
+}
 const ACCENTS = new Set(["trim", "band", "lattice"]); // the club colour goes on dressings and stripes, never on glazing frames or steel
 function dressWall(buf, look, wallKey, a, b, ya, yb, n, opt){
   const len = Math.hypot(b[0]-a[0], b[1]-a[1]); if (len < 0.5) return;
   opt = opt || {}; const dens = opt.windows == null ? 1 : opt.windows, wsz = opt.winSize || 1, buf0 = buf;
   buf = k => buf0(opt.accent && ACCENTS.has(k) ? tint(k, opt.accent) : k); // trims, bands and fins in the accent colour
-  const tg = [(b[0]-a[0])/len, (b[1]-a[1])/len], lo = Math.min(ya, yb);
+  const tg = [(b[0]-a[0])/len, (b[1]-a[1])/len], lo = Math.min(ya, yb), yl = opt.lift || 0; // over a road, nothing comes below the opening's top
   const P = (f, out) => [a[0] + (b[0]-a[0])*f + n[0]*out, a[1] + (b[1]-a[1])*f + n[1]*out];
   const Q = (p, y) => [p[0], y, p[1]];
   const top = f => ya + (yb - ya)*f;
   // a flat panel across part of the wall, standing out from it
-  const panel = (key, f0, f1, y0, y1, out) => { const p0 = P(f0,out), p1 = P(f1,out); quad(buf(key), Q(p0,y0), Q(p1,y0), Q(p1,y1), Q(p0,y1)); };
+  const panel = (key, f0, f1, y0, y1, out) => { y0 = Math.max(y0, yl); if (y1 <= y0) return; const p0 = P(f0,out), p1 = P(f1,out); quad(buf(key), Q(p0,y0), Q(p1,y0), Q(p1,y1), Q(p0,y1)); };
   // a horizontal band with a top and underside, so it casts a shadow line
-  const ledge = (key, y0, y1, depth, slope) => { const s0 = slope ? 0 : 0, f = g => slope ? top(g) - lo : s0;
+  const ledge = (key, y0, y1, depth, slope) => { if (y1 <= yl) return; y0 = Math.max(y0, yl); const s0 = slope ? 0 : 0, f = g => slope ? top(g) - lo : s0;
     const a0 = P(0,0), b0 = P(1,0), a1 = P(0,depth), b1 = P(1,depth);
     quad(buf(key), Q(a1,y0+f(0)), Q(b1,y0+f(1)), Q(b1,y1+f(1)), Q(a1,y1+f(0)));
     quad(buf(key), Q(a0,y0+f(0)), Q(b0,y0+f(1)), Q(b1,y0+f(1)), Q(a1,y0+f(0)));
     quad(buf(key), Q(a0,y1+f(0)), Q(b0,y1+f(1)), Q(b1,y1+f(1)), Q(a1,y1+f(0))); };
   // a vertical strip standing out from the wall (pilaster, rib or mullion)
-  const rib = (key, f, w, y0, y1, depth) => { const fw = w/2/len, q0 = P(f-fw,0), q1 = P(f+fw,0), r0 = P(f-fw,depth), r1 = P(f+fw,depth);
+  const rib = (key, f, w, y0, y1, depth) => { y0 = Math.max(y0, yl); if (y1 <= y0) return; const fw = w/2/len, q0 = P(f-fw,0), q1 = P(f+fw,0), r0 = P(f-fw,depth), r1 = P(f+fw,depth);
     quad(buf(key), Q(r0,y0), Q(r1,y0), Q(r1,y1), Q(r0,y1)); quad(buf(key), Q(q0,y0), Q(r0,y0), Q(r0,y1), Q(q0,y1));
     quad(buf(key), Q(r1,y0), Q(q1,y0), Q(q1,y1), Q(r1,y1)); quad(buf(key), Q(r0,y1), Q(r1,y1), Q(q1,y1), Q(q0,y1)); };
+  // a solid block standing out from the wall: front face, top, underside and both ends
+  const block = (key, f0, f1, y0, y1, out0, out1) => { y0 = Math.max(y0, yl); if (y1 <= y0) return; const a0 = P(f0,out0), b0 = P(f1,out0), a1 = P(f0,out1), b1 = P(f1,out1);
+    quad(buf(key), Q(a1,y0), Q(b1,y0), Q(b1,y1), Q(a1,y1)); quad(buf(key), Q(a0,y1), Q(a1,y1), Q(b1,y1), Q(b0,y1)); quad(buf(key), Q(a0,y0), Q(b0,y0), Q(b1,y0), Q(a1,y0));
+    quad(buf(key), Q(a0,y0), Q(a1,y0), Q(a1,y1), Q(a0,y1)); quad(buf(key), Q(b1,y0), Q(b0,y0), Q(b0,y1), Q(b1,y1)); };
+  // a slanting bar on the wall (a raking beam), from (fA, yA) to (fB, yB)
+  const slant = (key, fA, yA, fB, yB, w, out) => { if (Math.min(yA, yB) < yl) return; const pa = P(fA,out), pb = P(fB,out), qa = P(fA,.05), qb = P(fB,.05);
+    quad(buf(key), Q(pa,yA-w/2), Q(pb,yB-w/2), Q(pb,yB+w/2), Q(pa,yA+w/2)); quad(buf(key), Q(qa,yA+w/2), Q(pa,yA+w/2), Q(pb,yB+w/2), Q(qb,yB+w/2));
+    quad(buf(key), Q(qa,yA-w/2), Q(qb,yB-w/2), Q(pb,yB-w/2), Q(pa,yA-w/2)); };
   const cells = step => Math.max(1, Math.round(len/step));
+  /* Windows set back into the wall: a deep surround in the wall's own material (so the reveals show), the dark glass
+     well behind its face in a slim frame, and a sill that throws a shadow line. */
   const windows = (key, step, storey, first, w, h, sill) => { if (dens <= 0) return; const nC = cells(step/dens); w *= wsz; h = Math.min(h*wsz, storey - 0.6);
+    const surround = ACCENTS.has(sill) || !sill ? wallKey : sill, dr = .24, sw = .14/len;
     for (let c=0;c<nC;c++){ const fc = (c + .5)/nC, fw = w/2/len;
       for (let y = first; y + h < Math.min(top(fc), lo + 2) - 1.2; y += storey){
-        const fr = .09/len; panel("frame", fc - fw - fr, fc + fw + fr, y - .09, y + h + .09, .04); panel(key, fc - fw, fc + fw, y, y + h, .07); // glass in a frame
-        if (w > 1.1) panel("frame", fc - .035/len, fc + .035/len, y, y + h, .09); // and a mullion down the middle of a wide one
-        if (sill) panel(sill, fc - fw*1.25, fc + fw*1.25, y - .22, y, .14); } } };
+        block(surround, fc - fw - sw, fc + fw + sw, y + h, y + h + .18, 0, dr); // the head
+        block(surround, fc - fw - sw, fc - fw, y, y + h, 0, dr); block(surround, fc + fw, fc + fw + sw, y, y + h, 0, dr); // the jambs
+        const fr = .05/len; panel("frame", fc - fw, fc + fw, y, y + h, .02); panel(key, fc - fw + fr, fc + fw - fr, y + .05, y + h - .05, .035); // glass in a frame
+        if (w > 1.1) panel("frame", fc - .03/len, fc + .03/len, y, y + h, .05); // and a mullion down the middle of a wide one
+        block(sill || "trim", fc - fw - sw*1.6, fc + fw + sw*1.6, y - .14, y, 0, dr + .1); } } };
   if (look === "brick"){
     panel("trim", 0, 1, 0, 0.9, .1);
     windows("window", 4.5, 4.2, 4.4, 1.5, 2.3, "trim");
@@ -126,9 +169,34 @@ function dressWall(buf, look, wallKey, a, b, ya, yb, n, opt){
     for (let y = 3.75; y < lo - 1.5; y += 3.3) ledge(wallKey, y, y + .3, .25); // a floor edge between each storey
     ledge("trim", lo - .8, lo - .2, .3, true);
   }
-  if (opt.concourse && lo > 6 && look !== "fins" && look !== "glass"){ // a glazed concourse along the ground floor, under a canopy
+  else if (look === "exposed"){ // the back of most British stands: the frame on show, not hidden behind a wall
+    const nC = cells(8), conc = Math.min(4.2, lo - 1.5), cw = .7/len;
+    if (conc > 2.4){ panel("void", 0, 1, 0, conc, .03); ledge("concrete", conc, conc + .8, .55); } // open concourse bays under a beam
+    for (let c=0;c<=nC;c++) rib("concrete", c/nC, .7, 0, Math.max(conc + 1, top(c/nC) - .3), .65); // the columns
+    for (let c=0;c<nC;c++){ const f0 = c/nC + cw, f1 = (c + 1)/nC - cw; // a raking beam climbing each bay with the seats behind
+      slant("steel", f0, conc + 1.1, f1, Math.max(conc + 1.6, top(f1) - .9), .55, .4); }
+    const cores = Math.max(1, Math.round(len/45)), cwid = Math.min(6, len/(cores*3))/len;
+    for (let k=0;k<cores;k++){ const fc = (k + .5)/cores; // stair cores: solid concrete towers with a slit of window up each
+      block("concrete", fc - cwid, fc + cwid, 0, top(fc) + 1, 0, 3.4); panel("window", fc - .25/len, fc + .25/len, 1.5, Math.max(2, top(fc) - 1), 3.43); }
+  }
+  if (opt.concourse && lo > 6 && look !== "fins" && look !== "glass" && look !== "exposed"){ // a glazed concourse along the ground floor, under a canopy
     panel("window", 0, 1, .3, 4.4, .08); panel("glass", 0, 1, .3, 4.4, .5);
     for (let c=0;c<=cells(2.4);c++) rib("steel", c/cells(2.4), .12, .3, 4.4, .55);
     ledge("steel", 4.4, 4.75, 1.6);
   }
+  /* Life at street level, whatever the look: a plinth along the foot of the wall, doors, a pair of roller-shutter gates,
+     and blocks of turnstiles standing out from the wall, each under its own little canopy. The wall arrives a few metres
+     at a time, so everything is spaced by its distance along the whole stand (opt.along is where this piece starts). */
+  if (lo < 3.2 || opt.lift) return; // (no doors or turnstiles where a road runs under the stand)
+  ledge("concrete", 0, .55, .16);
+  const s0 = opt.along || 0, total = opt.total || len, here = d => d >= s0 && d < s0 + len, f = d => (d - s0)/len;
+  const turn = []; for (let d = 17; d < total - 6; d += 34) turn.push(d);
+  const gates = total > 40 ? [total*.25, total*.75].filter(g => turn.every(t => Math.abs(t - g) > 7)) : [];
+  for (const d of turn) if (here(d)){ const fc = f(d), tw = 2.75/len; // turnstile blocks
+    block("concrete", fc - tw, fc + tw, 0, 3, 0, 1.6); block("steel", fc - tw*1.08, fc + tw*1.08, 3, 3.25, 0, 2.2);
+    for (let s=0;s<4;s++){ const fs = fc - tw + (s + .5)*(2*tw/4); panel("gate", fs - .3/len, fs + .3/len, .2, 2.3, 1.62); } }
+  for (const d of gates) if (here(d)){ const fg = f(d); panel("steel", fg - 2.1/len, fg + 2.1/len, 0, 3.6, .1); // roller shutters for match-day crowds
+    for (let y = .3; y < 3.6; y += .3) panel("frame", fg - 2.1/len, fg + 2.1/len, y, y + .04, .12); block("frame", fg - 2.3/len, fg + 2.3/len, 3.6, 4.1, 0, .35); }
+  for (let d = 6.5; d < total - 2; d += 13) if (here(d) && turn.every(t => Math.abs(t - d) > 5) && gates.every(g => Math.abs(g - d) > 4)){
+    const fd = f(d); panel("frame", fd - 1/len, fd + 1/len, .3, 2.55, .05); panel("gate", fd - .9/len, fd + .9/len, .3, 2.45, .07); } // doors, in a frame
 }

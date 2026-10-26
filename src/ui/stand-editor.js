@@ -83,6 +83,7 @@ function roofBlock(cfg, bowl){
     ${pick("Shape", "roof.shape", rf.shape, shapes)}
     ${on ? `${pick("Material", "roof.mat", rf.mat, ROOF_MATS)}${pick("Structure", "roof.support", rf.support, ROOF_SUPPORTS)}
     ${pair("Reaches past the front row", "roof.reach", rf.reach, -40, 40, 0.5, "m", "Negative leaves the front rows open.")}
+    ${rf.support !== "toptruss" ? check("A big steel truss along the top of the roof (like Old Trafford's)", "roof.topTruss", !!rf.topTruss) : ""}
     ${check("Level roofline (one straight height along the stand)", "roof.level", rf.level !== false)}
     ${check("Line up every roof in the ground at the same height", "roofAlign", !!S.roofAlign)}
     ${pair(rf.level !== false ? "Height above the tallest row" : "Height above the top row", "roof.lift", rf.lift, 1.5, 40, 0.5, "m")}
@@ -212,6 +213,8 @@ function renderEditor(){
         <div class="row"><label for="facSign">Lettering</label><input type="text" id="facSign" data-p="facade.sign" maxlength="30" value="${esc(fac.sign || "")}" placeholder="e.g. YOUR CLUB" aria-label="Lettering"></div>
         ${fac.sign ? pick("Lettering goes", "facade.signAt", fac.signAt || "wall", {wall:"On the outside wall", roof:"Along the roof front"}) + colourPick("Lettering colour", "facade.signColour", fac.signColour, "#ffffff") : ""}
         ${check("Stair towers", "facade.towers", fac.towers)}${check("Entrance gates", "facade.gates", fac.gates)}
+        ${sty.era === "Traditional" && cfg.roof && cfg.roof.shape !== "none" ? check("Leitch gable with the club's name in the middle of the roof", "facade.gable", fac.gable) : ""}
+        ${pick("Stand clock", "facade.clock", fac.clock || "", {"":"None", roof:"On the roof, facing the pitch", wall:"On the back wall, facing the street"})}
         <button class="btn link" data-act="seeOutside">See it from the street</button></div></details>`}`;
   }
   refreshOutputs(); renderSummary(); renderGroundRoof();

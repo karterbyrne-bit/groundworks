@@ -36,7 +36,7 @@ It's a creative tool. Its checks are loosely based on UK sports-ground guidance 
 | `src/boot.js` | Starts first: the loading screen, the friendly error card, and offline support |
 | `src/data.js` | Sports, floors, seating types, safety rules, architectural styles and presets |
 | `src/core.js` | Geometry, tier stacking and sightline maths, the 3D scene and materials |
-| `src/build/` | Builds the stadium and runs the checks: `basics.js` (shared helpers, bowl pieces), `atmosphere.js` (crowd, home and away ends, sky, day and night), `architecture.js` (skins, arches, towers), `fittings.js` (floodlights, screens, sponsors, tunnel, dugouts, access), `walls.js` (outside walls), `roofs-site.js` (roof lights and sheeting, surroundings), `stadium.js` (the main build and every check) |
+| `src/build/` | Builds the stadium and runs the checks: `basics.js` (shared helpers, bowl pieces), `atmosphere.js` (crowd, home and away ends, sky, day and night), `architecture.js` (skins, arches, towers), `fittings.js` (floodlights, screens, sponsors, tunnel, dugouts, access), `walls.js` (outside walls), `roofs-site.js` (roof lights and sheeting, surroundings), `neighbourhood.js` (the streets and houses round the ground), `views.js` (obstructed views), `stadium.js` (the main build and every check) |
 | `src/ui/` | The control panel: `readout.js` (results and architect's notes), `camera.js` (camera, views, undo), `stand-editor.js` (stands and roofs), `ground.js` (sports, site, layouts, presets), `saving.js` (saved designs, share links, Surprise me), `welcome.js` (welcome, help, shortcuts, start-up) |
 | `src/styles.css`, `src/body.html` | The page's look and layout |
 | `build.mjs` | Joins and minifies `src/`, three.js and the fonts into `index.html` |
