@@ -126,6 +126,54 @@ function plotHandleNear(p){
 function handleHit(e){ if (look || picking) return null; setNdc(e); const hs = group.children.filter(m => m.userData.handle); const h = ray.intersectObjects(hs, false); return h.length ? h[0].object.userData.handle : null; }
 const clamp = (x,a,b) => Math.max(a, Math.min(b, x));
 const r05 = x => Math.round(x*2)/2;
+/* ================= kick-off flyover =================
+   A 15-second swoop: from high outside the ground, round and in over the roof, then down to the touchline for kick-off,
+   where it hands over to the Pitchside view. A tap or a key stops it where it is. Where the browser can record the view
+   it can be saved as a short video to share. With reduced motion asked for, it's a slow fade between four views. */
+let fly = null, touring = null;
+const ease = f => f < .5 ? 2*f*f : 1 - Math.pow(-2*f + 2, 2)/2;
+function flyPose(k){
+  const D = LAST, R = Math.max(D.ext[0], D.ext[1]), H = Math.max(D.maxH, 12);
+  if (k < .78){ const f = ease(k/.78), th = Math.PI/2 + .15 - (1 - f)*Math.PI*1.3, r = lerp(R*2.6, R*.7, f), y = lerp(R*1.2, H + 16, Math.pow(f, .8));
+    return {p:new THREE.Vector3(Math.cos(th)*r, y, Math.sin(th)*r), t:new THREE.Vector3(0, lerp(12, 4, f), 0)}; }
+  const a = flyPose(.7799), end = camTarget("pitch"), f = ease((k - .78)/.22); // the last stretch: over the roof and down to the touchline
+  return {p:a.p.lerp(end.p, f), t:a.t.lerp(end.t.clone().add(end.t.clone().sub(end.p).multiplyScalar(60)), f)};
+}
+const canRecord = !!(window.MediaRecorder && HTMLCanvasElement.prototype.captureStream);
+function recordView(){
+  const types = ["video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"], type = types.find(t => MediaRecorder.isTypeSupported(t));
+  const stream = renderer.domElement.captureStream(30), rec = new MediaRecorder(stream, type ? {mimeType:type, videoBitsPerSecond:8e6} : undefined), chunks = [];
+  rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  rec.onstop = async () => { stream.getTracks().forEach(t => t.stop()); if (!chunks.length) return;
+    const blob = new Blob(chunks, {type: rec.mimeType || "video/webm"}), fname = "kick-off-flyover." + (/mp4/.test(blob.type) ? "mp4" : "webm"), file = new File([blob], fname, {type:blob.type});
+    if (navigator.canShare && matchMedia("(pointer:coarse)").matches && navigator.canShare({files:[file]})){ try { await navigator.share({files:[file], title:"Kick-off at " + (sponsorsOf().title || "my stadium")}); return; } catch(e) { if (e && e.name === "AbortError") return; } }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = fname; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    toast("<b>Flyover saved as a video.</b> Look for it in your downloads."); };
+  rec.start(500); return rec;
+}
+function kickoff(record){
+  if (!LAST || fly || touring) return; closeMore(); if (camera !== persp) setOrtho(false);
+  picking = false; view.classList.remove("picking"); setLook(false); controls.autoRotate = false; anim = null;
+  const rec = record && canRecord ? recordView() : null;
+  if (reduce) return fadeTour(rec);
+  fly = {start: performance.now(), dur: 15000, rec}; wake();
+}
+/* With reduced motion: four views, faded through black, about four seconds each. */
+function fadeTour(rec){
+  const veil = document.getElementById("veil"), views = ["aerial", "side", "exterior", "pitch"]; let i = 0; touring = {rec};
+  const next = () => { if (!touring) return; veil.classList.add("on");
+    setTimeout(() => { if (!touring) return; goCam(views[i], true); veil.classList.remove("on"); i++;
+      if (i < views.length) touring.t = setTimeout(next, 3200); else { touring.t = setTimeout(() => { if (touring && touring.rec) touring.rec.stop(); touring = null; }, 2400); } }, 900); };
+  next();
+}
+function stopFlying(){
+  if (fly){ const f = fly; fly = null; controls.update(); if (f.rec) f.rec.stop(); invalidate(); }
+  if (touring){ clearTimeout(touring.t); if (touring.rec) touring.rec.stop(); touring = null; document.getElementById("veil").classList.remove("on"); }
+}
+addEventListener("pointerdown", e => { if ((fly || touring) && !e.target.closest("[data-fly]")) stopFlying(); }, true);
+addEventListener("keydown", () => { if (fly || touring) stopFlying(); }, true);
+document.querySelectorAll("[data-fly]").forEach(b => b.addEventListener("click", () => kickoff(b.dataset.fly === "record")));
+document.querySelectorAll("[data-fly='record']").forEach(b => { b.hidden = !canRecord; });
 renderer.domElement.addEventListener("pointerdown", e => {
   downAt = [e.clientX, e.clientY]; if (e.button !== 0) return;
   const h = handleHit(e);
@@ -212,7 +260,7 @@ function selectTab(key, fromView){
 }
 /* Keep the orbiting camera out of solid structure but let it go anywhere above the seats, including under roofs. */
 function constrain(){
-  const D = LAST; if (!D || look || anim) return;
+  const D = LAST; if (!D || look || anim || fly) return;
   const fx = D.F.W/2 + D.set, fz = D.F.H/2 + D.set, tg = controls.target, c = camera.position;
   tg.x = clamp(tg.x, -fx*1.5, fx*1.5); tg.z = clamp(tg.z, -fz*1.5, fz*1.5); tg.y = clamp(tg.y, 0, Math.max(30, D.maxH));
   let minY = 1.2 + focusY;
@@ -249,6 +297,10 @@ function settleAO(){ clearTimeout(aoTimer); aoTimer = setTimeout(() => { if (AO 
 var TICKERS = new Set(); // var: invalidate() can call wake() before this line has run
 function wake(){ idle = 0; if (!awake){ awake = true; requestAnimationFrame(loop); } if (SPECTACLE && !SPECTACLE.ticking) spectacleWake(); }
 function loop(now){
+  if (fly){ const k = Math.min(1, (now - fly.start)/fly.dur), q = flyPose(k); // the kick-off flyover: the camera is flown, not orbited
+    camera.position.copy(q.p); controls.target.copy(q.t); camera.lookAt(q.t); renderer.render(scene, camera); idle = 0;
+    if (k >= 1){ const f = fly; fly = null; goCam("pitch", true); if (f.rec) f.rec.stop(); }
+    requestAnimationFrame(loop); return; }
   if (anim){ const k = Math.min(1, (now - anim.start)/850), e = 1 - Math.pow(1-k, 3);
     camera.position.lerpVectors(anim.p0, anim.p, e); controls.target.lerpVectors(anim.t0, anim.t, e);
     if (k===1){ anim = null; applyLimits(); } }

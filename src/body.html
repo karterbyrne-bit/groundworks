@@ -339,6 +339,9 @@
     </section>
 
     <section class="group" data-pane="look">
+      <h2>Kick-off flyover</h2>
+      <p class="hint">A 15-second swoop from high over the town, round and in over the roof, down to the touchline. Tap to stop it.</p>
+      <div class="row"><button class="btn small" data-fly="play">🎬 Play the flyover</button><button class="btn small" data-fly="record">⏺ Record it as a video</button></div>
       <h2>Finishing touches</h2>
       <label class="toggle"><input type="checkbox" id="crowd"> Fill it with a crowd</label>
       <div id="crowdBox">
@@ -413,7 +416,8 @@
         <button id="presentBtn">Presentation mode</button>
       </div>
       <div class="bookmarks" id="bookmarks" hidden></div>
-      <div class="exitp"><button id="presentImage" data-saveimage>Save as image</button><button id="exitPresent">Exit presentation</button></div>
+      <div class="exitp"><button data-fly="play">Kick-off flyover</button><button id="presentImage" data-saveimage>Save as image</button><button id="exitPresent">Exit presentation</button></div>
+      <div class="veil" id="veil" aria-hidden="true"></div>
       <p class="tip" id="tip"></p>
       <button class="hud" id="hud" aria-label="Open results"><b id="hudCap">0</b><span id="hudChecks"></span></button>
     </div>

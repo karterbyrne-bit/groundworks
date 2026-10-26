@@ -236,6 +236,8 @@ body.present .app{grid-template-columns:1fr}
 body.present .stage{grid-template-rows:1fr}
 body.present .cams,body.present .tip{display:none}
 body.present .exitp{display:flex;gap:6px;position:absolute;top:12px;right:max(12px, env(safe-area-inset-right,0px))}
+.veil{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .9s ease}
+.veil.on{opacity:1}
 .exitp button{font:inherit;font-size:12px;padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
 @media (max-width:860px){ body.present .app{grid-template-rows:100svh} body.present .stage{grid-template-rows:100svh} }
 .checks-h{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
