@@ -47,6 +47,19 @@ function skinTexture(kind){
   else { g.fillStyle = "#7fa9bf"; g.fillRect(0,0,256,256); g.fillStyle = "rgba(255,255,255,.35)"; g.fillRect(0,0,256,40); g.fillStyle = "#2f3a40"; g.fillRect(0,0,6,256); g.fillRect(0,0,256,6); g.fillRect(0,128,256,4); }
   const t = canvasTex(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.keep = true; return (skinTex[kind] = t);
 }
+/* Many round members (lattice steel, cables) as one smooth-shaded mesh: each [from, to, radius] becomes a short tube. */
+function tubesMesh(list, sides, mat){
+  const pos = [], nor = [], idx = [], up = new THREE.Vector3(0, 1, 0), side = new THREE.Vector3(), nrm = new THREE.Vector3(), d = new THREE.Vector3(), q = new THREE.Vector3();
+  for (const [a, b, r] of list){
+    d.subVectors(b, a); if (d.lengthSq() < 1e-8) continue; d.normalize();
+    side.crossVectors(d, Math.abs(d.y) > .95 ? new THREE.Vector3(1, 0, 0) : up).normalize(); nrm.crossVectors(side, d);
+    const base = pos.length/3;
+    for (let k=0;k<sides;k++){ const t = k/sides*Math.PI*2; q.copy(side).multiplyScalar(Math.cos(t)).addScaledVector(nrm, Math.sin(t));
+      pos.push(a.x + q.x*r, a.y + q.y*r, a.z + q.z*r, b.x + q.x*r, b.y + q.y*r, b.z + q.z*r); nor.push(q.x, q.y, q.z, q.x, q.y, q.z); }
+    for (let k=0;k<sides;k++){ const i0 = base + 2*k, j0 = base + 2*((k + 1)%sides); idx.push(i0, j0, i0 + 1, i0 + 1, j0, j0 + 1); } }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3)); g.setIndex(idx);
+  const m = new THREE.Mesh(g, mat); m.receiveShadow = true; return m;
+}
 function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf, ext){
   if (outline.length < 3) return 0;
   let top = 0;
@@ -154,18 +167,44 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
       ext[1] = Math.max(ext[1], Math.abs(zc) + 7); }
     top = Math.max(top, H + 27);
   }
-  // an arch over the main stand
+  /* The arch: a steel lattice tube like Wembley's, tapering a little towards the crown, standing on sculpted concrete feet
+     that flare into the ground, with round cables fanning down to the roofs' front edges. Over the main stand (leaning
+     back, as Wembley's does), diagonally across the whole ground, or two arches crossing. A soft glow runs along it at
+     night. Every member of every arch goes into one merged mesh, so it's a single draw for a phone however much steel. */
   if (A.arch){
-    const span = Math.max(60, 2*sext[0] + 20), Ah = Math.max(H*2.2, span*0.36), lean = 18*Math.PI/180;
-    const dN = standInfo.N ? standInfo.N.depth : 20, z0 = -(F.H/2 + set + dN*0.55), pts = [];
-    for (let k=0;k<=40;k++){ const x = -span/2 + span*k/40, f = 1 - Math.pow(2*x/span, 2), y = Ah*Math.pow(Math.max(0, f), 0.85);
-      pts.push(new THREE.Vector3(x, y*Math.cos(lean), z0 - y*Math.sin(lean))); }
-    const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 120, Math.max(1.6, span*0.007), 12, false), M.steel);
-    tube.castShadow = true; tube.userData.stadium = true; group.add(tube);
-    for (const sx of [-1,1]) post(bf("concrete"), sx*span/2, z0, 0, 3, 7);
-    for (let k=4;k<=36;k+=4){ const p = pts[k]; const tz = z0 + dN*0.7, ty = Math.max(4, H);
-      quad(bf("cable"), [p.x-.08,p.y,p.z], [p.x+.08,p.y,p.z], [p.x+.08,ty,tz], [p.x-.08,ty,tz]); }
-    top = Math.max(top, Ah*Math.cos(lean));
+    const at = A.archAt || "main", dN = standInfo.N ? standInfo.N.depth : 20, spans = [];
+    if (at === "main"){ const span = Math.max(60, 2*sext[0] + 20); spans.push({a:[-span/2, -(F.H/2 + set + dN*0.55)], span, lean:18*Math.PI/180, out:[0, -1], rise:Math.max(H*2.2, span*0.36)}); }
+    else { const ex = sext[0] + 12, ez = sext[1] + 12, span = 2*Math.hypot(ex, ez), rise = Math.max(H*2, span*0.3);
+      spans.push({a:[-ex, -ez], b:[ex, ez], span, lean:0, rise});
+      if (at === "cross") spans.push({a:[-ex, ez], b:[ex, -ez], span, lean:0, rise:rise*1.07}); } // the second a little higher, so they pass
+    const steel = [], cables = [], glow = [], fx = F.W/2 + set, fz = F.H/2 + set;
+    for (const sp of spans){
+      const b = sp.b || [sp.a[0] + sp.span, sp.a[1]], dx = (b[0] - sp.a[0])/sp.span, dz = (b[1] - sp.a[1])/sp.span, out = sp.out || [0, 0];
+      const C = u => { const y = sp.rise*Math.pow(Math.max(0, 1 - Math.pow(2*u - 1, 2)), 0.85);
+        return new THREE.Vector3(sp.a[0] + dx*sp.span*u + out[0]*y*Math.sin(sp.lean), y*Math.cos(sp.lean), sp.a[1] + dz*sp.span*u + out[1]*y*Math.sin(sp.lean)); };
+      const r0 = Math.max(2.4, sp.span*0.011), radius = u => r0*(1 - 0.32*C(u).y/sp.rise), K = 6, Mseg = 64, rings = [];
+      for (let m=0;m<=Mseg;m++){ const u = .02 + .96*m/Mseg, p = C(u), tng = C(Math.min(1, u + .004)).sub(C(Math.max(0, u - .004))).normalize();
+        const side = new THREE.Vector3().crossVectors(tng, new THREE.Vector3(0, 1, 0)).normalize(), nrm = new THREE.Vector3().crossVectors(side, tng).normalize(), r = radius(u);
+        rings.push({p, tng, pts: Array.from({length: K}, (_, k) => p.clone().addScaledVector(side, Math.cos(k/K*Math.PI*2)*r).addScaledVector(nrm, Math.sin(k/K*Math.PI*2)*r))}); }
+      const mw = Math.max(.16, r0*.07);
+      rings.forEach((R, m) => { for (let k=0;k<K;k++){ const q = R.pts[k], q2 = R.pts[(k+1)%K];
+        steel.push([q, q2, mw*.6]); // the ring
+        if (m < Mseg){ const nx = rings[m+1].pts; steel.push([q, nx[k], mw]); steel.push([q, nx[(k + (m%2 ? 1 : K-1))%K], mw*.55]); } } }); // chords and zigzag bracing
+      if (S.night) for (let m=0;m<Mseg;m++) glow.push([rings[m].p, rings[m+1].p, r0*.18]);
+      // feet: a flared concrete pedestal where each end meets the ground
+      for (const u of [.02, .98]){ const p = C(u), foot = new THREE.Mesh(new THREE.LatheGeometry(Array.from({length: 9}, (_, k) => { const f = k/8;
+          return new THREE.Vector2(r0*1.15 + r0*2.4*Math.pow(1 - f, 2.2), f*Math.max(4, p.y + 4)); }), 24), M.concrete);
+        foot.position.set(p.x, 0, p.z); foot.castShadow = foot.receiveShadow = true; foot.userData.stadium = true; group.add(foot); }
+      // cables from the arch down to the roof fronts: straight down the line for the main stand, out to both sides across the ground
+      for (let m=6;m<=Mseg-6;m+=3){ const p = rings[m].p;
+        if (at === "main"){ cables.push([p, new THREE.Vector3(p.x*0.96, Math.max(4, H*0.92), -fz - 1.5), .11]); continue; }
+        if (Math.abs(p.x) >= fx || Math.abs(p.z) >= fz) continue; // over the stands themselves
+        const pr = [-dz, dx]; for (const sg of [-1, 1]){ const tx = pr[0]*sg, tz = pr[1]*sg;
+          const t = Math.min(tx ? (Math.sign(tx)*fx - p.x)/tx : Infinity, tz ? (Math.sign(tz)*fz - p.z)/tz : Infinity);
+          cables.push([p, new THREE.Vector3(p.x + tx*t, Math.max(4, H*0.92), p.z + tz*t), .11]); } }
+      top = Math.max(top, sp.rise*Math.cos(sp.lean) + r0); }
+    for (const [list, mat, sides] of [[steel, M.steel, 6], [cables, M.cable, 8], [glow, M.archGlow, 8]]) if (list.length){
+      const mesh = tubesMesh(list, sides, mat); mesh.castShadow = mat !== M.archGlow; mesh.userData.stadium = true; group.add(mesh); }
   }
   return top;
 }
