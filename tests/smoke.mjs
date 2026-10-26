@@ -231,6 +231,14 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.evaluate(() => { for (const [k, v] of [["x", "75"], ["z", "0"]]){ const el = document.querySelector(`input[type=number][data-sf2="${k}"][data-i="1"]`); el.value = v; el.dispatchEvent(new Event("input", {bubbles:true})); } });
   await page.waitForTimeout(400);
   check((await cap()) < unboxed, "a stand is cut back to clear a building");
+  // a road through the back of the main stand: built over it (like Villa Park) keeps more seats than being cut back to clear it
+  { await page.click('[data-site="road"]'); await page.waitForTimeout(300); const ri = (await page.evaluate(() => window.__gw.state().site.length)) - 1;
+    await page.evaluate(ri => { const r = window.__gw.regions().find(g => g.key === "N"), i = Math.floor(r.o.length/2), back = Math.max(...r.profs[i].map(p => p.front + Math.floor(p.rows)*p.T)), z = Math.round(r.o[i][1] + r.v[i][1]*(back - 5));
+      for (const [k, v] of [["angle", 0], ["z", z], ["x", 0]]){ // angle first: a road crossing the pitch on the way gets moved off it
+        const el = document.querySelector(`input[type=number][data-sf2="${k}"][data-i="${ri}"]`); el.value = String(v); el.dispatchEvent(new Event("input", {bubbles:true})); } }, ri);
+    await page.waitForTimeout(400); const cutBack = await cap();
+    await page.check(`input[data-sfover="${ri}"]`); await page.waitForTimeout(400); const overIt = await cap();
+    check(overIt > cutBack && errors.length === 0, `a stand built over a road keeps more seats than one cut back to clear it (${overIt} vs ${cutBack})`); }
   await page.click('#panes [data-pane="start"]');
 
   // Save as image: a PNG of the view, at least 1600 pixels wide, with no errors (desktop downloads it)
