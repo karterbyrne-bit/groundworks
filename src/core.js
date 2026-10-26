@@ -264,6 +264,32 @@ let camera = persp;
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.48; controls.autoRotateSpeed = 0.6;
 controls.addEventListener("change", redraw);
+/* Ambient occlusion: the soft darkening where surfaces meet (under roofs, in corners, where stands meet the ground) that
+   makes a stadium look solid. It's too heavy to draw on every frame, so it's drawn once, after the view has settled;
+   while you drag or spin the view is drawn as before, then sharpens up when you stop. Phones get a lighter version, and
+   lose it altogether if even that is too slow for them. */
+/* The frame is drawn as usual and the occlusion is then laid over it as a soft darkening, so colours (and the sky) look
+   exactly the same with it and without it. */
+const AO = (() => { try {
+  const gtao = new THREE.GTAOPass(scene, persp, 512, 512);
+  gtao.updateGtaoMaterial({radius: LIGHT ? 12 : 18, distanceExponent: 2, thickness: LIGHT ? 12 : 18, scale: 2.2, samples: LIGHT ? 8 : 16}); // metres: a stadium is big
+  gtao.updatePdMaterial({lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: LIGHT ? 4 : 6, rings: 2, samples: LIGHT ? 8 : 16});
+  gtao.output = THREE.GTAOPass.OUTPUT.Off; // works the occlusion out without drawing it
+  // the overlay: open surfaces (which come out a shade under white) are left alone, and the darkening is converted to
+  // its strength on the finished, sRGB picture (darkening light by half darkens the picture by about a quarter)
+  const overlay = new THREE.ShaderMaterial({uniforms: {tAO: {value: gtao.pdRenderTarget.texture}, strength: {value: LIGHT ? 0.8 : 1}},
+    vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position, 1.0); }",
+    fragmentShader: "uniform sampler2D tAO; uniform float strength; varying vec2 vUv; void main(){ float a = clamp(texture2D(tAO, vUv).r/0.93, 0.0, 1.0); gl_FragColor = vec4(vec3(mix(1.0, pow(a, 0.7), strength)), 1.0); }",
+    transparent: true, depthTest: false, depthWrite: false, blending: THREE.CustomBlending, blendSrc: THREE.DstColorFactor, blendDst: THREE.ZeroFactor});
+  return {gtao, overlay, off: false, ms: 0, frames: 0};
+} catch(e){ return null; } })();
+function drawAO(){
+  const t0 = performance.now();
+  const g = AO.gtao; g.camera = camera;
+  renderer.render(scene, camera); g.render(renderer, null, null);
+  AO.overlay.uniforms.tAO.value = g.pdRenderTarget.texture; g._renderPass(renderer, AO.overlay, null); AO.frames++; // multiplied over the frame just drawn
+  AO.ms = performance.now() - t0; if (LIGHT && AO.ms > 140) AO.off = true; // too slow for this phone: leave it off
+}
 /* Light levels for a day match, the golden evening and a night match, kept in one place so the look can be tuned.
    They're physical units: the sun is about three times the old numbers, and floodlights don't fade with distance
    (the real ones are aimed and focused, so the far touchline is lit as well as the near one). */

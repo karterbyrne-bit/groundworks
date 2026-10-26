@@ -223,11 +223,24 @@ function constrain(){
   if (c.y < minY) c.y = minY;
 }
 function resize(){ const w = view.clientWidth, h = view.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); persp.aspect = w/h; persp.updateProjectionMatrix(); invalidate();
+  if (AO){ const pr = LIGHT ? 1 : renderer.getPixelRatio(); AO.gtao.setSize(Math.round(w*pr), Math.round(h*pr)); }
   if (camera === ortho){ const hh = (ortho.top - ortho.bottom)/2; ortho.left = -hh*w/h; ortho.right = hh*w/h; ortho.updateProjectionMatrix(); } }
 new ResizeObserver(resize).observe(view);
 /* The frame loop stops altogether once nothing has moved for half a second, so a stadium left on screen uses no power.
    Anything that changes the view (a touch, a key, a camera move or a rebuild) wakes it again. */
-var awake = false, idle = 0;
+var awake = false, idle = 0, aoTimer = 0;
+/* Where the camera was last drawn from: the controls can report a "change" every frame while held at a distance limit
+   (as in the pitchside view) without the view moving at all, so only a real shift counts as a move. */
+const lastCamP = new THREE.Vector3(), lastCamT = new THREE.Vector3();
+/* A moment after the last ordinary frame, if nothing has moved since, draw it once more with ambient occlusion
+   (perspective views only). A timer rather than counting frames, since some browsers stop sending frames once the
+   picture stops changing. */
+/* Finish any camera glide at once (for automated checks and screenshots, where frames come slowly). */
+function settleNow(){
+  if (anim){ camera.position.copy(anim.p); controls.target.copy(anim.t); anim = null; applyLimits(); }
+  const d = controls.enableDamping; controls.enableDamping = false; controls.update(); controls.enableDamping = d; redraw();
+}
+function settleAO(){ clearTimeout(aoTimer); aoTimer = setTimeout(() => { if (AO && !AO.off && camera === persp && !anim && !controls.autoRotate) requestAnimationFrame(() => { if (!anim && !dirty){ drawAO(); idle = 31; } }); }, 300); } // the still frame is the last: sleep straight after it
 /* Things that move on their own for a while (a Mexican wave). Each is called every frame until it returns false. */
 var TICKERS = new Set(); // var: invalidate() can call wake() before this line has run
 function wake(){ idle = 0; if (!awake){ awake = true; requestAnimationFrame(loop); } }
@@ -235,9 +248,10 @@ function loop(now){
   if (anim){ const k = Math.min(1, (now - anim.start)/850), e = 1 - Math.pow(1-k, 3);
     camera.position.lerpVectors(anim.p0, anim.p, e); controls.target.lerpVectors(anim.t0, anim.t, e);
     if (k===1){ anim = null; applyLimits(); } }
-  const moved = controls.update(); constrain();
+  const moved = controls.update() && (camera.position.distanceToSquared(lastCamP) > 1e-6 || controls.target.distanceToSquared(lastCamT) > 1e-6); constrain();
+  lastCamP.copy(camera.position); lastCamT.copy(controls.target);
   let ticked = false; for (const f of TICKERS){ ticked = true; if (!f(now)) TICKERS.delete(f); }
-  if (moved || anim || ticked || dirty > 0){ renderer.render(scene, camera); if (dirty > 0) dirty--; idle = 0; }
+  if (moved || anim || ticked || dirty > 0){ renderer.render(scene, camera); if (dirty > 0) dirty--; idle = 0; settleAO(); }
   else idle++;
   if (idle > 30 && !controls.autoRotate && !document.hidden){ awake = false; return; }
   requestAnimationFrame(loop);
