@@ -283,6 +283,9 @@ $("waveBtn").addEventListener("click", () => {
   if (camMode === "plan") goCam("aerial");
 });
 $("seeBtn").addEventListener("click", () => { S.seeThrough = !S.seeThrough; changed(); });
+$("halo").addEventListener("change", e => { S.halo = e.target.checked; changed(); });
+$("flares").addEventListener("change", e => { S.flares = e.target.checked; if (S.flares && !homeEndOf().at) toast("<b>Flares need a home end.</b> Pick one under Home end above."); changed(); });
+$("fireworksBtn").addEventListener("click", () => { if (camMode === "plan") goCam("aerial"); startFireworks(); });
 $("nightBtn").addEventListener("click", () => { S.night = !S.night; changed(); });
 $("seatPattern").addEventListener("change", e => { S.seatPattern = e.target.value; changed(); });
 $("seat2").addEventListener("input", e => { S.seat2 = e.target.value; setSeatColours(); save(true); });

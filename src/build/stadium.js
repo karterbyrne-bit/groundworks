@@ -1228,6 +1228,7 @@ function build(){
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(Wt, Ht), new THREE.MeshStandardMaterial({map:tex, roughness:1}));
   floor.rotation.x = -Math.PI/2; floor.position.y = 0.02; floor.receiveShadow = true; group.add(floor);
   if (S.crowd !== false) addCrowd(allRecs, F); else CROWD = null;
+  if (!DRY){ if (S.flares && S.crowd !== false) addFlares(allRecs); else SPECTACLE = null; }
   if (S.players) addPlayers(CV ? CV.F2 : pitchOf(F), CV ? CV.sp : S.sport);
   let ext = sext.slice();
   if (poly){
@@ -1248,6 +1249,7 @@ function build(){
   const A = S.arch || {}, B2 = {}, buf2 = k => (B2[k] = B2[k] || []);
   drawSite(site, buf2, ext);
   if (!DRY) drawNeighbourhood(poly, ext.slice(), site, buf2);
+  if (!DRY && S.halo) addHalo(anchors, buf2);
   if (!DRY && S.statues > 0) addStatues(Math.min(4, S.statues | 0), bounds, poly, buf2);
   const archTop = addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, buf2, ext);
   result.maxH = Math.max(result.maxH, archTop);

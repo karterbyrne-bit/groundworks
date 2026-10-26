@@ -231,7 +231,7 @@ function applyMood(){
     const warm = Math.max(0, Math.min(1, (22 - elD)/18)); sun.color.lerp(new THREE.Color(0xffa860), warm); hemi.color.lerp(new THREE.Color(0xffd2a8), warm*0.5);
     sun.intensity = lerp(LUX.sun, LUX.eveSun, warm); hemi.intensity = lerp(LUX.hemi, LUX.eveHemi, warm); scene.environmentIntensity = lerp(LUX.env, LUX.eveEnv, warm); }
   updateClocks();
-  M.lamp.emissiveIntensity = night ? 2.2 : 0.9; M.band.emissive.set(night ? 0xffc46b : 0x000000); M.band.emissiveIntensity = night ? 0.55 : 0;
+  M.lamp.emissiveIntensity = night ? 2.2 : 0.9; M.haloA.emissiveIntensity = M.haloB.emissiveIntensity = night ? 4 : .9; M.band.emissive.set(night ? 0xffc46b : 0x000000); M.band.emissiveIntensity = night ? 0.55 : 0;
   M.board.emissiveIntensity = night ? 1.6 : 0.8; M.screen.emissiveIntensity = night ? 1.4 : 0.7;
   M.window.emissive.set(night ? 0xffc77a : 0x000000); M.window.emissiveIntensity = night ? 0.6 : 0;
   if (night && S.scenery !== "model") realScenery(true);
@@ -240,4 +240,70 @@ function applyMood(){
   const see = !!S.seeThrough;
   for (const [k, o] of [["roof",.92],["roofSolid",1],["roofGreen",1],["roofConcrete",1],["roofClosed",.45],["roofGlass",.45],["roofEdge",1]]){
     const m = M[k]; if (!m) continue; m.transparent = see || o < 1; m.opacity = see ? Math.min(o, 0.18) : o; m.depthWrite = !see && o >= 1; m.needsUpdate = true; }
+}
+/* ================= night-match spectacle =================
+   An LED halo along the roof fronts in the club's colours, flares and drifting smoke in the home end, and fireworks over
+   the ground. The flares and smoke move only while someone is looking at them: a few seconds after the last touch or
+   drag they settle and stop, so an idle stadium still sleeps. Phones get fewer particles. */
+var SPECTACLE = null, spectacleSeen = 0; // var: wake() can look before this line has run
+function softDot(){ // one shared round, soft-edged dot for smoke and sparks
+  if (sceneryTex.dot) return sceneryTex.dot;
+  const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(.4, "rgba(255,255,255,.55)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  const t = canvasTex(c); t.keep = true; return (sceneryTex.dot = t);
+}
+function addHalo(anchors, bf){
+  for (const g of anchors){ if (!g.RR) continue;
+    for (let i=0;i<g.m;i++){ const j = g.closed ? (i + 1) % g.m : i + 1; if (j >= g.m) continue; const a = g.RR[i], b = g.RR[j]; if (!a || !b) continue;
+      const P = (k, R) => [g.o[k][0] + g.v[k][0]*(R.inner - .2), g.o[k][1] + g.v[k][1]*(R.inner - .2)], p = P(i, a), q = P(j, b);
+      quad(bf(Math.floor(i/3) % 2 ? "haloB" : "haloA"), [p[0], a.y(0) - 1.6, p[1]], [q[0], b.y(0) - 1.6, q[1]], [q[0], b.y(0) - .2, q[1]], [p[0], a.y(0) - .2, p[1]]); } }
+}
+function addFlares(recs){
+  SPECTACLE = null;
+  const home = recs.filter(r => r.home && !r.away && !r.floor && r.seats > 0); if (!home.length) return;
+  const nF = Math.min(home.length, LIGHT ? 5 : 10), per = LIGHT ? 14 : 26, pos = [];
+  for (let k=0;k<nF;k++){ const r = home[Math.floor((k + .5)*home.length/nF)]; pos.push([r.x, r.h1 + 1.9, r.z]); }
+  const core = new THREE.InstancedMesh(new THREE.SphereGeometry(.22, 8, 6), M.flare, nF), m4 = new THREE.Matrix4();
+  pos.forEach((p, i) => { core.setMatrixAt(i, m4.makeTranslation(p[0], p[1], p[2])); }); core.userData.stadium = true; group.add(core);
+  const N = nF*per, geo = new THREE.BufferGeometry(), arr = new Float32Array(N*3), seed = [];
+  for (let i=0;i<N;i++){ const f = pos[i % nF], age = (i/N); seed.push([f, age, Math.random()*6.3]); arr.set([f[0], f[1] + age*14, f[2]], i*3); }
+  geo.setAttribute("position", new THREE.BufferAttribute(arr, 3));
+  const smoke = new THREE.Points(geo, new THREE.PointsMaterial({map: softDot(), color: S.night ? 0xc8b8bc : 0xd8d2d4, size: 7, transparent: true, opacity: .42, depthWrite: false}));
+  smoke.userData.stadium = true; group.add(smoke);
+  const glow = new THREE.Points(new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute(pos.flat(), 3)),
+    new THREE.PointsMaterial({map: softDot(), color: 0xff4a24, size: 5, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false}));
+  glow.userData.stadium = true; group.add(glow);
+  SPECTACLE = {smoke, seed, glow, ticking: false};
+  spectacleWake();
+}
+/* Called whenever the view wakes: keep the smoke drifting for a few seconds more. */
+function spectacleWake(){
+  spectacleSeen = performance.now(); if (!SPECTACLE || SPECTACLE.ticking) return; SPECTACLE.ticking = true;
+  const sp = SPECTACLE, t0 = performance.now();
+  TICKERS.add(now => {
+    if (SPECTACLE !== sp || now - spectacleSeen > 8000){ sp.ticking = false; return false; } // nobody looking: let it rest
+    const t = (now - t0)/1000, a = sp.smoke.geometry.attributes.position.array;
+    sp.seed.forEach(([f, age, ph], i) => { const life = (age + t*.09) % 1; // each puff rises, drifts with the breeze and spreads
+      a[i*3] = f[0] + Math.sin(ph + life*3)*(.5 + life*3) + life*6; a[i*3+1] = f[1] + life*16; a[i*3+2] = f[2] + Math.cos(ph + life*2)*(.5 + life*3); });
+    sp.smoke.geometry.attributes.position.needsUpdate = true; sp.glow.material.size = 4.4 + Math.sin(now*.03)*.7 + Math.sin(now*.071)*.5; // flicker
+    return true; });
+  wake();
+}
+/* Fireworks over the ground: a few bursts in the club's colours and gold, rising, opening and falling away. */
+function startFireworks(){
+  const D = LAST; if (!D) return;
+  const bursts = 7, per = LIGHT ? 70 : 150, N = bursts*per, geo = new THREE.BufferGeometry(), pos = new Float32Array(N*3), col = new Float32Array(N*3), cols = [new THREE.Color(S.seat), new THREE.Color(S.seat2 || "#ffffff"), new THREE.Color(0xffd36b), new THREE.Color(0xffffff)];
+  const parts = []; for (let b=0;b<bursts;b++){ const c = [(Math.random() - .5)*D.F.W*.8, D.maxH + 10 + Math.random()*14, (Math.random() - .5)*D.F.H*.8], cc = cols[b % cols.length], sp = 13 + Math.random()*6;
+    for (let k=0;k<per;k++){ const u = Math.random()*2 - 1, th = Math.random()*6.283, r = Math.sqrt(1 - u*u); parts.push({c, v:[r*Math.cos(th)*sp, u*sp, r*Math.sin(th)*sp], t0: b*.85, col: cc}); } }
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3)); geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({map: softDot(), size: 7, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false}));
+  pts.frustumCulled = false; scene.add(pts); const start = performance.now();
+  TICKERS.add(now => { const t = (now - start)/1000;
+    parts.forEach((p, i) => { const s = t - p.t0, live = s > 0 && s < 2.4, k = live ? Math.max(0, 1 - s/2.4) : 0;
+      pos[i*3] = p.c[0] + p.v[0]*Math.max(0, s); pos[i*3+1] = p.c[1] + p.v[1]*Math.max(0, s) - 4.5*Math.max(0, s)*Math.max(0, s); pos[i*3+2] = p.c[2] + p.v[2]*Math.max(0, s);
+      col[i*3] = p.col.r*k; col[i*3+1] = p.col.g*k; col[i*3+2] = p.col.b*k; });
+    geo.attributes.position.needsUpdate = true; geo.attributes.color.needsUpdate = true;
+    if (t > bursts*.85 + 2.6){ scene.remove(pts); geo.dispose(); pts.material.dispose(); invalidate(); return false; }
+    return true; });
+  wake();
 }
