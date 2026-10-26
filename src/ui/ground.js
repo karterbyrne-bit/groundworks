@@ -126,7 +126,8 @@ $("siteAdd").addEventListener("click", e => { const b = e.target.closest("[data-
   f.x = Math.round(f.x); f.z = Math.round(f.z); list.push(f); siteDrawn = null; changed(true);
   toast(`<b>${K.label} added</b> beside the ground. Drag its yellow posts in the 3D view, or type where it goes.`, UNDO); });
 $("siteList").addEventListener("input", e => { const el = e.target; if (!el.dataset.sf2) return; const v = +el.value; if (!isFinite(v)) return;
-  siteOf()[+el.dataset.i][el.dataset.sf2] = v; el.closest(".row").querySelectorAll("input").forEach(o => { if (o !== el) o.value = el.value; }); changed(false, true); });
+  const f = siteOf()[+el.dataset.i]; f[el.dataset.sf2] = v; if (["x", "z", "angle"].includes(el.dataset.sf2)) delete f.snap; // typed where it goes: free of the plot's edge
+  el.closest(".row").querySelectorAll("input").forEach(o => { if (o !== el) o.value = el.value; }); changed(false, true); });
 $("siteList").addEventListener("click", e => { const b = e.target.closest("[data-sdel]"); if (!b) return; siteOf().splice(+b.dataset.sdel, 1); siteDrawn = null; renderSite(); changed(); });
 function siteHandleNear(p){
   if (!p || look || picking || !Array.isArray(S.site)) return null;

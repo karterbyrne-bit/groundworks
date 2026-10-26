@@ -1199,6 +1199,7 @@ function build(){
   }
   const A = S.arch || {}, B2 = {}, buf2 = k => (B2[k] = B2[k] || []);
   drawSite(site, buf2, ext);
+  if (!DRY) drawNeighbourhood(poly, ext.slice(), site, buf2);
   const archTop = addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, buf2, ext);
   result.maxH = Math.max(result.maxH, archTop);
   if (window.__gwCheck){ let bad = 0; for (const k in B2) for (const v of B2[k]) if (!isFinite(v)) bad++; group.traverse(o => { const a = o.geometry && o.geometry.attributes && o.geometry.attributes.position; if (a && a.array) for (const v of a.array) if (!isFinite(v)) bad++; }); result.archNan = bad; }

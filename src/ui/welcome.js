@@ -142,7 +142,7 @@ function keepPitchClear(){
 }
 function changed(moveCam, coalesce){
   if (moveCam) recam = true;
-  keepPitchClear();
+  keepPitchClear(); followSnappedRoads(); // roads that run along the plot's edge move with it
   syncUI(); renderTabs(); save(coalesce);
   if (pending) return; pending = true;
   requestAnimationFrame(() => { pending = false; build(); if (wire) applyWire(); syncUI(); renderSummary(); if (recam){ recam = false; if (camMode !== "seat") goCam(camMode); } });
