@@ -339,10 +339,11 @@ function dropRemovedSports(s){
   if (!s || typeof s !== "object") return s;
   const gone = {cricket:"cricket", baseball:"baseball"}[s.sport] || (s.sport === "custom" && s.custom && {tennis:"tennis", bullring:"a bullring"}[s.custom.kind]);
   if (gone){ s.sport = "football"; s.custom = clone(BASE.custom); swappedSport = gone; }
-  if (s.convert && s.convert.to === "tennis"){ s.convert.on = false; s.convert.to = CONVERT.to; swappedSport = swappedSport || "a tennis conversion"; }
+  if (s.convert && s.convert.to === "tennis"){ s.convert.on = false; s.convert.to = CONVERT.to; swappedSport = swappedSport || "tennis"; }
   delete s.cricket; delete s.ballpark; return s;
 }
-const noteSwappedSport = () => { if (!swappedSport) return; toast(`<b>Switched to football.</b> This design used ${swappedSport}, which Groundworks no longer has.`); swappedSport = null; };
+const noteSwappedSport = () => { if (!swappedSport) return;
+  toast(swappedSport === "tennis" ? "<b>Converting to tennis is switched off.</b> Groundworks no longer has tennis." : `<b>Switched to football.</b> This design used ${swappedSport}, which Groundworks no longer has.`); swappedSport = null; };
 function upgradeCorners(s){
   dropRemovedSports(s);
   if (s && s.limits) for (const k in STANDARDS.minimum) if (s.limits[k] == null) s.limits[k] = STANDARDS[s.standard === "recommended" ? "recommended" : "minimum"][k]; // rules added since it was saved
