@@ -183,9 +183,11 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.click('[data-tab="C"]'); await page.waitForTimeout(200);
   const beforeFill = await cap(); await page.selectOption('select[data-cmode="SE"]', "fill"); await page.waitForTimeout(300);
   const afterFill = await cap();
-  await page.locator('[data-cmeet="SE"]').evaluate(el => { el.value = "30"; el.dispatchEvent(new Event("input", {bubbles:true})); el.dispatchEvent(new Event("change", {bubbles:true})); }); await page.waitForTimeout(300);
-  const met = await page.evaluate(() => { const st = window.__gw.state(); return [st.stands.E.wrap1, st.stands.S.wrap0]; });
-  check(met[0] === 0.3 && Math.abs(met[1] - 0.7) < 1e-9, "the stands either side of a filled corner can meet wherever you choose");
+  // two stands that both come into a corner (here the west and main stands) meet wherever you choose
+  await page.selectOption('select[data-cmode="NW"]', "fill"); await page.waitForTimeout(300);
+  await page.locator('[data-cmeet="NW"]').evaluate(el => { el.value = "30"; el.dispatchEvent(new Event("input", {bubbles:true})); el.dispatchEvent(new Event("change", {bubbles:true})); }); await page.waitForTimeout(300);
+  const met = await page.evaluate(() => { const st = window.__gw.state(); return [st.stands.W.wrap1, st.stands.N.wrap0]; });
+  check(met[0] === 0.3 && Math.abs(met[1] - 0.7) < 1e-9 && (await cap()) > 0, "the stands either side of a filled corner can meet wherever you choose");
   await page.selectOption('select[data-cmode="SE"]', "stand"); await page.waitForTimeout(300);
   check(afterFill >= beforeFill && (await cap()) > 0 && (await page.evaluate(() => window.__gw.state().corners.SE.mode)) === "stand", "a corner can be filled by the stands or given its own corner stand");
   await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300);
