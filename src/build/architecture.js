@@ -129,14 +129,18 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
     const kind = A.skin, bulge = kind === "cushion" ? H*0.06 : kind === "glass" ? H*0.03 : 0, panel = kind === "cushion" ? 8 : kind === "brick" ? 9 : 6;
     const rowsV = kind === "cushion" ? Math.max(2, Math.round(H/7)) : kind === "brick" ? Math.max(1, Math.round(H/9)) : Math.max(1, Math.round(H/6));
     const levels = [0, 0.15, 0.5, 0.85, 1], off = f => bulge*Math.sin(Math.PI*Math.min(1, f*1.05));
-    const pos = [], uv = [];
+    // smooth normals for the bulge, so it shades as one curved face rather than four flat bands (facing the way the
+    // triangles do, which is inwards: it's two-sided, and seen from outside it's lit as facing out)
+    const dOff = f => f*1.05 < 1 ? bulge*Math.PI*1.05*Math.cos(Math.PI*f*1.05) : 0, nrm = (i, f) => { const d = dOff(f)/H, l = Math.hypot(1, d); return [-N[i][0]/l, d/l, -N[i][1]/l]; };
+    const pos = [], uv = [], nor = [];
     for (let i=0;i<n;i++){ const j = (i+1)%n, u0 = cum[i]/panel, u1 = cum[i+1]/panel;
       for (let k=0;k<levels.length-1;k++){ const f0 = levels[k], f1 = levels[k+1];
         const A0 = [P[i][0] + N[i][0]*off(f0), H*f0, P[i][1] + N[i][1]*off(f0)], B0 = [P[j][0] + N[j][0]*off(f0), H*f0, P[j][1] + N[j][1]*off(f0)];
         const A1 = [P[i][0] + N[i][0]*off(f1), H*f1, P[i][1] + N[i][1]*off(f1)], B1 = [P[j][0] + N[j][0]*off(f1), H*f1, P[j][1] + N[j][1]*off(f1)];
         pos.push(...A0, ...B0, ...B1, ...A0, ...B1, ...A1);
-        uv.push(u0, f0*rowsV, u1, f0*rowsV, u1, f1*rowsV, u0, f0*rowsV, u1, f1*rowsV, u0, f1*rowsV); } }
-    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); g.computeVertexNormals();
+        uv.push(u0, f0*rowsV, u1, f0*rowsV, u1, f1*rowsV, u0, f0*rowsV, u1, f1*rowsV, u0, f1*rowsV);
+        nor.push(...nrm(i, f0), ...nrm(j, f0), ...nrm(j, f1), ...nrm(i, f0), ...nrm(j, f1), ...nrm(i, f1)); } }
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
     const tex = skinTexture(kind), glow = S.night && (kind === "cushion" || kind === "glass" || kind === "mesh");
     const mat = new THREE.MeshStandardMaterial({map:tex, side:THREE.DoubleSide, roughness: kind === "glass" ? .15 : .7, metalness: kind === "glass" || kind === "mesh" ? .3 : .05,
       emissive: glow ? new THREE.Color(kind === "cushion" ? S.seat : 0xffd9a0) : new THREE.Color(0), emissiveMap: glow ? tex : null, emissiveIntensity: glow ? (kind === "cushion" ? 1.1 : .5) : 0,
