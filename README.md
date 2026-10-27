@@ -6,14 +6,14 @@ It's a creative tool. Its checks are loosely based on UK sports-ground guidance 
 
 ## What it does
 
-- **Playing areas:** football, rugby, cricket (any boundary size, with the square, rope, sightscreens and scoreboard), athletics, baseball (set each outfield wall's distance and height, with a batter's eye and dugouts), and other outdoor floors (Wrestleball, tennis, a bullring, or any custom size).
+- **Playing areas:** football, rugby, athletics, and Wrestleball or a plain floor of any size.
 - **Field shape:** the field round the pitch can follow the pitch, or be an oval or a circle (a round wrestleball ground, say), with the stands following it while the pitch keeps its own size and markings.
-- **Layouts:** separate stands, a continuous bowl, a bowl with independent stands above it, or a ring of any number of separate stands (cricket grounds, ballparks). Upper tiers can follow their own oval or round outline (like La Cartuja or El Monumental) while the lower tier hugs the play. Bowls can leave out any side or corner (a horseshoe, two sides, an L) and give each side its own number of rows, with the corners blending between them.
+- **Layouts:** separate stands, a continuous bowl, a bowl with independent stands above it, or a ring of any number of separate stands. Upper tiers can follow their own oval or round outline (like La Cartuja or El Monumental) while the lower tier hugs the play. Bowls can leave out any side or corner (a horseshoe, two sides, an L) and give each side its own number of rows, with the corners blending between them.
 - **Outside walls:** brick with windows, timber, art deco ribs, concrete bands, metal cladding, fins, glass curtain walls, with real brick, concrete, metal and timber textures. Pick each stand's wall and accent colours, how many windows and how big, a glazed concourse, and lettering on the wall or roof front; windows light up at night.
 - **Stands:** 21 architectural styles, as many tiers as you like (up to 20) (seats, executive boxes, rail seats, benches or terracing), overhangs, pillars, and drag handles in the 3D view. Each stand has its own length: it can run on past the end of the pitch, or wrap part or all of the way round into the corner at either end, and two stands that wrap in meet up. A corner is whatever is left between two stands: left open, or given a corner stand of its own. Each tier can have its own front (plain, Leitch lattice, glass, concrete, brick) and colours, stop short of either end, and be held up by towers at each end with a truss, like Ibrox's Club Deck. Upper tiers stay level along their stand.
-- **Stand presets and my stands:** start any stand from a famous kind of stand (a giant standing terrace like the Yellow Wall, a Kop-style home end, a Leitch main stand, a three-tier super stand, a sheer Bombonera-style stand of boxes, an Edwardian single-decker, a Victorian cricket pavilion), or save your own stand and put it on any side of any design.
+- **Stand presets and my stands:** start any stand from a famous kind of stand (a giant standing terrace like the Yellow Wall, a Kop-style home end, a Leitch main stand, a three-tier super stand, a sheer Bombonera-style stand of boxes, an Edwardian single-decker), or save your own stand and put it on any side of any design.
 - **Roofs:** sloping, pitched or closed; five materials with real sheeting (profiled metal, ribbed polycarbonate, framed glass, corrugated tin), a grey ceiling and steel rafters underneath, a deep front beam, and an optional see-through strip along the front; six structural styles, including a big truss along the top; level rooflines. Or one roof over the whole ground, designed on its own: it follows the stands or is oval or round, spans gaps and open corners, and can close over the floor.
-- **Convertible grounds:** give a ground a second sport (athletics, football, rugby, tennis, wrestleball) and switch between the two set-ups: the lower tier slides back or has its front rows decked over for a bigger field, and pull-out seats come forward for a smaller one, with the capacity both ways.
+- **Convertible grounds:** give a ground a second sport (athletics, football, rugby, wrestleball) and switch between the two set-ups: the lower tier slides back or has its front rows decked over for a bigger field, and pull-out seats come forward for a smaller one, with the capacity both ways.
 - **Sites:** squeeze the ground onto a plot, with hard or soft boundaries; drag its posts or type its exact width, depth and corners. Add roads, rivers, canals, railways, terraced houses and buildings at real sizes; stands are cut back to clear them.
 - **Architecture:** outer skins, an arch, spiral ramp towers, entrance towers, a raised plaza.
 - **Floodlights and screens:** corner masts, lattice pylons or roof-edge lights; screens on any stand, corner or over the centre.
@@ -58,7 +58,8 @@ Edit the files in `src/`, then rebuild `index.html`:
 npm install        # once
 npm run build      # minified index.html
 npm run build:dev  # unminified, easier to debug
-npm test           # opens the app in a browser and checks the main features work
+npm test           # opens the app in a browser and checks the main features work, desktop and phone
+npm run test:quick # the same at phone size only (what GitHub runs on a pull request)
 npm run update-expected  # only after a deliberate change to the maths: re-records every preset's capacity
 ```
 

@@ -35,7 +35,7 @@ function build(){
   const outline = []; let outerTop = 0;
   let wheelchair = 0, total=0, minC=Infinity, maxH=0, far=0, farRef=null, slowest=0, slowestEm=0, curRef = null;
   const bounds = [-(F.W/2+set), F.W/2+set, -(F.H/2+set), F.H/2+set];
-  const focus = F.home || [0,0];
+  const focus = [0,0];
   const farFrom = (x,z,y) => {
     let tx = focus[0], tz = focus[1];
     if (F.flag){ tx = -Math.sign(x||1)*F.flag[0]; tz = -Math.sign(z||1)*F.flag[1]; }
@@ -1154,7 +1154,7 @@ function build(){
   let covered = 0;
   if (roofQuads.includes("all")) covered = allRecs.reduce((a,r) => a + r.seats, 0);
   else for (const r of allRecs){ if (roofQuads.some(q => q !== "all" && inPoly([r.x, r.z], q))) covered += r.seats; }
-  const farName = F.flag ? "far corner" : (F.home ? "home plate" : "centre");
+  const farName = F.flag ? "far corner" : "centre";
   if (far > L.maxView){
     const fr = farRef && farRef.ref, ck = farRef && farRef.ck, rowsDown = []; if (fr) for (let x = Math.round(rowsOf(fr)) - 1; x >= 2; x--) rowsDown.push(x);
     const fixes = [];
@@ -1185,10 +1185,10 @@ function build(){
   const screenPlans = planScreens(F, anchors, closedAt, outerTop, set, issue);
 
   // pitchside advertising boards
-  /* Any rectangular playing area gets them (football, rugby, wrestleball, tennis, a plain floor): by default 5 m behind the
+  /* Any rectangular playing area gets them (football, rugby, wrestleball, a plain floor): by default 5 m behind the
      goal lines and 4 m back from the touchlines, as at most grounds, but never closer than a metre to the front of the
      stands. With seats on the floor they go just inside the front row. */
-  const FP = pitchOf(F), boardsFit = S.sport === "football" || S.sport === "rugby" || (F.custom && !(FP.r > 0) && ["wrestleball","tennis","plain"].includes(S.custom.kind));
+  const FP = pitchOf(F), boardsFit = S.sport === "football" || S.sport === "rugby" || (F.custom && !(FP.r > 0) && ["wrestleball","plain"].includes(S.custom.kind));
   const BS = boardSetOf(), roomX = set + (F.W - FP.W)/2 - 1, roomZ = set + (F.H - FP.H)/2 - 1 - (S.sport === "football" ? .5 : 0);
   const offX = floorRows ? .6 : Math.min(BS.end, roomX), offZ = floorRows ? .6 : Math.min(BS.side, roomZ), bH = BS.height;
   const boardsOn = S.boards && !CV && boardsFit && offX >= .5 && offZ >= .5;

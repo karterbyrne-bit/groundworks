@@ -2,7 +2,7 @@
 
 ## Who it's for
 
-Groundworks is for football and rugby fans sketching their dream grounds. Fun comes first; the safety checks are a bonus, not the point. Wrestleball is the owner's own made-up sport: it stays, and it isn't a mistake to "fix".
+Groundworks is for football, rugby and athletics fans sketching their dream grounds, plus Wrestleball. Fun comes first; the safety checks are a bonus, not the point. Wrestleball is the owner's own made-up sport: it stays, and it isn't a mistake to "fix".
 
 ## Talking to the owner
 
@@ -20,6 +20,8 @@ Groundworks is for football and rugby fans sketching their dream grounds. Fun co
 
 1. Run `npm run build` and `npm test`. Both must pass. (The test opens the app in a real browser and can take up to about 20 minutes.)
 2. Commit the rebuilt `index.html` along with your changes. GitHub checks it matches `src/`.
+
+Claude Code sessions run the full `npm test` locally before opening a pull request. GitHub's "Check" runs only on pull requests, and runs the quicker `npm run test:quick` (the pinned capacities, then the main features at phone size) to save Actions minutes. To have GitHub run the full test, add the `full-test` label to the pull request, or run "Check" by hand from the Actions tab.
 
 ## Capacities are pinned
 
@@ -44,7 +46,7 @@ Groundworks has to stay quick on a phone, so its size is capped.
 | File | What it does |
 |---|---|
 | `src/boot.js` | Starts first: the loading screen, the friendly error card, and offline support |
-| `src/data.js` | Sports, floors, seating types, safety rules, architectural styles and presets |
+| `src/data.js` | Sports (football, rugby, athletics, Wrestleball and a plain floor), seating types, safety rules, architectural styles and presets, and opening old designs that used a removed sport as football |
 | `src/core.js` | Geometry, tier stacking and sightline maths, the 3D scene and materials |
 | `src/build/basics.js` | Shared building helpers: who gets each corner, row counts, colour-tinted materials, the pieces of a bowl |
 | `src/build/atmosphere.js` | Seat patterns and lettering, the crowd, away end and home end, players, the Mexican wave, sky, scenery, day and night |
@@ -64,7 +66,8 @@ Groundworks has to stay quick on a phone, so its size is capped.
 | `src/ui/welcome.js` | The welcome card, help, keyboard shortcuts, keeping the controls in step with the design, and starting the app |
 | `src/styles.css`, `src/body.html` | The page's look and layout |
 | `build.mjs` | Joins and minifies `src/`, three.js and the fonts into `index.html` |
-| `tests/smoke.mjs` | Opens the app in a real browser, checks the pinned capacities, then clicks through the main features |
+| `tests/smoke.mjs` | Opens the app in a real browser, checks the pinned capacities, then clicks through the main features (`--quick`: at phone size only) |
+| `.github/workflows/check.yml` | GitHub's check on each pull request: the build matches `src/`, then the quick test (or the full one with the `full-test` label) |
 | `tests/expected.json` | The pinned capacity and issue count of every preset |
 
 `src/build/stadium.js` is still big (about 1,240 lines) because almost all of it is one function, `build()`, whose parts share its working variables. Splitting it further means rewriting it, so ask the owner first.

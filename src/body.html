@@ -56,11 +56,7 @@
         <button class="btn" data-p="horseshoe">Horseshoe<small>open end · deeper main side</small></button>
         <button class="btn" data-p="ringroof">One roof over all<small>four stands · oval roof</small></button>
         <button class="btn" data-p="wall">Standing wall ground<small>rail seats · steep end</small></button>
-        <button class="btn" data-p="bullring">Bullring<small>round · pillared upper ring</small></button>
         <button class="btn" data-p="wrestle">Wrestleball ground<small>small outdoor ground</small></button>
-        <button class="btn" data-p="lords">Lord's-style cricket ground<small>a ring of nine stands · the Pavilion</small></button>
-        <button class="btn" data-p="classicpark">Classic ballpark<small>brick grandstand · Green Monster</small></button>
-        <button class="btn" data-p="ballpark">Modern ballpark<small>three tiers wrapping home plate</small></button>
         <button class="btn" data-p="oval">Great oval<small>like El Monumental · oval upper rings</small></button>
         <button class="btn" data-p="cartuja">Oval over a track<small>like La Cartuja · floating upper tier</small></button>
       </div>
@@ -71,9 +67,7 @@
       <div class="seg grid" role="radiogroup" aria-label="Sport">
         <input type="radio" name="sport" id="sp-football" value="football"><label for="sp-football">Football</label>
         <input type="radio" name="sport" id="sp-rugby" value="rugby"><label for="sp-rugby">Rugby</label>
-        <input type="radio" name="sport" id="sp-cricket" value="cricket"><label for="sp-cricket">Cricket</label>
         <input type="radio" name="sport" id="sp-athletics" value="athletics"><label for="sp-athletics">Athletics</label>
-        <input type="radio" name="sport" id="sp-baseball" value="baseball"><label for="sp-baseball">Baseball</label>
         <input type="radio" name="sport" id="sp-custom" value="custom"><label for="sp-custom">Other sports</label>
       </div>
       <p class="hint" id="sportNote"></p>
@@ -81,18 +75,6 @@
         <div class="row"><label for="fieldShape">Field shape</label><select id="fieldShape" aria-label="Field shape"></select></div>
         <div class="row" id="fieldMarginRow"><label for="fieldMargin">Grass beyond the pitch corners</label><output id="o-fieldMargin"></output><input type="range" id="fieldMargin" min="0" max="30" step="0.5"></div>
         <p class="hint" id="fieldShapeHint" hidden>The pitch keeps its size and markings; the field round it, and the stands, follow the new shape. A bowl or a ring of stands (under Layout) follows it best.</p>
-      </div>
-      <div id="cricketBox" class="group" hidden>
-        <div class="row"><label for="ckL">Boundary, end to end</label><output id="o-ckL"></output><input type="range" id="ckL" min="120" max="190" step="1"></div>
-        <div class="row"><label for="ckW">Boundary, side to side</label><output id="o-ckW"></output><input type="range" id="ckW" min="110" max="180" step="1"></div>
-      </div>
-      <div id="ballBox" class="group" hidden>
-        <div class="row"><label for="bpLF">Left-field wall from home</label><output id="o-bpLF"></output><input type="range" id="bpLF" min="85" max="125" step="1"></div>
-        <div class="row"><label for="bpCF">Centre-field wall from home</label><output id="o-bpCF"></output><input type="range" id="bpCF" min="105" max="145" step="1"></div>
-        <div class="row"><label for="bpRF">Right-field wall from home</label><output id="o-bpRF"></output><input type="range" id="bpRF" min="85" max="125" step="1"></div>
-        <div class="row"><label for="bpWall">Outfield wall height</label><output id="o-bpWall"></output><input type="range" id="bpWall" min="1" max="6" step="0.5"></div>
-        <div class="row"><label for="bpLFW">Left-field wall height</label><output id="o-bpLFW"></output><input type="range" id="bpLFW" min="1" max="12" step="0.5"></div>
-        <p class="hint">A tall left-field wall makes up for a short left field, like Fenway Park's Green Monster.</p>
       </div>
       <div id="customFloor" class="group">
         <div class="seg grid" id="kinds" role="group" aria-label="Arena floor"></div>

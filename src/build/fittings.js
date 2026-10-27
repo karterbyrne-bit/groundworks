@@ -87,12 +87,6 @@ function scoreboardTexture(){
   const c = document.createElement("canvas"); c.width = 512; c.height = 216; const g = c.getContext("2d");
   g.fillStyle = "#06090d"; g.fillRect(0,0,512,216); g.fillStyle = S.seat; g.fillRect(0,0,512,26); g.fillRect(0,190,512,26);
   g.fillStyle = "#ffffff"; g.font = "bold 18px sans-serif"; g.textAlign = "center"; g.fillText("GROUNDWORKS", 256, 20);
-  if (S.sport === "cricket" || S.sport === "baseball"){ // a scoreboard in the sport's own language
-    g.textAlign = "left"; g.font = "bold 26px monospace"; g.fillStyle = "#ffd65a";
-    const lines = S.sport === "cricket" ? [["TOTAL", "245-3"], ["OVERS", "48.2"], ["BATTER 1", "112*"], ["BATTER 2", " 37*"], ["LAST WKT", "88"]]
-      : [["AWAY", "0 1 0 2 0 0 1 · 4"], ["HOME", "1 0 0 0 3 1 0 · 5"], ["INNING", "8   OUTS 2"], ["BALLS", "2   STRIKES 1"], ["", ""]];
-    lines.forEach(([a, b2], i) => { g.fillStyle = "#cfd8e3"; g.fillText(a, 22, 58 + i*30); g.fillStyle = "#ffd65a"; g.fillText(b2, S.sport === "cricket" ? 300 : 150, 58 + i*30); });
-    const t = canvasTex(c); t.keep = true; return (boardTex[k] = t); }
   g.font = "bold 74px sans-serif"; g.fillText("2 – 1", 256, 128);
   g.font = "bold 30px sans-serif"; g.fillText("HOME", 96, 120); g.fillText("AWAY", 416, 120);
   g.fillStyle = "#ffd65a"; g.font = "bold 26px monospace"; g.fillText("63:12", 256, 172);

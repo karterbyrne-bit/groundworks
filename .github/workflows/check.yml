@@ -1,13 +1,23 @@
-# Runs on every push and pull request: rebuilds the app, makes sure the committed index.html is up to date,
-# then opens it in a real browser and clicks through the main features.
+# Runs once per pull request change: rebuilds the app, makes sure the committed index.html is up to date, then opens it
+# in a real browser. Normally the quick test (pinned capacities, then the main features at phone size); the full test
+# (desktop and phone) when the pull request has the "full-test" label, or when run by hand from the Actions tab.
 name: Check
 on:
-  push:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
 jobs:
   check:
+    # adding any other label doesn't start a run
+    if: github.event.action != 'labeled' || github.event.label.name == 'full-test'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
+    # a newer commit on the same pull request cancels the older run
+    concurrency:
+      group: check-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+    env:
+      FULL: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-test') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,8 +28,25 @@ jobs:
       - run: npm run build
       - name: index.html matches src/
         run: git diff --exit-code index.html || (echo "::error::index.html is out of date. Run npm run build and commit it." && exit 1)
-      - run: npx playwright install --with-deps chromium
-      - run: npm test
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache the Playwright browser
+        id: pwcache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - if: steps.pwcache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.pwcache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      - name: Quick test
+        if: env.FULL != 'true'
+        run: npm run test:quick
+      - name: Full test
+        if: env.FULL == 'true'
+        run: npm test
       - uses: actions/upload-artifact@v4
         if: always()
         with:

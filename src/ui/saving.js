@@ -56,7 +56,11 @@ $("importBtn").addEventListener("click", () => {
 
 /* ================= share links, random stadiums ================= */
 /* A shared design must look like one of ours. Text containing markup characters is refused outright, since parts of
-   a design end up in the page. */
+   a design end up in the page. A plain apostrophe (as in an older design's "Members' Stand") becomes a curly one first. */
+function curlApostrophes(v, depth){
+  if (depth > 12 || !v || typeof v !== "object") return;
+  for (const k in v){ if (typeof v[k] === "string") v[k] = v[k].replace(/'/g, "’"); else curlApostrophes(v[k], depth + 1); }
+}
 function safeState(st){
   if (!st || typeof st !== "object" || st.version !== 6 || !SPORTS[st.sport] || !st.stands || !st.bowl || !st.limits || !st.types) return false;
   let ok = true;
@@ -69,7 +73,7 @@ function safeState(st){
    anything a newer version added, check every stand has proper tiers, then try building it out of sight. If any of that
    fails it's refused, rather than half-loading and freezing the 3D view. */
 function soundState(st){
-  if (!safeState(st)) return false;
+  dropRemovedSports(st); curlApostrophes(st, 0); if (!safeState(st)) return false;
   const num = v => typeof v === "number" && isFinite(v);
   const tiersOk = a => Array.isArray(a) && a.length <= 40 && a.every(x => x && typeof x === "object" && TYPES[x.type] && num(x.rows) && x.rows >= 0 && x.rows <= 200 && num(x.rake));
   const standOk = c => !!c && typeof c === "object" && tiersOk(c.tiers) && !!c.roof && typeof c.roof === "object" && typeof c.roof.shape === "string";

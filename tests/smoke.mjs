@@ -1,5 +1,7 @@
 // End-to-end smoke test: opens the built index.html in a real browser at desktop and phone sizes and clicks through
 // the main features, failing on any error. Run: npm test   (after npm run build)
+// Quick mode (npm run test:quick, what GitHub runs on a pull request): the pinned capacities, then the features once,
+// at phone size only.
 import { chromium } from "playwright";
 import { createServer } from "node:http";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -22,6 +24,7 @@ const browser = await chromium.launch();
 // After a deliberate change, run: npm run update-expected
 const expectedFile = new URL("./expected.json", import.meta.url);
 const updating = process.argv.includes("--update-expected");
+const quick = process.argv.includes("--quick");
 {
   console.log("\npinned capacities");
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
@@ -56,7 +59,7 @@ const updating = process.argv.includes("--update-expected");
   }
 }
 
-for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["phone", { width: 390, height: 844 }]]) {
+for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["phone", { width: 390, height: 844 }]].filter(([n]) => !quick || n === "phone")) {
   console.log(`\n${name} (${viewport.width}×${viewport.height})`);
   const ctx = await browser.newContext({ viewport, hasTouch: name === "phone" });
   const page = await ctx.newPage();
@@ -81,7 +84,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.evaluate(() => { const b = document.getElementById("boards"); if (!b.checked){ b.checked = true; b.dispatchEvent(new Event("change")); } });
   await page.waitForTimeout(300);
   check(await page.evaluate(() => window.__gw.boards()), "sponsor boards go round a wrestleball pitch");
-  for (const p of ["bowl", "leitch", "bullring"]) {
+  for (const p of ["bowl", "leitch"]) {
     await page.click(`[data-p="${p}"]`); await page.waitForTimeout(300);
     check((await cap()) > 0, `preset "${p}" builds`);
   }
@@ -178,8 +181,14 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.locator('[data-wrap="1"]').evaluate(el => { el.value = "60"; el.dispatchEvent(new Event("input", {bubbles:true})); el.dispatchEvent(new Event("change", {bubbles:true})); }); await page.waitForTimeout(300);
   check((await page.evaluate(() => window.__gw.state().stands.N.wrap1)) === 0.6 && (await cap()) > beforeWrap, "a stand on a bowl can wrap part way round a corner");
   await page.click('[data-tab="C"]'); await page.waitForTimeout(200);
-  const beforeFill = await cap(); await page.click('[data-cfill="SE"]'); await page.waitForTimeout(300);
-  const afterFill = await cap(); await page.click('[data-copen="SE"]'); await page.selectOption('select[data-corner="SE"][data-cf="mode"]', "stand"); await page.waitForTimeout(300);
+  const beforeFill = await cap(); await page.selectOption('select[data-cmode="SE"]', "fill"); await page.waitForTimeout(300);
+  const afterFill = await cap();
+  // two stands that both come into a corner (here the west and main stands) meet wherever you choose
+  await page.selectOption('select[data-cmode="NW"]', "fill"); await page.waitForTimeout(300);
+  await page.locator('[data-cmeet="NW"]').evaluate(el => { el.value = "30"; el.dispatchEvent(new Event("input", {bubbles:true})); el.dispatchEvent(new Event("change", {bubbles:true})); }); await page.waitForTimeout(300);
+  const met = await page.evaluate(() => { const st = window.__gw.state(); return [st.stands.W.wrap1, st.stands.N.wrap0]; });
+  check(met[0] === 0.3 && Math.abs(met[1] - 0.7) < 1e-9 && (await cap()) > 0, "the stands either side of a filled corner can meet wherever you choose");
+  await page.selectOption('select[data-cmode="SE"]', "stand"); await page.waitForTimeout(300);
   check(afterFill >= beforeFill && (await cap()) > 0 && (await page.evaluate(() => window.__gw.state().corners.SE.mode)) === "stand", "a corner can be filled by the stands or given its own corner stand");
   await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300);
   await page.click('#panes [data-pane="stands"]'); await page.waitForTimeout(200); await page.click('[data-tab="S"]');
@@ -216,13 +225,9 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.selectOption("#standPre", "m:0"); await page.waitForTimeout(400);
   check((await page.evaluate(() => window.__gw.state().stands.E.tiers[0].type)) === "terrace", "a saved stand can be put on another side");
   await page.click('#panes [data-pane="start"]');
-  // cricket and baseball: rings of stands
-  await page.click('#panes [data-pane="start"]');
-  for (const p of ["lords", "classicpark", "ballpark"]){ await page.click(`[data-p="${p}"]`);
-    await page.waitForFunction(() => window.__gw.state().layout === "ring" && window.__gw.last().parts.length > 2); await page.waitForTimeout(200);
-    // Lord's pavilion and the classic grandstand have real pillars, so their restricted-view warnings are expected; nothing else is
-    const r = await last(), other = await page.evaluate(() => window.__gw.last().issues.filter(i => !/^obstructed:/.test(i.key)).length);
-    check(r.total > 10000 && !other, `preset "${p}" builds with no warnings (other than restricted views behind real pillars)`); }
+  // a ring of separate stands
+  await page.click('#panes [data-pane="ground"]'); await page.click('label[for="ly-ring"]');
+  await page.waitForFunction(() => window.__gw.state().layout === "ring" && window.__gw.last().parts.length > 2); await page.waitForTimeout(200);
   await page.click('#panes [data-pane="stands"]'); const nStands = await page.locator("#tabs button").count();
   await page.click('[data-ring="+"]'); await page.waitForTimeout(300);
   check((await page.locator("#tabs button").count()) === nStands + 1, "a ring can have another stand added");
@@ -394,14 +399,15 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   const before = await page.evaluate(() => JSON.stringify(window.__gw.state()));
   const link = await page.evaluate(async () => { let url = ""; navigator.clipboard.writeText = async t => { url = t; }; navigator.share = undefined; document.getElementById("shareBtn").click(); for (let i = 0; i < 100 && !url; i++) await new Promise(r => setTimeout(r, 100)); return url; });
   check(/#d=z/.test(link), "Share makes a compressed link");
-  const page2 = await ctx.newPage(); page2.setDefaultTimeout(120000);
+  // opened somewhere new (its own storage, so it can't just show the design saved there)
+  const ctx2 = await browser.newContext({ viewport }), page2 = await ctx2.newPage(); page2.setDefaultTimeout(120000);
   page2.on("pageerror", e => errors.push(e.message));
   await page2.goto(link.replace(/^https?:\/\/[^/]+\//, base));
   await page2.waitForFunction(() => document.documentElement.classList.contains("ready"));
   await page2.waitForTimeout(800);
   check((await page2.evaluate(() => JSON.stringify(window.__gw.state()))) === before, "the shared link opens the same stadium");
   check(!page2.url().includes("#d="), "the link is tidied out of the address bar");
-  await page2.close();
+  await ctx2.close();
 
   // a tampered link is refused instead of being run
   const bad = await ctx.newPage();
@@ -415,7 +421,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   const keep = await page.evaluate(() => JSON.stringify(window.__gw.state()));
   await page.click('#panes [data-pane="start"]');
   await page.evaluate(() => { const d = document.getElementById("codeBox").closest("details"); if (d) d.open = true; });
-  const halfDesign = await page.evaluate(() => { const st = window.__gw.state(); delete st.stands.N.tiers; st.bowl.tiers = [{type:"seated"}]; return btoa(JSON.stringify(st)); });
+  const halfDesign = await page.evaluate(() => { const st = window.__gw.state(); delete st.stands.N.tiers; st.bowl.tiers = [{type:"seated"}]; return btoa(unescape(encodeURIComponent(JSON.stringify(st)))); }); // as the app makes one
   for (const [code, what] of [[halfDesign, "half a design"], [halfDesign.slice(0, halfDesign.length >> 1), "a code cut off part way"]]){
     await page.fill("#codeBox", code); await page.click("#importBtn"); await page.waitForTimeout(300);
     check((await page.evaluate(() => JSON.stringify(window.__gw.state()))) === keep && /look right/.test(await page.locator(".toast").last().textContent()), `${what} is refused with a message`);
