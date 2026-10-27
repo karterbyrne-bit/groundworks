@@ -51,24 +51,8 @@
     "capacity": 24379,
     "issues": 1
   },
-  "bullring": {
-    "capacity": 10819,
-    "issues": 1
-  },
   "wrestle": {
     "capacity": 1017,
-    "issues": 0
-  },
-  "lords": {
-    "capacity": 17283,
-    "issues": 3
-  },
-  "classicpark": {
-    "capacity": 16395,
-    "issues": 1
-  },
-  "ballpark": {
-    "capacity": 22495,
     "issues": 0
   },
   "oval": {
