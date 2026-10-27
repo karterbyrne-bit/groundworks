@@ -1256,8 +1256,6 @@ function build(){
   }
   const A = S.arch || {}, B2 = {}, buf2 = k => (B2[k] = B2[k] || []);
   drawSite(site, buf2, ext);
-  if (!DRY){ const B3 = {}; drawNeighbourhood(poly, ext.slice(), site, k => (B3[k] = B3[k] || [])); // the streets round the ground: no shadows, to keep it quick
-    for (const key in B3) if (B3[key].length){ const mesh = meshFrom(B3[key], M[key], false); mesh.receiveShadow = false; mesh.userData.stadium = true; group.add(mesh); } }
   if (!DRY && S.halo) addHalo(anchors, buf2);
   if (!DRY && S.statues > 0) addStatues(Math.min(4, S.statues | 0), bounds, poly, buf2);
   const archTop = addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, buf2, ext, anchors);
@@ -1275,6 +1273,10 @@ function build(){
       if (S.night){ const sp = new THREE.SpotLight(0xfff4dc, LUX.flood, 0, 0.75, 0.6, 0); sp.position.set(x, mh+2, z); sp.target.position.set(-sx*F.W*0.15, 0, -sz*F.H*0.15); group.add(sp); group.add(sp.target); }
     }
   }
+  // the streets round the ground: laid out last, round everything built (signature architecture and floodlights too), with no shadows to keep it quick
+  if (!DRY){ const B3 = {}, keep = ext.slice(); if (fm === "masts" || fm === "pylons") for (const [x, z] of floodMastSpots(F, sext, outline)){ keep[0] = Math.max(keep[0], Math.abs(x) + 4); keep[1] = Math.max(keep[1], Math.abs(z) + 4); }
+    drawNeighbourhood(poly, keep, site, k => (B3[k] = B3[k] || []));
+    for (const key in B3) if (B3[key].length){ const mesh = meshFrom(B3[key], M[key], false); mesh.receiveShadow = false; mesh.userData.stadium = true; group.add(mesh); } }
   for (const key in B2) if (B2[key].length){ const mesh = meshFrom(B2[key], M[key], !["glass","roofGlass"].includes(key)); mesh.userData.stadium = true; group.add(mesh); }
   // drag handles for the selected stand
   if (handles.length){ const r = Math.max(0.9, Math.max(...sext)*0.012);
