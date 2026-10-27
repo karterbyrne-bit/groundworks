@@ -415,7 +415,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   const keep = await page.evaluate(() => JSON.stringify(window.__gw.state()));
   await page.click('#panes [data-pane="start"]');
   await page.evaluate(() => { const d = document.getElementById("codeBox").closest("details"); if (d) d.open = true; });
-  const halfDesign = await page.evaluate(() => { const st = window.__gw.state(); delete st.stands.N.tiers; st.bowl.tiers = [{type:"seated"}]; return btoa(JSON.stringify(st)); });
+  const halfDesign = await page.evaluate(() => { const st = window.__gw.state(); delete st.stands.N.tiers; st.bowl.tiers = [{type:"seated"}]; return btoa(unescape(encodeURIComponent(JSON.stringify(st)))); }); // as the app makes one
   for (const [code, what] of [[halfDesign, "half a design"], [halfDesign.slice(0, halfDesign.length >> 1), "a code cut off part way"]]){
     await page.fill("#codeBox", code); await page.click("#importBtn"); await page.waitForTimeout(300);
     check((await page.evaluate(() => JSON.stringify(window.__gw.state()))) === keep && /look right/.test(await page.locator(".toast").last().textContent()), `${what} is refused with a message`);
