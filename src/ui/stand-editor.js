@@ -128,6 +128,19 @@ function cornerSummary(c){
   else if (!bits.length) bits.push(A.tiers.length || B.tiers.length ? "Neither stand comes into it." : "There are no stands either side yet.");
   return bits.join(" ");
 }
+/* The corner controls: what's in each corner (open, filled by the stands meeting, or a corner stand of its own), and
+   where the stands meet. They set the two stands' wraps, the same as each stand's Length controls do. */
+function cornerHow(c, P){ return P.meet || (!P.gap && (P.wa > 0 || P.wb > 0)) ? "fill" : P.stand || (P.gap && S.corners[c.key].mode === "stand") ? "stand" : P.wa || P.wb || P.ra > 0 || P.rb > 0 ? "part" : "open"; }
+const meetText = (c, v) => v <= .02 ? "at the " + lower(c.a) : v >= .98 ? "at the " + lower(c.b) : pct(v) + " across";
+function setCorner(c, how){
+  const A = S.stands[c.a], B = S.stands[c.b], ta = A.tiers.length > 0, tb = B.tiers.length > 0;
+  A.run1 = Math.min(0, A.run1 || 0); B.run0 = Math.min(0, B.run0 || 0); // nothing pushes straight in any more
+  if (how === "fill"){ if (!ta && !tb){ flash("<b>There's no stand either side of this corner yet.</b> Give one some tiers first."); return false; }
+    A.wrap1 = ta ? (tb ? .5 : 1) : 0; B.wrap0 = tb ? (ta ? .5 : 1) : 0; }
+  else { A.wrap1 = 0; B.wrap0 = 0; S.corners[c.key].mode = how === "stand" ? "stand" : "open";
+    if (how === "stand" && !S.cornerCustom.length) S.cornerCustom.push(t("seated", 12, 22)); }
+  return true;
+}
 /* How far a stand runs or wraps at one end, and a word on what's stopping it when another stand has the corner. */
 function endControls(cfg, s, e){
   const ck = SIDE_ENDS[s][e], c = CORNERS.find(x => x.key === ck), other = c.a === s ? c.b : c.a, P = cornerPlan(c), mine = c.a === s ? {w:P.wa, r:P.ra} : {w:P.wb, r:P.rb};
@@ -149,13 +162,15 @@ function renderEditor(){
   ed.querySelectorAll("details[data-more]").forEach(d => { if (d.open) openMore.add(d.dataset.more); else openMore.delete(d.dataset.more); });
   if (!isBowl() && tab === "C"){
     const anyStand = CORNERS.some(c => cornerPlan(c).stand);
-    ed.innerHTML = `<p class="hint">A corner is whatever is left between two stands. Each stand sets how far it runs past the pitch or wraps round into the corner (under that stand's <b>Length</b>); here you choose what fills any gap. The shape (curved, angled or right angle) is under Layout.</p>
-      ${CORNERS.map(c => { const cc = S.corners[c.key], P = cornerPlan(c); return `<div class="cornerbox"><div class="tier-h"><span>${c.name}</span></div>
-        <p class="hint">${cornerSummary(c)}</p>
-        ${P.gap ? `<div class="row"><label>The gap</label><select data-corner="${c.key}" data-cf="mode" aria-label="What fills ${c.name}">
-          ${[["open","Left open"],["stand","Its own corner stand"]].map(([v,l]) => `<option value="${v}"${(cc.mode === "stand") === (v === "stand") ? " selected" : ""}>${l}</option>`).join("")}</select></div>
-          ${cc.mode === "stand" ? `<label class="toggle"><input type="checkbox" data-corner="${c.key}" data-cf="roof"${cc.roof ? " checked" : ""}> Roof over the corner stand</label>` : ""}` : ""}
-        <div class="acts-row"><button class="btn small" data-cfill="${c.key}">Fill it with the stands</button><button class="btn small" data-copen="${c.key}">Open it up</button></div></div>`; }).join("")}
+    ed.innerHTML = `<p class="hint">Each corner can be left open, filled by the stands either side wrapping round to meet, or given its own corner stand. The shape (curved, angled or right angle) is under Layout.</p>
+      ${CORNERS.map(c => { const cc = S.corners[c.key], P = cornerPlan(c), how = cornerHow(c, P), both = S.stands[c.a].tiers.length > 0 && S.stands[c.b].tiers.length > 0;
+        return `<div class="cornerbox"><div class="tier-h"><span>${c.name}</span></div>
+        <div class="row"><label>Corner</label><select data-cmode="${c.key}" aria-label="${c.name}">
+          ${[["open","Open"],["fill","Filled by the stands"],["stand","Its own corner stand"]].concat(how === "part" ? [["part","Part way (set under each stand's Length)"]] : []).map(([v,l]) => `<option value="${v}"${how === v ? " selected" : ""}>${l}</option>`).join("")}</select></div>
+        ${how === "fill" && both ? `<div class="row"><label>Where they meet</label><output>${meetText(c, P.wa)}</output>
+          <input type="range" data-cmeet="${c.key}" min="0" max="100" step="5" value="${Math.round(P.wa*100)}" aria-label="Where the stands meet in ${c.name}"></div>` : ""}
+        ${how === "stand" ? `<label class="toggle"><input type="checkbox" data-corner="${c.key}" data-cf="roof"${cc.roof ? " checked" : ""}> Roof over the corner stand</label>` : ""}
+        <p class="hint">${cornerSummary(c)}</p></div>`; }).join("")}
       <button class="btn link" id="allCorners">Make all four corners match the first</button>
       ${anyStand ? `<div class="tier-h" style="margin-top:4px"><span>Corner stand tiers</span></div><p class="hint">Every corner stand uses these tiers.</p>${tierBlocks(S.cornerCustom, hyb, "cc")}<button class="btn small" data-act="addTier">Add a tier</button>` : ""}`;
   } else {
@@ -277,6 +292,8 @@ $("ringBox").addEventListener("input", e => { const el = e.target; if (!el.datas
 $("tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (!b) return; selectTab(b.dataset.tab, false); });
 $("editor").addEventListener("input", e => {
   const el = e.target, p = el.dataset.p;
+  if (el.dataset.cmeet){ const c = CORNERS.find(x => x.key === el.dataset.cmeet), v = +el.value/100; S.stands[c.a].wrap1 = v; S.stands[c.b].wrap0 = 1 - v;
+    el.parentElement.querySelector("output").textContent = meetText(c, v); changed(false, true); return; }
   if (el.dataset.wrap){ const cfg = cfgForTab(); cfg["wrap" + el.dataset.wrap] = +el.value/100; el.parentElement.querySelector("output").textContent = el.value + "%"; changed(false, true); return; }
   if (!p || el.tagName === "SELECT") return;
   if (el.type === "checkbox"){
@@ -304,6 +321,8 @@ $("editor").addEventListener("change", e => {
   if (el.id === "standPre" && el.value){ const [kind, key] = el.value.split(":"), from = kind === "p" ? STAND_PRESETS[key] && STAND_PRESETS[key].cfg() : (readStands()[+key] || {}).cfg;
     if (from){ applyStandCfg(clone(from)); flash(`<b>${esc(kind === "p" ? STAND_PRESETS[key].label : readStands()[+key].name)}.</b> ${kind === "p" ? esc(STAND_PRESETS[key].note) : ""}`, UNDO); } return; }
   if (el.dataset.wrap){ renderEditor(); return; } // runs and notes depend on how far it wraps
+  if (el.dataset.cmode){ const c = CORNERS.find(x => x.key === el.dataset.cmode); if (el.value !== "part") setCorner(c, el.value); renderEditor(); changed(); return; }
+  if (el.dataset.cmeet){ renderEditor(); return; }
   if (el.dataset.corner){ const cc = S.corners[el.dataset.corner], f = el.dataset.cf; cc[f] = el.type === "checkbox" ? el.checked : el.value; renderEditor(); changed(); return; }
   if (el.dataset.actChange === "style"){ applyStyle(cfgForTab(), el.value, isHybrid() && tab === "B"); renderEditor(); changed(); return; }
   if (el.tagName === "SELECT" && el.dataset.p && /(^|\.)tiers\.\d+\.support$/.test(el.dataset.p)){ // a tier held up by pillars, towers or nothing (not a roof's structure)
@@ -328,13 +347,6 @@ $("editor").addEventListener("click", e => {
     if (BOWL_PIECES.every(x => gone[x])) return flash("<b>A bowl needs at least one part.</b> Build another side first.");
     for (const x in gone) if (!gone[x]) delete gone[x];
     S.bowl.removed = gone; renderEditor(); changed(); return; }
-  const cf = e.target.closest("[data-cfill],[data-copen]");
-  if (cf){ const c = CORNERS.find(x => x.key === (cf.dataset.cfill || cf.dataset.copen)), A = S.stands[c.a], B = S.stands[c.b], ta = A.tiers.length > 0, tb = B.tiers.length > 0;
-    A.run1 = Math.min(0, A.run1 || 0); B.run0 = Math.min(0, B.run0 || 0); // nothing pushes straight in any more
-    if (cf.dataset.cfill){ if (!ta && !tb) return flash("<b>There's no stand either side of this corner yet.</b> Give one some tiers first.");
-      A.wrap1 = ta ? (tb ? .5 : 1) : 0; B.wrap0 = tb ? (ta ? .5 : 1) : 0; }
-    else { A.wrap1 = 0; B.wrap0 = 0; S.corners[c.key].mode = "open"; }
-    renderEditor(); changed(); return; }
   const b = e.target.closest("[data-act]"); if (!b) { if (e.target.id === "allCorners"){ // the first corner's set-up, stand by stand, in all four
       const v = clone(S.corners.NE), N0 = S.stands.N, E0 = S.stands.E, wa = N0.wrap1 || 0, wb = E0.wrap0 || 0, ra = N0.run1 || 0, rb = E0.run0 || 0;
       for (const c of CORNERS){ S.corners[c.key] = clone(v); Object.assign(S.stands[c.a], {wrap1:wa, run1:ra}); Object.assign(S.stands[c.b], {wrap0:wb, run0:rb}); }
