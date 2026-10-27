@@ -69,7 +69,7 @@ function safeState(st){
    anything a newer version added, check every stand has proper tiers, then try building it out of sight. If any of that
    fails it's refused, rather than half-loading and freezing the 3D view. */
 function soundState(st){
-  if (!safeState(st)) return false;
+  dropRemovedSports(st); if (!safeState(st)) return false;
   const num = v => typeof v === "number" && isFinite(v);
   const tiersOk = a => Array.isArray(a) && a.length <= 40 && a.every(x => x && typeof x === "object" && TYPES[x.type] && num(x.rows) && x.rows >= 0 && x.rows <= 200 && num(x.rake));
   const standOk = c => !!c && typeof c === "object" && tiersOk(c.tiers) && !!c.roof && typeof c.roof === "object" && typeof c.roof.shape === "string";

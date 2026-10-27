@@ -23,16 +23,13 @@ document.addEventListener("keydown", e => {
 function syncUI(){
   const F = field(), lay = layoutOf();
   document.querySelector(`input[name=sport][value=${S.sport}]`).checked = true;
-  $("ly-stands").disabled = !!F.noStands; $("ly-bowl").disabled = !!F.standsOnly; $("ly-hybrid").disabled = !!F.standsOnly; $("ly-ring").disabled = false;
+  $("ly-stands").disabled = !!F.noStands; $("ly-bowl").disabled = false; $("ly-hybrid").disabled = false; $("ly-ring").disabled = false;
   document.querySelector(`input[name=layout][value=${lay}]`).checked = true;
   document.querySelector(`input[name=cshape][value=${S.cornerShape || "curved"}]`).checked = true;
   $("layoutNote").textContent = lay === "hybrid" ? "A continuous lower bowl, with each side free to have its own tiers and roof above it."
-    : lay === "ring" ? "Any number of separate stands round the ground, each its own design, like a cricket ground or a ballpark. Set how many under Stands."
+    : lay === "ring" ? "Any number of separate stands round the ground, each its own design. Set how many under Stands."
     : lay === "bowl" ? "One continuous bowl. Under Stands you can leave out a side, for a horseshoe, or give each side its own depth." : "Four separate stands, joined by corners if you want them.";
   $("sportNote").textContent = F.note;
-  $("cricketBox").hidden = S.sport !== "cricket"; $("ballBox").hidden = S.sport !== "baseball";
-  const CK = Object.assign({}, CRICKET, S.cricket || {}), BP = Object.assign({}, BALLPARK, S.ballpark || {});
-  for (const [id, v] of [["ckL", CK.L], ["ckW", CK.W], ["bpLF", BP.lf], ["bpCF", BP.cf], ["bpRF", BP.rf], ["bpWall", BP.wall], ["bpLFW", BP.lfWall]]){ if (document.activeElement !== $(id)) $(id).value = v; $("o-" + id).textContent = v + " m"; }
   $("customFloor").hidden = !F.custom;
   { const FS = fieldShapeOf(), can = canShapeField(S.sport); $("fieldShapeBox").hidden = !can; $("fieldShape").value = FS.shape;
     $("fieldMarginRow").hidden = $("fieldShapeHint").hidden = FS.shape === "pitch"; $("fieldMargin").value = FS.margin; $("o-fieldMargin").textContent = FS.margin + " m"; }
@@ -155,6 +152,7 @@ wake();
 /* Hand over from the loading screen once the first frame is drawn, then greet first-time visitors. */
 requestAnimationFrame(() => requestAnimationFrame(async () => {
   if (window.gwStarted) window.gwStarted();
+  noteSwappedSport();
   const shared = await openFromLink();
   let seen = false; try { seen = !!localStorage.getItem("groundworks-welcomed"); } catch(e) { seen = true; }
   if (!seen && !shared) setTimeout(() => openSheet(welcome), reduce ? 0 : 450);

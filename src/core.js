@@ -1,10 +1,10 @@
-/* The playing area for a sport (the design's own by default). Tennis and wrestleball can also be a ground's second sport. */
+/* The playing area for a sport (the design's own by default). Wrestleball can also be a ground's second sport. */
 /* The field round the pitch can take its own shape: an oval or a circle drawn round the pitch, with a little grass to
    spare, so the stands (and a bowl) follow it while the pitch keeps its own size and markings in the middle. The pitch's
    own size stays in F.pitch for the markings, goals, boards and players. */
 const FIELD_SHAPES = {pitch:"Follows the pitch", oval:"Oval round the pitch", round:"Round (a circle round the pitch)"};
 const fieldShapeOf = () => Object.assign({shape:"pitch", margin:2}, S.fieldShape || {});
-const canShapeField = sp => sp === "football" || sp === "rugby" || (sp === "custom" && S.custom.kind !== "bullring");
+const canShapeField = sp => sp === "football" || sp === "rugby" || sp === "custom";
 function field(sp){
   const own = !sp || sp === S.sport, F = field0(sp), FS = fieldShapeOf();
   if (!own || FS.shape === "pitch" || !canShapeField(S.sport) || !F) return F;
@@ -21,16 +21,10 @@ function field0(sp){
     const c = S.custom, k = KINDS[c.kind] || KINDS.plain, r = Math.min(c.r, c.W/2, c.H/2);
     return {W:c.W, H:c.H, r, custom:true, kind:c.kind, surface:c.surface, focusY:k.focusY || 0, zones:k.zones, note:k.note};
   }
-  if (sp === "cricket"){ const C = Object.assign({}, CRICKET, S.cricket || {}); return Object.assign({}, SPORTS.cricket, {W:C.L, H:C.W, r:Math.min(C.L, C.W)*0.46}); }
-  if (sp === "baseball"){ // the field is the square that takes in the outfield wall, with home plate in its corner
-    let mx = 0, mz = 0; for (let i=0;i<=40;i++){ const ph = i/40*Math.PI/2, r = fenceR(ph) + 3; mx = Math.max(mx, r*Math.cos(ph)); mz = Math.max(mz, r*Math.sin(ph)); }
-    const W = Math.ceil(mx), H = Math.ceil(mz); return Object.assign({}, SPORTS.baseball, {W, H, home:[-W/2, -H/2]});
-  }
   return SPORTS[sp];
 }
 function layoutOf(){
   const F = field();
-  if (F.standsOnly) return S.layout === "ring" ? "ring" : "stands";
   if (F.noStands && S.layout === "stands") return "bowl";
   return S.layout;
 }
@@ -347,7 +341,6 @@ const M = {
   soffit: std({color:0x9ea39f, roughness:.95}), hball: new THREE.MeshStandardMaterial({color:0xffffff, emissive:0x2b6fb3, emissiveIntensity:.9}),
   roofEdge: std({color:0xd6dbdd, roughness:.5, metalness:.3}),
   steel: std({color:0xe9ecee, roughness:.4, metalness:.5}),
-  barrierWood: std({color:0x8a2e24, roughness:.8}),
   column: std({color:0x3c4246, roughness:.5, metalness:.4}),
   lattice: std({color:0x1f3f8f, roughness:.5}),
   access: new THREE.MeshStandardMaterial({color:0x1f5fbf, emissive:0x0d2f6b, emissiveIntensity:.6, roughness:.4}), // the blue wheelchair sign
@@ -369,7 +362,7 @@ const M = {
   lamp: new THREE.MeshStandardMaterial({color:0xfffbe8, emissive:0xfff3c4, emissiveIntensity:.9}),
   screen: new THREE.MeshStandardMaterial({color:0x0b1a2b, emissive:0x2a5fa8, emissiveIntensity:.7}),
   road: std({color:0x3a3d40, roughness:.95}), pavement: std({color:0xbdbcb4, roughness:.95}), water: std({color:0x3f6f8c, roughness:.12, metalness:.15}),
-  ballast: std({color:0x857d72, roughness:1}), slate: std({color:0x3c4248, roughness:.75}), outfield: std({color:0x23452c, roughness:.85}), track: std({color:0xb4513a, roughness:.9})
+  ballast: std({color:0x857d72, roughness:1}), slate: std({color:0x3c4248, roughness:.75}), track: std({color:0xb4513a, roughness:.9})
 };
 for (const st in STYLES) M["clad_"+st] = std({color:STYLES[st].clad, roughness: [0x8b4636,0x9a4a3a,0x7d3b2c].includes(STYLES[st].clad) ? .95 : .6, metalness: st === "showpiece" ? .3 : .15});
 /* Weathering, worked out on the graphics card from where each point is, so it needs no extra pictures and costs phones
@@ -484,40 +477,9 @@ function drawFootball(ctx){
     ctx.beginPath(); ctx.arc(gx-11*s,0,9.15, s>0?Math.PI-a:-a, s>0?Math.PI+a:a); ctx.stroke();
   }
 }
-/* Distance from home plate to the outfield wall at angle phi: 0 runs down the left-field line, pi/2 down the right-field
-   line, and the wall curves smoothly through centre field between them. */
-function fenceR(phi){
-  const B = Object.assign({}, BALLPARK, S.ballpark || {}), t = Math.max(0, Math.min(1, phi/(Math.PI/2)));
-  const k = t < .5 ? t/.5 : (t - .5)/.5, e = (1 - Math.cos(Math.PI*k))/2;
-  return t < .5 ? B.lf + (B.cf - B.lf)*e : B.cf + (B.rf - B.cf)*e;
-}
-const wallH = phi => { const B = Object.assign({}, BALLPARK, S.ballpark || {}); return phi < 0.5 ? Math.max(B.wall, B.lfWall) : B.wall; };
-function drawBaseball(ctx, F, Wt, Ht){
-  const H = F.home, dirt = "#b9875a";
-  ctx.fillStyle = "#2f6430"; ctx.fillRect(-Wt/2,-Ht/2,Wt,Ht);
-  const fence = []; for (let i=0;i<=40;i++){ const ph = i/40*Math.PI/2, r = fenceR(ph); fence.push([H[0]+r*Math.cos(ph), H[1]+r*Math.sin(ph)]); }
-  const fair = () => { ctx.beginPath(); ctx.moveTo(H[0],H[1]); fence.forEach(p => ctx.lineTo(p[0],p[1])); ctx.closePath(); };
-  fair(); ctx.fillStyle = "#468a40"; ctx.fill();
-  ctx.save(); fair(); ctx.clip(); ctx.fillStyle = "#4f9447";
-  for (let r=0;r<200;r+=8){ ctx.beginPath(); ctx.arc(H[0],H[1],r+4,0,Math.PI/2); ctx.arc(H[0],H[1],r,Math.PI/2,0,true); ctx.fill(); }
-  ctx.restore();
-  ctx.strokeStyle = dirt; ctx.lineWidth = 4.5; ctx.beginPath();
-  for (let i=0;i<=40;i++){ const ph = i/40*Math.PI/2, r2 = fenceR(ph)-2.3, q = [H[0]+r2*Math.cos(ph), H[1]+r2*Math.sin(ph)]; i ? ctx.lineTo(q[0],q[1]) : ctx.moveTo(q[0],q[1]); }
-  ctx.stroke();
-  ctx.strokeStyle = "#1c3a24"; ctx.lineWidth = .9; ctx.beginPath(); fence.forEach((p,i) => i ? ctx.lineTo(p[0],p[1]) : ctx.moveTo(p[0],p[1])); ctx.stroke();
-  const mound = [H[0]+18.44*Math.SQRT1_2, H[1]+18.44*Math.SQRT1_2];
-  ctx.fillStyle = dirt; ctx.beginPath(); ctx.moveTo(H[0],H[1]); ctx.arc(mound[0],mound[1],29,-Math.PI*0.06,Math.PI*0.56); ctx.closePath(); ctx.fill();
-  const b = 27.43, inset = 1.6;
-  ctx.fillStyle = "#468a40"; ctx.beginPath(); ctx.moveTo(H[0]+inset*1.6,H[1]+inset*1.6); ctx.lineTo(H[0]+b-inset,H[1]+inset); ctx.lineTo(H[0]+b-inset,H[1]+b-inset); ctx.lineTo(H[0]+inset,H[1]+b-inset); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = dirt; ctx.beginPath(); ctx.arc(mound[0],mound[1],2.75,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(H[0],H[1],4,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle = "#ffffff"; for (const q of [[b,0],[b,b],[0,b]]) ctx.fillRect(H[0]+q[0]-0.2,H[1]+q[1]-0.2,0.4,0.4);
-  ctx.strokeStyle = "#ffffff"; ctx.lineWidth = .12;
-  ctx.beginPath(); ctx.moveTo(H[0],H[1]); ctx.lineTo(H[0]+100,H[1]); ctx.moveTo(H[0],H[1]); ctx.lineTo(H[0],H[1]+100); ctx.stroke();
-}
 function drawKind(ctx, F, Wt, Ht, lw, shaped){
   const W = F.W, H = F.H, k = F.kind, line = (x1,z1,x2,z2) => { ctx.beginPath(); ctx.moveTo(x1,z1); ctx.lineTo(x2,z2); ctx.stroke(); };
-  const surround = {arena:"#2f3337", court:"#2d4a6b", ice:"#3a3f44", tennis:"#2f6b52", grass:"#3a7335", mat:"#2f3337", sand:"#b89a62"}[F.surface] || "#2f3337";
+  const surround = {arena:"#2f3337", court:"#2d4a6b", ice:"#3a3f44", grass:"#3a7335", mat:"#2f3337", sand:"#b89a62"}[F.surface] || "#2f3337";
   if (!shaped){ ctx.fillStyle = surround; ctx.fillRect(-Wt/2,-Ht/2,Wt,Ht); }
   if (k === "wrestleball"){
     const z = F.zones, tot = z.reduce((a,b) => a+b, 0), sc = W/tot;
@@ -531,15 +493,7 @@ function drawKind(ctx, F, Wt, Ht, lw, shaped){
     line(0,-H/2,0,H/2); ctx.beginPath(); ctx.arc(0,0,Math.min(H*0.3,1.2),0,Math.PI*2); ctx.stroke();
     return;
   }
-  if (k === "bullring"){ ctx.fillStyle = "#c9a86c"; ctx.fillRect(-Wt/2,-Ht/2,Wt,Ht); ctx.beginPath(); ctx.arc(0,0,W/2,0,Math.PI*2); ctx.fillStyle = "#dcc08a"; ctx.fill(); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = .2; ctx.beginPath(); ctx.arc(0,0,W/2*0.6,0,Math.PI*2); ctx.stroke(); return; }
-  if (k === "tennis"){
-    ctx.fillStyle = "#3d6fb0"; ctx.fillRect(-11.885,-5.485,23.77,10.97);
-    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = .05;
-    ctx.strokeRect(-11.885,-5.485,23.77,10.97); line(-11.885,-4.115,11.885,-4.115); line(-11.885,4.115,11.885,4.115);
-    line(-6.4,-4.115,-6.4,4.115); line(6.4,-4.115,6.4,4.115); line(-6.4,0,6.4,0);
-    return;
-  }
-  const SURF = {grass:["#3d7a38","#468a40"],court:["#c4945a","#b98a52"],ice:["#e9f2f6","#e3edf2"],sand:["#dcc48f","#d6bd87"],arena:["#3a3e42","#3a3e42"],tennis:["#3d6fb0","#3d6fb0"],mat:["#2d6cb5","#2d6cb5"]};
+  const SURF = {grass:["#3d7a38","#468a40"],court:["#c4945a","#b98a52"],ice:["#e9f2f6","#e3edf2"],sand:["#dcc48f","#d6bd87"],arena:["#3a3e42","#3a3e42"],mat:["#2d6cb5","#2d6cb5"]};
   const [base, alt] = SURF[F.surface] || SURF.grass;
   ctx.save(); rr(ctx,W,H,F.r); ctx.fillStyle = base; ctx.fill(); ctx.clip();
   if (F.surface === "grass"){ ctx.fillStyle = alt; for (let x=-W/2,i=0;x<W/2;x+=5,i++) if (i%2) ctx.fillRect(x,-H/2,5,H); }
@@ -557,17 +511,9 @@ function floorTexture(F, set, sp){
   ctx.lineWidth = lw; ctx.strokeStyle = "rgba(255,255,255,.92)"; ctx.fillStyle = "rgba(255,255,255,.92)";
   const sport = sp || S.sport;
   if (F.pitch && F.r > 0){ // the field's own outline, a little darker, round the pitch
-    ctx.fillStyle = {grass:"#356f31", sand:"#b89a62", court:"#2d4a6b", tennis:"#2f6b52", ice:"#3a3f44"}[F.surface] || (F.custom ? "#2f3337" : "#356f31"); ctx.fillRect(-Wt/2,-Ht/2,Wt,Ht); }
+    ctx.fillStyle = {grass:"#356f31", sand:"#b89a62", court:"#2d4a6b", ice:"#3a3f44"}[F.surface] || (F.custom ? "#2f3337" : "#356f31"); ctx.fillRect(-Wt/2,-Ht/2,Wt,Ht); }
   if (F.custom) drawKind(ctx, pitchOf(F), Wt, Ht, lw, !!F.pitch);
-  else if (sport === "baseball") drawBaseball(ctx, F, Wt, Ht);
-  else if (sport === "cricket"){
-    ctx.fillStyle = "#386f33"; ctx.fillRect(-Wt/2,-Ht/2,Wt,Ht);
-    for (let r=80;r>0;r-=6){ ctx.fillStyle = (r/6)%2<1 ? "#43873d" : "#3e7e38"; ctx.beginPath(); ctx.ellipse(0,0,r*F.W/F.H,r,0,0,Math.PI*2); ctx.fill(); }
-    rr(ctx,F.W,F.H,F.r); ctx.lineWidth=.35; ctx.strokeStyle="#f4f4f0"; ctx.stroke();
-    ctx.beginPath(); ctx.ellipse(0,0,30,27.4,0,0,Math.PI*2); ctx.setLineDash([1.2,1.2]); ctx.stroke(); ctx.setLineDash([]);
-    for (let k=-4;k<=4;k++){ ctx.fillStyle = k === 0 ? "#cdb98a" : k % 2 ? "#5d8f4a" : "#6b9a52"; ctx.fillRect(-12, -1.525 + k*3.05, 24, 3.05); } // the square: a row of pitches, today's in the middle
-    ctx.fillStyle = "#ffffff"; for (const s of [-1,1]) ctx.fillRect(s*8.84-0.05,-1.32,0.1,2.64);
-  } else {
+  else {
     // worn in the goalmouths (or in front of the posts) and down the middle, where the play is heaviest
     const ends = sport === "rugby" ? 47 : 49.5;
     turf(ctx, -Wt/2, -Ht/2, Wt, Ht, 5.25, "#4a8f43", "#3b7636", sport === "athletics" ? [] :
@@ -609,35 +555,8 @@ function addProps(g, F, buf, sp){
     for (const z of [-2.8,2.8]) add(cyl(.1,14), M.white, 50*s,7,z);
     const bar = add(cyl(.08,5.6), M.white, 50*s,3,0); bar.rotation.x = Math.PI/2;
   }
-  if (sp === "baseball"){
-    const H = F.home, P = (ph, r) => [H[0] + r*Math.cos(ph), H[1] + r*Math.sin(ph)];
-    for (const ph of [0, Math.PI/2]){ const r = fenceR(ph), q = P(ph, r); add(cyl(.25, 20), M.barrier, q[0], 10, q[1]); } // foul poles
-    // the padded outfield wall, taller down the left-field line if set, with a yellow line along the top
-    for (let i=0;i<60;i++){ const a0 = i/60*Math.PI/2, a1 = (i+1)/60*Math.PI/2, p0 = P(a0, fenceR(a0)), p1 = P(a1, fenceR(a1)), h0 = wallH(a0), h1 = wallH(a1);
-      quad(buf("outfield"), [p0[0],0,p0[1]], [p1[0],0,p1[1]], [p1[0],h1,p1[1]], [p0[0],h0,p0[1]]);
-      quad(buf("barrier"), [p0[0],h0,p0[1]], [p1[0],h1,p1[1]], [p1[0],h1+.15,p1[1]], [p0[0],h0+.15,p0[1]]); }
-    // the batter's eye: a dark screen beyond centre field
-    const cf = Math.PI/4, c0 = P(cf - .09, fenceR(cf) + 4), c1 = P(cf + .09, fenceR(cf) + 4);
-    quad(buf("outfield"), [c0[0],0,c0[1]], [c1[0],0,c1[1]], [c1[0],12,c1[1]], [c0[0],12,c0[1]]);
-    // dugouts along both foul lines, sunk into the strip in front of the stands, with a roof over each
-    for (const [dx, dz] of [[1, 0], [0, 1]]){ const cx = H[0] + dx*28 - dz*4.5, cz = H[1] + dz*28 - dx*4.5, w = dx ? 20 : 3.2, d = dx ? 3.2 : 20;
-      add(new THREE.BoxGeometry(w, 1.1, d), M.dark, cx, .55, cz);
-      add(new THREE.BoxGeometry(w + .4, .2, d + .4), M.roofSolid, cx, 1.2, cz); }
-  }
-  if (sp === "cricket"){
-    // the boundary rope just inside the edge of the outfield, and a sightscreen behind each end of the pitch
-    const rope = closedPathS(F, F.r, -2.5, "curved"); ribbon(buf("white"), rope, rope, 0, .16, true);
-    for (const s of [-1, 1]){ const x = s*(F.W/2 + 2.5);
-      add(new THREE.BoxGeometry(.6, 7, 22), M.white, x, 4.4, 0);
-      add(new THREE.BoxGeometry(1.4, .9, 22), M.dark, x, .45, 0); }
-  }
   if (!F.custom) return;
   const W = F.W, H = F.H;
-  if (F.kind === "bullring"){ const P0 = closedPathS(F, F.r, 0, "curved"); ribbon(buf("barrierWood"), P0, P0, 0, 1.6, true); }
   if (F.kind === "wrestleball") for (const s of [-1,1]) add(new THREE.BoxGeometry(.3,.5,H), M.white, s*(W/2+0.4),.25,0);
-  if (F.kind === "tennis"){
-    add(new THREE.BoxGeometry(.03,.95,12.8), new THREE.MeshStandardMaterial({color:0x222222,transparent:true,opacity:.7}), 0,.475,0);
-    for (const z of [-6.4,6.4]) add(cyl(.05,1.07), M.dark, 0,.535,z);
-  }
 }
 
