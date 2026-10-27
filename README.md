@@ -73,3 +73,4 @@ In the repository on github.com: **Settings → Pages → Build and deployment �
 - Uses [three.js](https://threejs.org) r186 (MIT licence) and the IBM Plex and Big Shoulders fonts (SIL Open Font Licence), all packed into the page.
 - Designs are saved in the browser you use. Use Share this design to move one elsewhere. Nothing is sent to a server.
 - The link preview (`og.png`) assumes the site lives at `https://karterbyrne-bit.github.io/groundworks/`. If it moves, change `SITE` in `build.mjs`.
+- Copyright © 2026 Karter Byrne. All rights reserved. The code is visible here but not licensed for reuse; see `LICENSE`.
