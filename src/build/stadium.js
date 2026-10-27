@@ -1181,7 +1181,7 @@ function build(){
     if (A.on && !awayAlloc.seats && total) issue("The away end is set on a stand with no seats.", "away:none", "geo", {fix:{label:"Put the away fans in the west end", run:() => { S.away = Object.assign(awayOf(), {at:"W"}); return true; }}});
     if (A.on && HE.at && HE.at === A.at) issue("The away fans are in the home end. Move one of them.", "away:home", "geo"); }
   const result = {issues, total, wheelchair, awayAlloc, maxH, bounds, covered, minC, slowest, slowestEm, far, farRef, restricted:0, obstructed:null, byType, roofNeedMax};
-  result.bowlSides = isHybrid() ? bowlSeatsBySide(allRecs, F) : null; // the lower bowl's seats side by side, for the results
+  result.bowlSides = isHybrid() ? bowlSeatsBySide(allRecs, F, set) : null; // the lower bowl's seats side by side, for the results
   const screenPlans = planScreens(F, anchors, closedAt, outerTop, set, issue);
 
   // pitchside advertising boards
