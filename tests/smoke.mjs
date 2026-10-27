@@ -393,14 +393,15 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   const before = await page.evaluate(() => JSON.stringify(window.__gw.state()));
   const link = await page.evaluate(async () => { let url = ""; navigator.clipboard.writeText = async t => { url = t; }; navigator.share = undefined; document.getElementById("shareBtn").click(); for (let i = 0; i < 100 && !url; i++) await new Promise(r => setTimeout(r, 100)); return url; });
   check(/#d=z/.test(link), "Share makes a compressed link");
-  const page2 = await ctx.newPage(); page2.setDefaultTimeout(120000);
+  // opened somewhere new (its own storage, so it can't just show the design saved there)
+  const ctx2 = await browser.newContext({ viewport }), page2 = await ctx2.newPage(); page2.setDefaultTimeout(120000);
   page2.on("pageerror", e => errors.push(e.message));
   await page2.goto(link.replace(/^https?:\/\/[^/]+\//, base));
   await page2.waitForFunction(() => document.documentElement.classList.contains("ready"));
   await page2.waitForTimeout(800);
   check((await page2.evaluate(() => JSON.stringify(window.__gw.state()))) === before, "the shared link opens the same stadium");
   check(!page2.url().includes("#d="), "the link is tidied out of the address bar");
-  await page2.close();
+  await ctx2.close();
 
   // a tampered link is refused instead of being run
   const bad = await ctx.newPage();
