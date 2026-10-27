@@ -125,7 +125,7 @@ function build(){
       : tiers.map((tr,k) => k >= st.drawFrom && (cum[i] < (tr.trim0 || 0) - 1e-6 || cum[i] > lenTotal - (tr.trim1 || 0) + 1e-6) ? Object.assign({}, tr, {ghost:true}) : tr); // laid out but not built, so anything above it stays up
     const profs = [], tierList = [];
     for (let i=0;i<m;i++){
-      let tiers = cut(st.tiersFor(i), i); const s0 = setAt(i);
+      let tiers = levelledTiers(cut(st.tiersFor(i), i), st, standSet); const s0 = setAt(i);
       if (poly || obstacles.length){
         const dm = roomAt(o[i], v[i], s0); if (!isFinite(dm)){ if (S.plot.clip) noteCut(st.key, st.drawFrom, tiers, tiers); tierList.push(tiers); profs.push(profile(tiers, s0)); continue; }
         if (S.plot.clip){ const want = tiers; tiers = trimTiers(tiers, dm - margin, s0); noteCut(st.key, st.drawFrom, want, tiers); }
@@ -1181,6 +1181,7 @@ function build(){
     if (A.on && !awayAlloc.seats && total) issue("The away end is set on a stand with no seats.", "away:none", "geo", {fix:{label:"Put the away fans in the west end", run:() => { S.away = Object.assign(awayOf(), {at:"W"}); return true; }}});
     if (A.on && HE.at && HE.at === A.at) issue("The away fans are in the home end. Move one of them.", "away:home", "geo"); }
   const result = {issues, total, wheelchair, awayAlloc, maxH, bounds, covered, minC, slowest, slowestEm, far, farRef, restricted:0, obstructed:null, byType, roofNeedMax};
+  result.bowlSides = isHybrid() ? bowlSeatsBySide(allRecs, F) : null; // the lower bowl's seats side by side, for the results
   const screenPlans = planScreens(F, anchors, closedAt, outerTop, set, issue);
 
   // pitchside advertising boards

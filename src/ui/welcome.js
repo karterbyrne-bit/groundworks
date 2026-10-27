@@ -10,7 +10,7 @@ document.addEventListener("keydown", e => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest("input, select, textarea, [contenteditable]") || welcome.open || help.open) return;
   const k = e.key, panes = [...document.querySelectorAll("#panes [data-pane]")];
   if (k === "?"){ openSheet(help); }
-  else if (/^[1-6]$/.test(k)) showPane(panes[+k - 1].dataset.pane);
+  else if (/^[1-7]$/.test(k)) showPane(panes[+k - 1].dataset.pane);
   else if (k === "a") goCam("aerial");
   else if (k === "p") goCam("plan");
   else if (k === "f") goCam("seat");

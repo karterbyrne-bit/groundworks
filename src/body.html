@@ -29,6 +29,7 @@
       <button role="tab" data-pane="stands">Stands</button>
       <button role="tab" data-pane="look">Look</button>
       <button role="tab" data-pane="results">Results <span class="badge" id="paneBadge" hidden></span></button>
+      <button role="tab" data-pane="stats">Stats</button>
       <button role="tab" data-pane="rules">Rules</button>
     </nav>
     <div class="panebody" id="panebody">
@@ -382,11 +383,15 @@
     </section>
     <section class="readout" aria-live="polite" data-pane="results">
       <div class="cap"><div class="big" id="cap">0</div><div class="lbl">Capacity (estimate)</div><div class="mix" id="mix"></div><div class="like" id="like"></div></div>
-      <div class="metrics" id="metrics"></div>
       <div class="architect" id="architect"></div>
       <div class="safety" id="safety"></div>
+      <div class="breakdown" id="standSeats"></div>
+      <p class="hint">The detailed numbers (sightlines, distances, evacuation times, tier by tier) are under Stats.</p>
+    </section>
+    <section class="readout" data-pane="stats">
+      <div class="metrics" id="metrics"></div>
       <div class="breakdown" id="breakdown"></div>
-      <p class="foot">Capacity allows 5% for stairs and entrances on seated tiers and 10% for gangways on terraces. Sightline uses the C-value: how far each fan's eye sits above the eye line of the person in front, aimed at the nearest edge of play (the top of a raised ring or cage), or the set distance into the floor. A seat is restricted view when a pillar sits within 12° of its line to the centre of play. Emptying time assumes every exit flows at the set rate at once.</p>
+      <p class="foot">Capacity allows 5% for stairs and entrances on seated tiers and 10% for gangways on terraces. Sightline uses the C-value: how far each fan's eye sits above the eye line of the person in front, aimed at the nearest edge of play (the top of a raised ring or cage), or the set distance into the floor. A seat has a restricted view when something (a pillar, the tier above, the roof front, a mast, a screen, the dugouts) hides part of the pitch from it: slightly when it loses a corner or so, badly when it loses a big slice or a goalmouth. Emptying time assumes every exit flows at the set rate at once.</p>
     </section>
     </div>
   </aside>
@@ -445,7 +450,7 @@
     <div><h3>Keyboard</h3><ul class="keys">
       <li><kbd>Ctrl</kbd> <kbd>Z</kbd> Undo</li>
       <li><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Z</kbd> Redo</li>
-      <li><kbd>1</kbd>–<kbd>6</kbd> Switch section</li>
+      <li><kbd>1</kbd>–<kbd>7</kbd> Switch section</li>
       <li><kbd>A</kbd> Aerial · <kbd>P</kbd> Plan · <kbd>F</kbd> From a seat</li>
       <li><kbd>N</kbd> Night match</li>
       <li><kbd>R</kbd> Surprise me</li>

@@ -102,6 +102,18 @@ function roofFrontNear(anchors, x, z, reach){
     if (d < bd){ bd = d; best = [px, R.y(0), pz]; } }
   return best;
 }
+/* For a spiral ramp at corner point p: the nearest stand's tiers there, lowest first, as {y, at:[x, z]}: the height of
+   each tier's back row and the point at its back, where a bridge from the ramp goes in. */
+function rampLevels(anchors, p){
+  let best = null, bd = Infinity;
+  for (const g of anchors || []) for (let k=0;k<g.m;k++){ const live = (g.profs[k] || []).filter(t => t && !t.ghost && nRows(t) >= 1); if (!live.length) continue;
+    const back = Math.max(...live.map(t => t.front + nRows(t)*t.T)), q = [g.o[k][0] + g.v[k][0]*back, g.o[k][1] + g.v[k][1]*back], d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    if (d < bd){ bd = d; best = {g, k, live}; } }
+  if (!best) return [];
+  const {g, k, live} = best;
+  return live.map(t => { const n = nRows(t), d = t.front + (n - .5)*t.T; return {y: t.hs[n - 1], at: [g.o[k][0] + g.v[k][0]*d, g.o[k][1] + g.v[k][1]*d]}; })
+    .filter(l => l.y > 2).sort((u, w) => u.y - w.y).filter((l, j, all) => !j || l.y - all[j - 1].y > 3); // one bridge per level
+}
 function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf, ext, anchors){
   if (outline.length < 3) return 0;
   let top = 0;
@@ -156,14 +168,17 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
      parapet and a steel rail on each edge, and a short bridge across to the stand at every level. One at each corner of
      the ground: the point of the outline furthest out that way. */
   if (A.ramps){
-    const R0 = 4.5, R1 = 10.5, h = H*0.92, turns = Math.max(1.5, h/8), gap = 3.5, per = 32;
+    const R0 = 4.5, R1 = 10.5, gap = 3.5, per = 32;
     const corners = [[1,1],[1,-1],[-1,-1],[-1,1]].map(([sx, sz]) => { let bi = 0, bv = -Infinity;
       for (let i=0;i<n;i++){ const v = P[i][0]*sx/(sext[0] || 1) + P[i][1]*sz/(sext[1] || 1); if (v > bv){ bv = v; bi = i; } } return bi; });
     for (const i of corners){
       const c = [P[i][0] + N[i][0]*(R1 + gap), P[i][1] + N[i][1]*(R1 + gap)];
-      const segs = Math.round(turns*per), ph = Math.atan2(-N[i][1], -N[i][0]);
+      // the stand nearest this corner: its tiers' back rows are where the ramp's bridges go in, and its top tier is how high it climbs
+      const lv = rampLevels(anchors, P[i]), h = lv.length ? lv[lv.length - 1].y : H*0.92;
+      const ys = []; let y0 = 0; for (const L of (lv.length ? lv.map(l => l.y) : [h])){ const k = Math.max(1, Math.ceil((L - y0)/9)); for (let t=1;t<=k;t++) ys.push(y0 + (L - y0)*t/k); y0 = L; } // a full turn (or a few) per tier
+      const segs = ys.length*per, ph = Math.atan2(-N[i][1], -N[i][0]), yAt = s2 => { const t = Math.floor(s2/per), f = (s2 % per)/per; return t >= ys.length ? h : (t ? ys[t-1] : 0) + (ys[t] - (t ? ys[t-1] : 0))*f; };
       const at = (q, r, y) => [c[0] + Math.cos(q)*r, y, c[1] + Math.sin(q)*r];
-      for (let s=0;s<segs;s++){ const q0 = ph + s/per*Math.PI*2, q1 = ph + (s+1)/per*Math.PI*2, y0 = h*s/segs, y1 = h*(s+1)/segs;
+      for (let s=0;s<segs;s++){ const q0 = ph + s/per*Math.PI*2, q1 = ph + (s+1)/per*Math.PI*2, y0 = yAt(s), y1 = yAt(s + 1);
         quad(bf("concrete"), at(q0,R0,y0), at(q1,R0,y1), at(q1,R1,y1), at(q0,R1,y0)); // the deck
         quad(bf("soffit"), at(q0,R0,y0-.45), at(q0,R1,y0-.45), at(q1,R1,y1-.45), at(q1,R0,y1-.45));
         for (const [r, hp, wall] of [[R1, 1.1, true], [R0, .95, true]]){ // parapets, outside and in, with a rail along the top
@@ -173,9 +188,9 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
           if (s % 4 === 0){ const p = at(q0, r, y0); post(bf("steel"), p[0], p[2], y0+hp, y0+hp+.31, .05); } } }
       for (let k=0;k<12;k++){ const q = ph + k/12*Math.PI*2; // slim columns round both edges instead of a solid drum
         for (const r of [R0 + .4, R1 - .4]){ const p = at(q, r, 0); post(bf("column"), p[0], p[2], 0, h, .45); } }
-      // a bridge to the stand each time the ramp comes round to face it
-      for (let k=1;k<=Math.floor(turns);k++){ const y = h*k/turns, a = at(ph, R1, y), b = [P[i][0] + N[i][0]*.2, y, P[i][1] + N[i][1]*.2];
-        const sd = [-N[i][1]*1.6, N[i][0]*1.6];
+      // a bridge into the back of each tier, at that tier's height, where the ramp comes round to face the stand
+      for (const L of (lv.length ? lv : [{y: h, at: [P[i][0] + N[i][0]*.2, P[i][1] + N[i][1]*.2]}])){ const y = L.y, a = at(ph, R1, y), b = [L.at[0], y, L.at[1]];
+        const dl = Math.hypot(b[0]-a[0], b[2]-a[2]) || 1, sd = [-(b[2]-a[2])/dl*1.6, (b[0]-a[0])/dl*1.6];
         quad(bf("concrete"), [a[0]-sd[0],y,a[2]-sd[1]], [a[0]+sd[0],y,a[2]+sd[1]], [b[0]+sd[0],y,b[2]+sd[1]], [b[0]-sd[0],y,b[2]-sd[1]]);
         quad(bf("soffit"), [a[0]-sd[0],y-.45,a[2]-sd[1]], [b[0]-sd[0],y-.45,b[2]-sd[1]], [b[0]+sd[0],y-.45,b[2]+sd[1]], [a[0]+sd[0],y-.45,a[2]+sd[1]]);
         for (const sg of [-1, 1]){ const e = [sd[0]*sg, sd[1]*sg];

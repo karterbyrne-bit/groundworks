@@ -55,7 +55,14 @@ const tierMore = (tr, pre, stacked, ends) => `<details class="sub" data-more="${
   ${tr.entry === "middle" ? pair("How far up the tier", pre + "entryAt", Math.round((tr.entryAt || .42)*100), 15, 85, 5, "%") : ""}
   ${tr.entry && tr.entry !== "auto" ? pair("One entrance every", pre + "entryEvery", tr.entryEvery || S.design.exitEvery, 8, 60, 1, "m") : ""}
   ${stacked ? pick("Held up by", pre + "support", tr.hold === "towers" ? "towers" : tr.pillars ? "pillars" : "none", TIER_HOLDS) : ""}
+  ${stacked ? levelPick(tr, pre) : ""}
 </div></details>`;
+/* The tier leveller: line this tier up with the same tier of another stand (only for a stand's own tiers, on the sides) */
+function levelPick(tr, pre){
+  const k = +((pre.match(/(?:^|\.)tiers\.(\d+)\.$/) || [])[1]); if (!SIDES.includes(tab) || pre.startsWith("base.") || !isFinite(k)) return "";
+  const opts = {"": "Its own height"}; for (const s of SIDES) if (s !== tab && S.stands[s] && S.stands[s].tiers[k]) opts[s] = `${SIDE_NAMES[s]}'s tier ${k + 1}`;
+  return Object.keys(opts).length > 1 ? pick("Line up with", pre + "levelWith", tr.levelWith || "", opts) : "";
+}
 function tierBlocks(arr, above, base, bySide, ends){
   return arr.map((tr,k) => {
     const isT = tr.type === "terrace", nm = tierName(k, arr.length, above), stacked = k > 0 || above;
@@ -222,8 +229,9 @@ function renderEditor(){
 function renderSummary(){
   const el = $("standSummary"); if (!el || !LAST) return;
   const si = LAST.standInfo[tab]; const name = tabName(tab);
-  const mine = mergeParts(LAST.parts.filter(p => p.key === tab)), tiers = [].concat(...mine.map(p => p.tiers || []));
-  el.innerHTML = si ? `<b>${name}</b>${tab === "C" ? "" : `<span>${fmt(si.width)} m long</span>`}<span>${fmt(si.depth)} m deep</span><span>${fmt(si.height)} m high</span><span>${fmt(si.seats)} places</span>` +
+  const mine = (tab === "B" ? mergeParts(LAST.parts) : foldBowlIntoSides(mergeParts(LAST.parts), LAST.bowlSides)).filter(p => p.key === tab), tiers = [].concat(...mine.map(p => p.tiers || [])); // on a lower bowl, the bowl in front counts too
+  const places = mine.length ? mine.reduce((a, p) => a + p.seats, 0) : si && si.seats, bowlNote = mine.some(p => p.bowlSeats) ? ` (with ${fmt(mine.reduce((a, p) => a + (p.bowlSeats || 0), 0))} in the lower bowl)` : "";
+  el.innerHTML = si ? `<b>${name}</b>${tab === "C" ? "" : `<span>${fmt(si.width)} m long</span>`}<span>${fmt(si.depth)} m deep</span><span>${fmt(si.height)} m high</span><span>${fmt(places)} places${bowlNote}</span>` +
     (tiers.length ? `<div class="tierlist">${tiers.map(t => `<span><em>${esc(t.name)}</em> ${fmt(t.seats)} · ${t.rows} rows ${TYPES[t.type].short}</span>`).join("")}</div>` : "")
     : `<b>${name}</b><span>Nothing built here yet.</span>`;
 }
