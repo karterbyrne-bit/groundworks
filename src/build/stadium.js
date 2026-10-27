@@ -1194,8 +1194,8 @@ function build(){
 
   /* ---------- obstructed views ---------- */
   { const A = S.arch || {}, H = Math.max(8, outerTop), fm = floodMode();
-    if (fm === "masts" || fm === "pylons"){ const roundish = F.r >= Math.min(F.W, F.H)/2 - 1, a = Math.PI/6, mh = Math.max(maxH + 16, 30);
-      for (const sx of [-1,1]) for (const sz of [-1,1]) viewPosts.push({x: roundish ? sx*(sext[0] + 8)*Math.cos(a) : sx*(sext[0] + 8), z: roundish ? sz*(sext[1] + 8)*Math.sin(a) : sz*(sext[1] + 8), r: fm === "pylons" ? 3 : 1, y0:0, y1:mh + 4, cause:"mast"}); }
+    if (fm === "masts" || fm === "pylons"){ const mh = Math.max(maxH + 16, 30);
+      for (const [x, z] of floodMastSpots(F, sext, outline)) viewPosts.push({x, z, r: fm === "pylons" ? 3 : 1, y0:0, y1:mh + 4, cause:"mast"}); }
     for (const sp of archSpans(A, F, set, sext, H, standInfo)) for (const u of [.02, .98]){ const c = sp.C(u), c2 = sp.C(u < .5 ? .07 : .93); viewPosts.push({x:c.x, z:c.z, r:sp.r0*1.5, y0:0, y1:c2.y, cause:"arch"}); }
     for (const p of screenPlans) if (p.kind === "board"){ const px = -p.n[1]*p.w/2, pz = p.n[0]*p.w/2; viewWalls.push({a:[p.x - px, p.z - pz], b:[p.x + px, p.z + pz], y0:p.y - p.h/2, y1:p.y + p.h/2, cause:"screen"}); }
     const OV = obstructedViews(allRecs, F, viewPosts, viewWalls, boardsOn ? {hx: FP.W/2 + offX, hz: FP.H/2 + offZ, h: bH} : null);
@@ -1268,10 +1268,7 @@ function build(){
   if (fm === "roof") roofLights(anchors, buf2, F);
   if (fm === "masts" || fm === "pylons"){
     const mh = Math.max(maxH + 16, 30);
-    for (const sx of [-1,1]) for (const sz of [-1,1]){
-      // round grounds keep their masts close in, a third of the way round from each end, rather than out at a square's corners
-      const roundish = F.r >= Math.min(F.W, F.H)/2 - 1, a = Math.PI/6;
-      const x = roundish ? sx*(sext[0] + 8)*Math.cos(a) : sx*(sext[0] + 8), z = roundish ? sz*(sext[1] + 8)*Math.sin(a) : sz*(sext[1] + 8);
+    for (const [x, z, sx, sz] of floodMastSpots(F, sext, outline)){ // just behind the stands at each corner (see floodMastSpots)
       if (fm === "pylons") pylon(buf2, x, z, mh);
       else { const mm = new THREE.Mesh(new THREE.CylinderGeometry(.6,1.1,mh,10), M.mast); mm.position.set(x,mh/2,z); mm.castShadow = true; group.add(mm); }
       group.add(lampHead(x, mh + 3, z));

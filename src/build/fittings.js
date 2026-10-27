@@ -1,5 +1,18 @@
 /* ================= floodlights and screens ================= */
 const FLOODS = {none:"No floodlights", masts:"Corner masts", pylons:"Lattice pylons in the corners", roof:"Along the roof edges"};
+/* Where the four floodlight masts (or pylons) stand: just behind the stands at each corner (the point of the stands'
+   outline furthest out that way, then 8 m further out), or round a round ground, a third of the way round from each end.
+   As [x, z, sx, sz], sx and sz saying which corner. */
+function floodMastSpots(F, sext, outline){
+  const roundish = F.r >= Math.min(F.W, F.H)/2 - 1, a = Math.PI/6, out = [];
+  for (const sx of [-1,1]) for (const sz of [-1,1]){
+    const d = roundish ? [sx*Math.cos(a), sz*Math.sin(a)] : [sx/(sext[0] || 1), sz/(sext[1] || 1)];
+    let best = null, bv = -Infinity; for (const p of outline){ const v = p[0]*d[0] + p[1]*d[1]; if (v > bv){ bv = v; best = p; } }
+    if (!best){ out.push([roundish ? sx*(sext[0] + 8)*Math.cos(a) : sx*(sext[0] + 8), roundish ? sz*(sext[1] + 8)*Math.sin(a) : sz*(sext[1] + 8), sx, sz]); continue; }
+    const r = Math.hypot(best[0], best[1]) || 1, off = S.arch && S.arch.ramps ? 30 : 8; // beyond the spiral ramp at that corner, when there is one
+    out.push([best[0] + best[0]/r*off, best[1] + best[1]/r*off, sx, sz]); }
+  return out;
+}
 function floodMode(){ if (S.floodlights) return S.floodlights; if (!S.lights) return "none"; return S.arch && S.arch.pylons ? "pylons" : "masts"; }
 const SCREEN_AT = {N:"Main stand", S:"Opposite stand", E:"East end", W:"West end", NE:"Main / East corner", SE:"East / Opposite corner", SW:"Opposite / West corner", NW:"West / Main corner", centre:"Hanging over the centre"};
 const SCREEN_MOUNTS = {gap:"Between the back row and the roof", roof:"Hung from the roof's front edge", top:"On top of the roof or stand", back:"On legs behind the stand", ribbon:"LED ribbon along the tier fronts"};
