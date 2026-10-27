@@ -192,7 +192,7 @@ const allCorners = (mode, tiers) => ({NE:corner(mode,tiers), SE:corner(mode,tier
 /* A ring of separate stands round the ground: each has its own design, a name, and a share
    of the way round; gap is the space left between neighbours and turn swings the whole ring round (degrees). */
 const mkR = (name, style, tiers, roof, share) => Object.assign(mk(style, tiers, roof), {name, share: share || 1});
-const RING_NAMES = ["Pavilion","Grand Stand","East Stand","Nursery End","Members' Stand","West Stand","Family Stand","Media Centre","Mound Stand","Tavern Stand","North Stand","South Stand"];
+const RING_NAMES = ["Pavilion","Grand Stand","East Stand","Nursery End","Members’ Stand","West Stand","Family Stand","Media Centre","Mound Stand","Tavern Stand","North Stand","South Stand"];
 const ringStand = i => mkR(RING_NAMES[i % RING_NAMES.length], i === 0 ? "pavilion" : "regular", i === 0 ? null : [t("seated", 14, 22)]);
 const BASE = {
   version:6, sport:"football", custom:{kind:"plain",W:100,H:64,r:0,surface:"grass",floor:0}, layout:"stands", cornerShape:"curved", setback:8, corner:14,
