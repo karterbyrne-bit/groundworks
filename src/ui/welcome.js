@@ -74,9 +74,8 @@ function syncUI(){
   $("skin").value = AR.skin; document.querySelector(`input[name=skinShape][value=${AR.skinShape}]`).checked = true; $("skinShapeRow").hidden = AR.skin === "none";
   for (const k of ["arch","ramps","towers","plaza"]) $("a-"+k).checked = !!AR[k];
   $("archAt").value = ["main", "diagonal", "cross"].includes(AR.archAt) ? AR.archAt : "main"; $("archAtRow").hidden = !AR.arch;
-  $("a-masts").value = ["corners", "main"].includes(AR.masts) ? AR.masts : "";
   $("statues").value = String(Math.max(0, Math.min(4, S.statues | 0)));
-  $("halo").checked = !!S.halo; $("flares").checked = !!S.flares;
+  $("halo").checked = !!S.halo; $("flares").checked = !!S.flares; $("flaresHint").hidden = !!homeEndOf().at;
   $("flood").value = floodMode(); if (!$("screens").contains(document.activeElement) && screensDrawn !== JSON.stringify(Array.isArray(S.screens) ? S.screens : screenList(LAST && LAST.closedAt))) renderScreens();
   { const SP = sponsorsOf(); if (document.activeElement !== $("spTitle")) $("spTitle").value = SP.title || "";
     if (document.activeElement !== $("spNames")) $("spNames").value = SP.names.join("\n");

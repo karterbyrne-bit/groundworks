@@ -49,7 +49,7 @@ function drawNeighbourhood(poly, ext, site, bf){
   const band = (key, i, d0, d1, y, s0 = 0, s1 = 1) => quad(bf(key), at(along(i,s0,d0),y), at(along(i,s1,d0),y), at(along(i,s1,d1),y), at(along(i,s0,d1),y));
   const trees = [];
   // the street round the site: pavement, carriageway with a dashed centre line, pavement; and a second street further out
-  for (const [d0, w] of [[1, 12], [37, 12]]) for (let i=0;i<n;i++){
+  for (const [d0, w] of [[1, 12]]) for (let i=0;i<n;i++){
     band("pavement", i, d0, d0 + 2.5, .03); band("road", i, d0 + 2.5, d0 + w - 2.5, .04); band("pavement", i, d0 + w - 2.5, d0 + w, .03);
     const a = along(i, 0, d0 + w/2), b = along(i, 1, d0 + w/2), L = Math.hypot(b[0]-a[0], b[1]-a[1]);
     for (let s = 2; s < L - 2; s += 6) band("white", i, d0 + w/2 - .07, d0 + w/2 + .07, .05, s/L, Math.min(1, (s + 3)/L));
@@ -65,18 +65,18 @@ function drawNeighbourhood(poly, ext, site, bf){
     while (s < L - 14){
       const houses = 4 + Math.floor(rnd()*8), hw = 4.6 + rnd()*1.2, run = houses*hw; if (s + run > L - 9) break;
       const s0 = s/L, s1 = (s + run)/L; s += run + 8 + rnd()*6;
-      band("road", i, 13, 37, .035, s1 + 1/L, Math.min(1, s1 + 7/L)); // a side street after the block
+      band("road", i, 13, 25, .035, s1 + 1/L, Math.min(1, s1 + 7/L)); // a side street after the block
       if (i === parkEdge && s1 > park[0] && s0 < park[1]){ // the car park: tarmac, white bays and some parked cars
-        band("road", i, 13, 37, .035, s0, s1);
-        for (let k = s0*L + 1.25; k < s1*L - 1; k += 2.5) for (const d of [17, 28]){ band("white", i, d, d + 5, .05, k/L, (k + .1)/L);
-          if (rnd() < .6){ const p = along(i, (k + 1.25)/L, d + 2.5), q = along(i, (k + 1.25)/L + .001, d + 2.5), ang = Math.atan2(q[1]-p[1], q[0]-p[0]);
+        band("road", i, 13, 25, .035, s0, s1);
+        for (let k = s0*L + 1.25; k < s1*L - 1; k += 2.5) for (const d of [17]){ band("white", i, d, d + 5, .05, k/L, (k + .1)/L);
+          if (rnd() < .3){ const p = along(i, (k + 1.25)/L, d + 2.5), q = along(i, (k + 1.25)/L + .001, d + 2.5), ang = Math.atan2(q[1]-p[1], q[0]-p[0]);
             if (clear(p[0], p[1])){ const c = Math.cos(ang), sn = Math.sin(ang), car = (lx, lz) => [p[0] + c*lx - sn*lz, p[1] + sn*lx + c*lz], key = CAR_COLS[Math.floor(rnd()*CAR_COLS.length)];
               const box = (y0, y1, w, l) => { const A = car(-w,-l), B2 = car(w,-l), C = car(w,l), D = car(-w,l);
                 quad(bf(key), at(A,y1), at(B2,y1), at(C,y1), at(D,y1)); for (const [u, v] of [[A,B2],[B2,C],[C,D],[D,A]]) quad(bf(key), at(u,y0), at(v,y0), at(v,y1), at(u,y1)); };
               box(.3, 1.0, .85, 2.1); box(1.0, 1.45, .75, 1.2); } } }
         continue; }
       const wall = HOUSE_WALLS[Math.floor(rnd()*HOUSE_WALLS.length)], eaves = 5.6 + rnd()*1.4, ridge = eaves + 2.4 + rnd()*.6;
-      for (const [f0, f1, faceOut] of [[15, 23, false], [29, 37, true]]){
+      for (const [f0, f1, faceOut] of [[15, 23, false]]){
         const mid = along(i, (s0 + s1)/2, (f0 + f1)/2); if (!clear(mid[0], mid[1])) continue;
         const a0 = along(i, s0, f0), b0 = along(i, s1, f0), a1 = along(i, s0, f1), b1 = along(i, s1, f1), r0 = along(i, s0, (f0+f1)/2), r1 = along(i, s1, (f0+f1)/2);
         quad(bf(wall), at(a0,0), at(b0,0), at(b0,eaves), at(a0,eaves)); quad(bf(wall), at(b1,0), at(a1,0), at(a1,eaves), at(b1,eaves));
@@ -84,29 +84,23 @@ function drawNeighbourhood(poly, ext, site, bf){
         quad(bf("slate"), at(a0,eaves), at(b0,eaves), at(r1,ridge), at(r0,ridge)); quad(bf("slate"), at(b1,eaves), at(a1,eaves), at(r0,ridge), at(r1,ridge));
         quad(bf(wall), at(a0,eaves), at(r0,ridge), at(a1,eaves), at(a1,eaves)); quad(bf(wall), at(b1,eaves), at(r1,ridge), at(b0,eaves), at(b0,eaves));
         const front = faceOut ? f1 + .05 : f0 - .05;
-        for (let h=0;h<houses;h++){ const u = (s0*L + (h + .5)*hw)/L, du = 1/L;
-          const door = along(i, u - hw*.3*du, front), door2 = along(i, u - hw*.12*du, front);
-          quad(bf("gate"), at(door,0), at(door2,0), at(door2,2.1), at(door,2.1));
-          for (const [y0, y1, wa, wb] of [[.9, 2.2, .02, .28], [3.4, 4.7, -.3, .3]]){ const w0 = along(i, u + hw*wa*du, front), w1 = along(i, u + hw*wb*du, front);
-            quad(bf("window"), at(w0,y0), at(w1,y0), at(w1,y1), at(w0,y1)); }
-          if (h % 2 === 0){ const c = along(i, u, (f0+f1)/2); post(bf("clad_historic"), c[0], c[1], ridge - .6, ridge + 1, .9); } // chimney stacks
-          if (!faceOut && rnd() < .35){ const g = along(i, u, 26 + rnd()*1.5); if (clear(g[0], g[1])) trees.push([g[0], g[1], .7 + rnd()*.4]); } } } // back gardens
+        for (const [y0, y1] of [[1, 2.2], [3.4, 4.7]]){ const w0 = along(i, s0 + .6/L, front), w1 = along(i, s1 - .6/L, front); // a band of windows along each floor
+          quad(bf("window"), at(w0,y0), at(w1,y0), at(w1,y1), at(w0,y1)); }
+        if (rnd() < .5){ const g = along(i, (s0 + s1)/2, 26 + rnd()*1.5); if (clear(g[0], g[1])) trees.push([g[0], g[1], .7 + rnd()*.4]); } } // a back-garden tree
     } }
   // bigger buildings further out: flats, offices and sheds, scattered among the trees
-  for (const d of [62, 105]){ const R = B.map((_, i) => miterAt(B, i, d)), per = R.reduce((a, p, i) => a + Math.hypot(R[(i+1)%n][0]-p[0], R[(i+1)%n][1]-p[1]), 0);
-    for (let s = rnd()*30; s < per; s += 32 + rnd()*40){
+  for (const d of [70]){ const R = B.map((_, i) => miterAt(B, i, d)), per = R.reduce((a, p, i) => a + Math.hypot(R[(i+1)%n][0]-p[0], R[(i+1)%n][1]-p[1]), 0);
+    for (let s = rnd()*30; s < per; s += 60 + rnd()*50){
       let k = s, i = 0; while (i < n && k > Math.hypot(R[(i+1)%n][0]-R[i][0], R[(i+1)%n][1]-R[i][1])){ k -= Math.hypot(R[(i+1)%n][0]-R[i][0], R[(i+1)%n][1]-R[i][1]); i++; }
       if (i >= n) break; const a = R[i], b = R[(i+1)%n], el = Math.hypot(b[0]-a[0], b[1]-a[1]) || 1, ux = (b[0]-a[0])/el, uz = (b[1]-a[1])/el, nn = edgeOut(a, b);
       const cx = a[0] + ux*k + nn[0]*rnd()*14, cz = a[1] + uz*k + nn[1]*rnd()*14; if (!clear(cx, cz)) continue;
       if (rnd() < .3){ trees.push([cx, cz, 1 + rnd()*.5]); trees.push([cx + 6*ux, cz + 6*uz, 1 + rnd()*.4]); continue; }
-      const w = 9 + rnd()*14, l = 12 + rnd()*22, h = d > 80 ? 14 + rnd()*36 : 9 + rnd()*16, key = ["concrete", "glassClad", "clad_brutalist", "clad_regular", "white"][Math.floor(rnd()*5)];
+      const w = 9 + rnd()*14, l = 12 + rnd()*22, h = 10 + rnd()*22, key = ["concrete", "glassClad", "clad_brutalist", "clad_regular", "white"][Math.floor(rnd()*5)];
       const c = [[-l,-w],[l,-w],[l,w],[-l,w]].map(([p, q]) => [cx + ux*p + nn[0]*q, cz + uz*p + nn[1]*q]);
       quad(bf("roofSolid"), at(c[0],h), at(c[1],h), at(c[2],h), at(c[3],h));
-      for (let e=0;e<4;e++){ const p = c[e], q = c[(e+1)%4]; quad(bf(key), at(p,0), at(q,0), at(q,h), at(p,h));
-        if (key !== "glassClad") for (let y = 3; y < h - 1.5; y += 3.4){ const m = [(p[0]+q[0])/2, (p[1]+q[1])/2], o = edgeOut(q, p), sx = (q[0]-p[0])*.42, sz = (q[1]-p[1])*.42; // bands of windows
-          quad(bf("window"), [m[0]-sx+o[0]*.06, y, m[1]-sz+o[1]*.06], [m[0]+sx+o[0]*.06, y, m[1]+sz+o[1]*.06], [m[0]+sx+o[0]*.06, y+1.3, m[1]+sz+o[1]*.06], [m[0]-sx+o[0]*.06, y+1.3, m[1]-sz+o[1]*.06]); } } } }
+      for (let e=0;e<4;e++){ const p = c[e], q = c[(e+1)%4]; quad(bf(key), at(p,0), at(q,0), at(q,h), at(p,h)); } } }
   // the trees, as one instanced set: a trunk and a rounded crown in a few shades of green
-  const cap = LIGHT ? 220 : 480; if (trees.length > cap) trees.length = cap;
+  const cap = LIGHT ? 90 : 180; if (trees.length > cap) trees.length = cap;
   if (trees.length){
     TREE_GEO = TREE_GEO || {trunk: new THREE.CylinderGeometry(.18, .26, 3, 5), crown: new THREE.IcosahedronGeometry(2.6, 0)}; TREE_GEO.trunk.keep = TREE_GEO.crown.keep = true;
     const tm = new THREE.InstancedMesh(TREE_GEO.trunk, M.dark, trees.length), cm = new THREE.InstancedMesh(TREE_GEO.crown, new THREE.MeshStandardMaterial({roughness:.95}), trees.length);
@@ -114,5 +108,5 @@ function drawNeighbourhood(poly, ext, site, bf){
     trees.forEach(([x, z, k], j) => { s.set(k, k, k); m4.compose(v.set(x, 1.5*k, z), q, s); tm.setMatrixAt(j, m4);
       q.setFromAxisAngle(v.set(0, 1, 0), rnd()*6.3); s.set(k*(.9 + rnd()*.3), k*(.9 + rnd()*.5), k*(.9 + rnd()*.3)); m4.compose(v.set(x, 3*k + 1.8*k, z), q, s); cm.setMatrixAt(j, m4);
       cm.setColorAt(j, col.setHex(greens[Math.floor(rnd()*greens.length)])); q.identity(); });
-    for (const m of [tm, cm]){ m.castShadow = true; m.receiveShadow = true; m.userData.stadium = true; group.add(m); } }
+    for (const m of [tm, cm]){ m.userData.stadium = true; group.add(m); } } // no shadows: it's only scenery
 }

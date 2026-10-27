@@ -128,7 +128,7 @@ function addCrowd(recs, F){
   }
   // flags held up over the home end (and a few in the away end), each on a short pole above its owner's head
   if (flags.length){ const fm = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.3, .85), new THREE.MeshStandardMaterial({roughness:.8, side:THREE.DoubleSide}), flags.length);
-    const pm = new THREE.InstancedMesh(new THREE.BoxGeometry(.04, 1.5, .04), new THREE.MeshStandardMaterial({color:0x6b5a44, roughness:.9}), flags.length), fm4 = new THREE.Matrix4(), fq = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
+    const pm = new THREE.InstancedMesh(new THREE.BoxGeometry(.09, 1.5, .09), new THREE.MeshStandardMaterial({color:0x6b5a44, roughness:.9}), flags.length), fm4 = new THREE.Matrix4(), fq = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
     flags.forEach(([x, y, z, col, qq], i) => { fq.copy(qq).multiply(new THREE.Quaternion().setFromAxisAngle(up, (rnd() - .5)*1.4));
       fm4.compose(new THREE.Vector3(x, y, z), fq, one); fm.setMatrixAt(i, fm4); fm.setColorAt(i, col);
       fm4.compose(new THREE.Vector3(x, y - .3, z), fq, one); pm.setMatrixAt(i, fm4); });
@@ -235,7 +235,7 @@ function applyMood(){
     const warm = Math.max(0, Math.min(1, (22 - elD)/18)); sun.color.lerp(new THREE.Color(0xffa860), warm); hemi.color.lerp(new THREE.Color(0xffd2a8), warm*0.5);
     sun.intensity = lerp(LUX.sun, LUX.eveSun, warm); hemi.intensity = lerp(LUX.hemi, LUX.eveHemi, warm); scene.environmentIntensity = lerp(LUX.env, LUX.eveEnv, warm); }
   updateClocks();
-  M.lamp.emissiveIntensity = night ? 2.2 : 0.9; M.haloA.emissiveIntensity = M.haloB.emissiveIntensity = night ? 4 : .9; M.band.emissive.set(night ? 0xffc46b : 0x000000); M.band.emissiveIntensity = night ? 0.55 : 0;
+  M.lamp.emissiveIntensity = night ? 2.2 : 0.9; M.band.emissive.set(night ? 0xffc46b : 0x000000); M.band.emissiveIntensity = night ? 0.55 : 0;
   M.board.emissiveIntensity = night ? 1.6 : 0.8; M.screen.emissiveIntensity = night ? 1.4 : 0.7;
   M.window.emissive.set(night ? 0xffc77a : 0x000000); M.window.emissiveIntensity = night ? 0.6 : 0;
   if (night && S.scenery !== "model") realScenery(true);
@@ -267,16 +267,15 @@ function addFlares(recs){
   const home = recs.filter(r => r.home && !r.away && !r.floor && r.seats > 0); if (!home.length) return;
   const nF = Math.min(home.length, LIGHT ? 5 : 10), per = LIGHT ? 14 : 26, pos = [];
   for (let k=0;k<nF;k++){ const r = home[Math.floor((k + .5)*home.length/nF)]; pos.push([r.x, r.h1 + 1.9, r.z]); }
-  const core = new THREE.InstancedMesh(new THREE.SphereGeometry(.22, 8, 6), M.flare, nF), m4 = new THREE.Matrix4();
+  const core = new THREE.InstancedMesh(new THREE.SphereGeometry(.4, 8, 6), M.flare, nF), m4 = new THREE.Matrix4();
   pos.forEach((p, i) => { core.setMatrixAt(i, m4.makeTranslation(p[0], p[1], p[2])); }); core.userData.stadium = true; group.add(core);
   const N = nF*per, geo = new THREE.BufferGeometry(), arr = new Float32Array(N*3), seed = [];
   for (let i=0;i<N;i++){ const f = pos[i % nF], age = (i/N); seed.push([f, age, Math.random()*6.3]); arr.set([f[0], f[1] + age*14, f[2]], i*3); }
   geo.setAttribute("position", new THREE.BufferAttribute(arr, 3));
   const smoke = new THREE.Points(geo, new THREE.PointsMaterial({map: softDot(), color: S.night ? 0xc8b8bc : 0xd8d2d4, size: 7, transparent: true, opacity: .42, depthWrite: false}));
-  smoke.userData.stadium = true; group.add(smoke);
-  const glow = new THREE.Points(new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute(pos.flat(), 3)),
-    new THREE.PointsMaterial({map: softDot(), color: 0xff4a24, size: 5, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false}));
-  glow.userData.stadium = true; group.add(glow);
+  smoke.userData.stadium = smoke.userData.noAO = true; group.add(smoke);
+  const glowMat = new THREE.SpriteMaterial({map: softDot(), color: 0xffa04a, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false});
+  const glow = pos.map(p => { const g = new THREE.Sprite(glowMat); g.position.set(p[0], p[1], p[2]); g.scale.setScalar(5); g.userData.stadium = g.userData.noAO = true; group.add(g); return g; }); // the red glow round each flare
   SPECTACLE = {smoke, seed, glow, ticking: false};
   spectacleWake();
 }
@@ -285,11 +284,11 @@ function spectacleWake(){
   spectacleSeen = performance.now(); if (!SPECTACLE || SPECTACLE.ticking) return; SPECTACLE.ticking = true;
   const sp = SPECTACLE, t0 = performance.now();
   TICKERS.add(now => {
-    if (SPECTACLE !== sp || now - spectacleSeen > 8000){ sp.ticking = false; return false; } // nobody looking: let it rest
+    if (SPECTACLE !== sp || now - spectacleSeen > 2500){ sp.ticking = false; return false; } // nobody touching it: let it rest, so the phone isn't redrawing the whole ground
     const t = (now - t0)/1000, a = sp.smoke.geometry.attributes.position.array;
     sp.seed.forEach(([f, age, ph], i) => { const life = (age + t*.09) % 1; // each puff rises, drifts with the breeze and spreads
       a[i*3] = f[0] + Math.sin(ph + life*3)*(.5 + life*3) + life*6; a[i*3+1] = f[1] + life*16; a[i*3+2] = f[2] + Math.cos(ph + life*2)*(.5 + life*3); });
-    sp.smoke.geometry.attributes.position.needsUpdate = true; sp.glow.material.size = 4.4 + Math.sin(now*.03)*.7 + Math.sin(now*.071)*.5; // flicker
+    sp.smoke.geometry.attributes.position.needsUpdate = true; sp.glow.forEach((g, k) => g.scale.setScalar(5 + Math.sin(now*.03 + k)*.7 + Math.sin(now*.071 + k*2)*.5)); // flicker
     return true; });
   wake();
 }
@@ -301,7 +300,7 @@ function startFireworks(){
     for (let k=0;k<per;k++){ const u = Math.random()*2 - 1, th = Math.random()*6.283, r = Math.sqrt(1 - u*u); parts.push({c, v:[r*Math.cos(th)*sp, u*sp, r*Math.sin(th)*sp], t0: b*.85, col: cc}); } }
   geo.setAttribute("position", new THREE.BufferAttribute(pos, 3)); geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
   const pts = new THREE.Points(geo, new THREE.PointsMaterial({map: softDot(), size: 7, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false}));
-  pts.frustumCulled = false; scene.add(pts); const start = performance.now();
+  pts.frustumCulled = false; pts.userData.noAO = true; scene.add(pts); const start = performance.now();
   TICKERS.add(now => { const t = (now - start)/1000;
     parts.forEach((p, i) => { const s = t - p.t0, live = s > 0 && s < 2.4, k = live ? Math.max(0, 1 - s/2.4) : 0;
       pos[i*3] = p.c[0] + p.v[0]*Math.max(0, s); pos[i*3+1] = p.c[1] + p.v[1]*Math.max(0, s) - 4.5*Math.max(0, s)*Math.max(0, s); pos[i*3+2] = p.c[2] + p.v[2]*Math.max(0, s);

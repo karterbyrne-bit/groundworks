@@ -61,15 +61,6 @@ function archSpans(A, F, set, sext, H, standInfo){
       return new THREE.Vector3(sp.a[0] + sp.dx*sp.span*u + out[0]*y*Math.sin(sp.lean), y*Math.cos(sp.lean), sp.a[1] + sp.dz*sp.span*u + out[1]*y*Math.sin(sp.lean)); }; }
   return spans;
 }
-/* Where signature masts stand, [x, z] each, with the mast height (see Masts and cables below). */
-function sigMastSpots(A, F, set, sext, H, poly){
-  if (!A || (A.masts !== "corners" && A.masts !== "main")) return {spots: [], hm: 0};
-  const fx = F.W/2 + set, hm = Math.max(H*2.3, H + 32), out = [];
-  const inside = (x, z) => { if (!poly) return [x, z]; for (let k=0;k<20 && !inPoly([x, z], poly);k++){ x *= .95; z *= .95; } return [x, z]; };
-  if (A.masts === "corners") for (const [sx, sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]) out.push([...inside(sx*(sext[0] + 8), sz*(sext[1] + 8)), sx, sz]);
-  else { const count = fx > 70 ? 5 : 4, z = -(sext[1] + 8); for (let k=0;k<count;k++) out.push([...inside(-fx*.75 + 1.5*fx*k/(count - 1), z), 0, 0]); }
-  return {spots: out, hm};
-}
 /* Statues outside the main entrance: up to four generic bronze figures on stone plinths, each in its own pose (arms raised
    in triumph, pointing, striding onto a ball, hands on hips). Nobody in particular. All of them one merged mesh. */
 function addStatues(n, bounds, poly, bf){
@@ -162,11 +153,14 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
     P.forEach((p,i) => { const q = [p[0] + N[i][0]*outerD[i], p[1] + N[i][1]*outerD[i]]; ext[0] = Math.max(ext[0], Math.abs(q[0])); ext[1] = Math.max(ext[1], Math.abs(q[1])); });
   }
   /* Spiral ramps, San Siro style: an open helix of concrete deck round an empty middle, held up on slim columns, with a
-     parapet and a steel rail on each edge, and a short bridge across to the stand at every level. */
+     parapet and a steel rail on each edge, and a short bridge across to the stand at every level. One at each corner of
+     the ground: the point of the outline furthest out that way. */
   if (A.ramps){
-    const count = Math.max(4, Math.min(10, Math.round(perim/90))), R0 = 4.5, R1 = 10.5, h = H*0.92, turns = Math.max(1.5, h/8), gap = 3.5, per = 32;
-    for (let t=0;t<count;t++){
-      const i = Math.floor((t + 0.5)*n/count), c = [P[i][0] + N[i][0]*(R1 + gap), P[i][1] + N[i][1]*(R1 + gap)];
+    const R0 = 4.5, R1 = 10.5, h = H*0.92, turns = Math.max(1.5, h/8), gap = 3.5, per = 32;
+    const corners = [[1,1],[1,-1],[-1,-1],[-1,1]].map(([sx, sz]) => { let bi = 0, bv = -Infinity;
+      for (let i=0;i<n;i++){ const v = P[i][0]*sx/(sext[0] || 1) + P[i][1]*sz/(sext[1] || 1); if (v > bv){ bv = v; bi = i; } } return bi; });
+    for (const i of corners){
+      const c = [P[i][0] + N[i][0]*(R1 + gap), P[i][1] + N[i][1]*(R1 + gap)];
       const segs = Math.round(turns*per), ph = Math.atan2(-N[i][1], -N[i][0]);
       const at = (q, r, y) => [c[0] + Math.cos(q)*r, y, c[1] + Math.sin(q)*r];
       for (let s=0;s<segs;s++){ const q0 = ph + s/per*Math.PI*2, q1 = ph + (s+1)/per*Math.PI*2, y0 = h*s/segs, y1 = h*(s+1)/segs;
@@ -250,23 +244,6 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
       top = Math.max(top, sp.rise*Math.cos(sp.lean) + r0); }
     for (const [list, mat, sides] of [[steel, M.steel, 6], [cables, M.cable, 8], [glow, M.archGlow, 8]]) if (list.length){
       const mesh = tubesMesh(list, sides, mat); mesh.castShadow = mat !== M.archGlow; mesh.userData.stadium = true; group.add(mesh); }
-  }
-  /* Masts and cables, like Cardiff's Principality Stadium: tall steel masts holding the roofs up on round cables that run
-     from the mast tops to the roofs' front edges, with a backstay down to the ground behind each. Four at the corners, or
-     a row along the back of the main stand. The tips carry a lamp that shows at night. */
-  if (A.masts === "corners" || A.masts === "main"){
-    const fx = F.W/2 + set, fz = F.H/2 + set, {spots, hm} = sigMastSpots(A, F, set, sext, H, poly), yF = Math.max(4, H*0.92), mastL = [], cab = [], v3 = (x, y, z) => new THREE.Vector3(x, y, z);
-    const mast = (x, z, targets, stay) => { const t = v3(x, hm*.97, z);
-      mastL.push([v3(x, 0, z), v3(x, hm*.45, z), 1.5], [v3(x, hm*.45, z), v3(x, hm*.8, z), 1.15], [v3(x, hm*.8, z), v3(x, hm, z), .8]); // tapering in three lengths
-      for (const [tx, tz] of targets) cab.push([t, v3(tx, yF, tz), .12]);
-      cab.push([t, v3(stay[0], 0, stay[1]), .16]); post(bf("concrete"), stay[0], stay[1], 0, .8, 2.2); // the backstay and its anchor block
-      post(bf("lamp"), x, z, hm, hm + 1.4, 1.1); post(bf("steel"), x, z, hm + 1.4, hm + 4, .15);
-      ext[0] = Math.max(ext[0], Math.abs(x) + 3); ext[1] = Math.max(ext[1], Math.abs(z) + 3); };
-    for (const [x, z, sx, sz] of spots){ // four at the corners, or a row behind the main stand
-      if (A.masts === "corners") mast(x, z, [[sx*fx*.85, sz*fz], [sx*fx*.6, sz*fz], [sx*fx*.35, sz*fz], [sx*fx, sz*fz*.8], [sx*fx, sz*fz*.5]], [x + sx*hm*.32, z + sz*hm*.32]);
-      else mast(x, z, [[x - 7, -fz], [x + 7, -fz]], [x, z - hm*.4]); }
-    for (const [list, mat, sides] of [[mastL, M.mast, 12], [cab, M.cable, 8]]){ const mesh = tubesMesh(list, sides, mat); mesh.castShadow = true; mesh.userData.stadium = true; group.add(mesh); }
-    top = Math.max(top, hm + 4);
   }
   return top;
 }
