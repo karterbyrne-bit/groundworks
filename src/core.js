@@ -143,7 +143,8 @@ function profile(tiers, set, lift){
     let front, hF, stacked;
     if (!started){ front = set; hF = (tr.type === "terrace" ? 0.4 : 1.1) + focusY*0.6; stacked = false; }
     else { front = Math.max(firstFront + 1, prevBack - (tr.over == null ? 0 : tr.over)); hF = prevBackH + Math.max(1.2, tr.gap == null ? 3 : tr.gap); stacked = true;
-      if (lift && lift[k] > hF) hF = lift[k]; } // held up to a level height along the stand
+      if (lift && lift[k] > hF) hF = lift[k]; // held up to a level height along the stand
+      if (tr.minHF > hF) hF = tr.minHF; } // or to line up with another stand's tier (see leveller.js)
     const rows = Math.max(0, tr.rows), back = front + rows*T, n = Math.ceil(rows - 1e-6);
     const hs = []; let maxN = 0;
     for (let j=0;j<n;j++){

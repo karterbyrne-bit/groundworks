@@ -11,7 +11,7 @@ const dev = process.argv.includes("--dev"); // unminified, easier to debug
 // The app's code, joined in this order into one shared scope: each file can use what the files before it define.
 const FILES = [
   "data.js", "core.js",
-  "build/basics.js", "build/atmosphere.js", "build/architecture.js", "build/fittings.js", "build/walls.js", "build/roofs-site.js", "build/neighbourhood.js", "build/views.js", "build/stadium.js",
+  "build/basics.js", "build/atmosphere.js", "build/architecture.js", "build/fittings.js", "build/walls.js", "build/roofs-site.js", "build/neighbourhood.js", "build/views.js", "build/leveller.js", "build/stadium.js",
   "ui/readout.js", "ui/camera.js", "ui/stand-editor.js", "ui/ground.js", "ui/saving.js", "ui/welcome.js",
 ];
 // if the 3D engine didn't arrive (a page cut off part way), boot.js shows a card instead of the app starting
@@ -36,9 +36,9 @@ const three = buildSync({
 
 // Latin subsets only: the page is in English. font-display:swap shows text straight away in a fallback font.
 const FONTS = [
-  ["Big Shoulders Display", "big-shoulders-display", [600, 800]],
-  ["IBM Plex Sans", "ibm-plex-sans", [400, 500, 600]],
-  ["IBM Plex Mono", "ibm-plex-mono", [400, 500]],
+  ["Big Shoulders Display", "big-shoulders-display", [800]],
+  ["IBM Plex Sans", "ibm-plex-sans", [400, 500]], // 500 also stands in for bold (styles.css turns off fake bold)
+  ["IBM Plex Mono", "ibm-plex-mono", [400]],
 ];
 const fontCss = FONTS.flatMap(([family, pkg, weights]) => weights.map(w => {
   const data = readFileSync(new URL(`./node_modules/@fontsource/${pkg}/files/${pkg}-latin-${w}-normal.woff2`, import.meta.url)).toString("base64");

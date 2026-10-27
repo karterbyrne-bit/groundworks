@@ -28,6 +28,17 @@ Groundworks is for football and rugby fans sketching their dream grounds. Fun co
 - If a capacity or issue count changes, tell the owner which presets changed, by how much, and why.
 - Only run `npm run update-expected` (which rewrites `tests/expected.json`) once the owner has agreed the change is intended. Never update it just to make the tests pass.
 
+## Budget
+
+Groundworks has to stay quick on a phone, so its size is capped.
+
+- `index.html` must not grow past **1,133,869 bytes** (its size after the slimming of 27 October) without the owner's OK. If a job would push it over, say by how much and why, and ask first.
+- `build()` in `src/build/stadium.js` must not grow (it is **1,295 lines** now; when it's split into stages, the cap becomes its new length). New features go in their own files and are called from `build()` in one line.
+- Before adding any new control (a switch, slider, menu or button), check whether an existing one could do the job, and say which you checked.
+- At the end of every job, report `index.html`'s size and `build()`'s length:
+  - size: `wc -c < index.html`
+  - length: `awk '/^function build\(/{s=NR} s && /^}/{print NR-s+1; exit}' src/build/stadium.js`
+
 ## Map of the files
 
 | File | What it does |
@@ -43,6 +54,7 @@ Groundworks is for football and rugby fans sketching their dream grounds. Fun co
 | `src/build/roofs-site.js` | Roof-edge floodlights, the surroundings (roads, rivers, houses), roof trusses and lamp heads, convertible grounds, roof sheeting |
 | `src/build/neighbourhood.js` | The streets, terraced houses, car park, trees and bigger buildings round the ground (decoration only), and roads that snap to the plot's edge |
 | `src/build/views.js` | Obstructed views: which seats have pillars, overhangs, masts or screens in the way, and how badly, plus the amber/red colouring |
+| `src/build/leveller.js` | The tier leveller: an upper tier set to line up with the same tier of another stand |
 | `src/build/stadium.js` | `build()`: builds the whole stadium, works out capacity, runs every check, plus the one-tap fix search |
 | `src/ui/readout.js` | The results readout, the architect's notes, pop-up messages, one-tap fixes, and the panes of controls |
 | `src/ui/camera.js` | The camera and saved views, dragging handles in 3D, the drawing loop, light/dark theme, undo/redo and autosave |
