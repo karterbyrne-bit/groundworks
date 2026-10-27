@@ -97,11 +97,15 @@ function ellipseHit(o, v, A, B){
   const a = (v[0]/A)**2 + (v[1]/B)**2, b = 2*(o[0]*v[0]/(A*A) + o[1]*v[1]/(B*B)), c = (o[0]/A)**2 + (o[1]/B)**2 - 1, disc = b*b - 4*a*c;
   return a > 0 && disc >= 0 ? (-b + Math.sqrt(disc))/(2*a) : null;
 }
-/* Stands on a lower bowl: how many of the bowl's seats lie on each side (N, S, E, W), the corners split down the
-   diagonal, so each side's stand can count the bowl in front of it in the results. */
-function bowlSeatsBySide(recs, F){
-  const out = {N:0, S:0, E:0, W:0}, fx = F.W/2 || 1, fz = F.H/2 || 1;
-  for (const r of recs){ if (r.stand !== "B" || !(r.seats > 0)) continue; const ax = Math.abs(r.x)/fx, az = Math.abs(r.z)/fz;
-    out[az >= ax ? (r.z < 0 ? "N" : "S") : (r.x > 0 ? "E" : "W")] += r.seats; }
+/* Stands on a lower bowl: how many of the bowl's seats lie on each side (N, S, E, W), so each side's stand can count the
+   bowl in front of it in the results. The corners split along the line from the bowl's front corner to its back corner,
+   which is where the stands above meet, whatever the shape of the play (a long, thin pitch included). */
+function bowlSeatsBySide(recs, F, set){
+  const out = {N:0, S:0, E:0, W:0}, mine = recs.filter(r => r.stand === "B" && r.seats > 0);
+  const fx = F.W/2 + set, fz = F.H/2 + set; let bx = fx, bz = fz;
+  for (const r of mine){ bx = Math.max(bx, Math.abs(r.x)); bz = Math.max(bz, Math.abs(r.z)); }
+  const dx = bx - fx, dz = bz - fz;
+  for (const r of mine){ const end = dx*(Math.abs(r.z) - fz) - dz*(Math.abs(r.x) - fx) < 0;
+    out[end ? (r.x > 0 ? "E" : "W") : (r.z < 0 ? "N" : "S")] += r.seats; }
   return out;
 }
