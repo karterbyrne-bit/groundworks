@@ -1256,7 +1256,8 @@ function build(){
   }
   const A = S.arch || {}, B2 = {}, buf2 = k => (B2[k] = B2[k] || []);
   drawSite(site, buf2, ext);
-  if (!DRY) drawNeighbourhood(poly, ext.slice(), site, buf2);
+  if (!DRY){ const B3 = {}; drawNeighbourhood(poly, ext.slice(), site, k => (B3[k] = B3[k] || [])); // the streets round the ground: no shadows, to keep it quick
+    for (const key in B3) if (B3[key].length){ const mesh = meshFrom(B3[key], M[key], false); mesh.receiveShadow = false; mesh.userData.stadium = true; group.add(mesh); } }
   if (!DRY && S.halo) addHalo(anchors, buf2);
   if (!DRY && S.statues > 0) addStatues(Math.min(4, S.statues | 0), bounds, poly, buf2);
   const archTop = addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, buf2, ext, anchors);
