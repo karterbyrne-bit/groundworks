@@ -1,5 +1,7 @@
 // End-to-end smoke test: opens the built index.html in a real browser at desktop and phone sizes and clicks through
 // the main features, failing on any error. Run: npm test   (after npm run build)
+// Quick mode (npm run test:quick, what GitHub runs on a pull request): the pinned capacities, then the features once,
+// at phone size only.
 import { chromium } from "playwright";
 import { createServer } from "node:http";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -22,6 +24,7 @@ const browser = await chromium.launch();
 // After a deliberate change, run: npm run update-expected
 const expectedFile = new URL("./expected.json", import.meta.url);
 const updating = process.argv.includes("--update-expected");
+const quick = process.argv.includes("--quick");
 {
   console.log("\npinned capacities");
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
@@ -56,7 +59,7 @@ const updating = process.argv.includes("--update-expected");
   }
 }
 
-for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["phone", { width: 390, height: 844 }]]) {
+for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["phone", { width: 390, height: 844 }]].filter(([n]) => !quick || n === "phone")) {
   console.log(`\n${name} (${viewport.width}×${viewport.height})`);
   const ctx = await browser.newContext({ viewport, hasTouch: name === "phone" });
   const page = await ctx.newPage();

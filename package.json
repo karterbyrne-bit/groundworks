@@ -8,6 +8,7 @@
     "build": "node build.mjs",
     "build:dev": "node build.mjs --dev",
     "test": "node tests/smoke.mjs",
+    "test:quick": "node tests/smoke.mjs --quick",
     "update-expected": "node tests/smoke.mjs --update-expected"
   },
   "devDependencies": {
