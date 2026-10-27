@@ -36,9 +36,9 @@ const three = buildSync({
 
 // Latin subsets only: the page is in English. font-display:swap shows text straight away in a fallback font.
 const FONTS = [
-  ["Big Shoulders Display", "big-shoulders-display", [600, 800]],
-  ["IBM Plex Sans", "ibm-plex-sans", [400, 500, 600]],
-  ["IBM Plex Mono", "ibm-plex-mono", [400, 500]],
+  ["Big Shoulders Display", "big-shoulders-display", [800]],
+  ["IBM Plex Sans", "ibm-plex-sans", [400, 500]], // 500 also stands in for bold (styles.css turns off fake bold)
+  ["IBM Plex Mono", "ibm-plex-mono", [400]],
 ];
 const fontCss = FONTS.flatMap(([family, pkg, weights]) => weights.map(w => {
   const data = readFileSync(new URL(`./node_modules/@fontsource/${pkg}/files/${pkg}-latin-${w}-normal.woff2`, import.meta.url)).toString("base64");

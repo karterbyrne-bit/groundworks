@@ -283,8 +283,8 @@ $("waveBtn").addEventListener("click", () => {
   if (camMode === "plan") goCam("aerial");
 });
 $("seeBtn").addEventListener("click", () => { S.seeThrough = !S.seeThrough; changed(); });
-$("halo").addEventListener("change", e => { S.halo = e.target.checked; changed(); });
-$("flares").addEventListener("change", e => { S.flares = e.target.checked; if (S.flares && !homeEndOf().at) toast("<b>Flares need a home end.</b> Pick one under Home end above."); changed(); });
+// one switch for the halo and the flares; saved designs keep their own settings for each, so they open as they were
+$("spectacle").addEventListener("change", e => { S.halo = S.flares = e.target.checked; if (S.flares && !homeEndOf().at) toast("<b>The flares need a home end.</b> Pick one under Home end above."); changed(); });
 $("fireworksBtn").addEventListener("click", () => { if (camMode === "plan") goCam("aerial"); startFireworks(); });
 $("nightBtn").addEventListener("click", () => { S.night = !S.night; changed(); });
 $("seatPattern").addEventListener("change", e => { S.seatPattern = e.target.value; changed(); });
