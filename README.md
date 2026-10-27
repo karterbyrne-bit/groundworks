@@ -58,7 +58,8 @@ Edit the files in `src/`, then rebuild `index.html`:
 npm install        # once
 npm run build      # minified index.html
 npm run build:dev  # unminified, easier to debug
-npm test           # opens the app in a browser and checks the main features work
+npm test           # opens the app in a browser and checks the main features work, desktop and phone
+npm run test:quick # the same at phone size only (what GitHub runs on a pull request)
 npm run update-expected  # only after a deliberate change to the maths: re-records every preset's capacity
 ```
 
