@@ -142,8 +142,10 @@ function standCritique(p, cx){
   const terr = p.tiers.some(t => t.type === "terrace" || t.type === "rail"), steep = Math.max(0, ...p.tiers.map(t => t.steep || 0)), shallow = p.tiers.some(t => t.bad);
   const rows = Math.max(0, ...p.tiers.map(t => t.rows || 0)), squeezed = ((cx.D.cutInfo || {})[p.key] || []).some(c => c && c.want > c.fit + .5);
   const bits = []; let tone = "good", score = 0;
-  // what sort of stand it is
-  if (cx.count > 1 && h > cx.mean*1.4){ score += 1; bits.push(say([`the big beast of the ground at ${Math.round(h)} m tall`, `towers over everything else here at ${Math.round(h)} m`, `the one that'll be on the postcards: ${Math.round(h)} m of it`], "big")); }
+  // what sort of stand it is (a lower bowl with stands on top is low by design, and its outside wall and roof are theirs)
+  const under = p.key === "B" && isHybrid();
+  if (under) bits.push(say([`runs right round under the stands, ${rows} rows deep`, `a ${fmt(p.seats)}-place ring that ties the stands above together`], "bowl"));
+  else if (cx.count > 1 && h > cx.mean*1.4){ score += 1; bits.push(say([`the big beast of the ground at ${Math.round(h)} m tall`, `towers over everything else here at ${Math.round(h)} m`, `the one that'll be on the postcards: ${Math.round(h)} m of it`], "big")); }
   else if (cx.count > 1 && h < cx.mean*.6){ score -= .5; bits.push(say(["looks like it wandered in from a smaller ground", "keeps its head down next to its neighbours", `the runt of the litter at ${Math.round(h)} m`], "small")); }
   else if (n >= 3){ score += .5; const nw = ["three", "four", "five", "six"][n - 3] || n;
     bits.push(say([`${nw} tiers stacked up, like the Sir Alex Ferguson Stand at Old Trafford`, `a proper ${nw}-tier stack in the manner of Anfield's Main Stand`, `${nw} tiers deep, so the top rows feel a long way up`], "tiers")); }
@@ -160,10 +162,11 @@ function standCritique(p, cx){
   else if (steep > 33){ score += .5; bits.push(say([`and at ${Math.round(steep)}° it's thrillingly steep`, `with a ${Math.round(steep)}° rake that puts you right over the play`, `and its ${Math.round(steep)}° rake keeps even the back rows close to the action`], "steep")); }
   // what it's made of, and its plot
   const glassy = look === "glass" || look === "fins", trad = era === "Traditional";
-  if (trad && glassy){ score -= .3; bits.push(say(["a glass front on an old-style stand is a brave choice", "the glass front sits oddly on such a traditional stand"], "mat")); }
+  if (under); // nothing to say: the stands above it make the outside
+  else if (trad && glassy){ score -= .3; bits.push(say(["a glass front on an old-style stand is a brave choice", "the glass front sits oddly on such a traditional stand"], "mat")); }
   else if (!trad && (look === "brick" || look === "timber")) bits.push(`the ${look} outside wall gives a modern stand some warmth`);
   else if (look === "plain" && p.seats > 5000){ score -= .5; if (tone === "good") tone = "tip"; bits.push(say(["from the street it's a blank slab, so dress the outside wall up", "the outside wall is plain, which a stand this size doesn't deserve"], "mat")); }
-  if (open && cx.cover > .5){ score -= .5; if (tone === "good") tone = "tip"; bits.push(say(["and it's left without a roof, so bring a coat", "and with no roof its fans get wet while everyone else stays dry"], "roof")); }
+  if (open && !under && cx.cover > .5){ score -= .5; if (tone === "good") tone = "tip"; bits.push(say(["and it's left without a roof, so bring a coat", "and with no roof its fans get wet while everyone else stays dry"], "roof")); }
   if (squeezed){ score -= .5; if (tone === "good") tone = "tip"; bits.push(say(["the plot cuts it short, so some rows don't fit", "it's squeezed by the edge of the plot"], "site")); }
   const text = bits.reduce((s, b, i) => !i ? cap1(b) : s + (/^(but|though|and|with)\b/.test(b) ? ", " : "; ") + b, "") + ".";
   return {name: p.label, key: p.key, tone, score, text};
