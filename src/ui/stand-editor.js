@@ -55,7 +55,14 @@ const tierMore = (tr, pre, stacked, ends) => `<details class="sub" data-more="${
   ${tr.entry === "middle" ? pair("How far up the tier", pre + "entryAt", Math.round((tr.entryAt || .42)*100), 15, 85, 5, "%") : ""}
   ${tr.entry && tr.entry !== "auto" ? pair("One entrance every", pre + "entryEvery", tr.entryEvery || S.design.exitEvery, 8, 60, 1, "m") : ""}
   ${stacked ? pick("Held up by", pre + "support", tr.hold === "towers" ? "towers" : tr.pillars ? "pillars" : "none", TIER_HOLDS) : ""}
+  ${stacked ? levelPick(tr, pre) : ""}
 </div></details>`;
+/* The tier leveller: line this tier up with the same tier of another stand (only for a stand's own tiers, on the sides) */
+function levelPick(tr, pre){
+  const k = +((pre.match(/(?:^|\.)tiers\.(\d+)\.$/) || [])[1]); if (!SIDES.includes(tab) || pre.startsWith("base.") || !isFinite(k)) return "";
+  const opts = {"": "Its own height"}; for (const s of SIDES) if (s !== tab && S.stands[s] && S.stands[s].tiers[k]) opts[s] = `${SIDE_NAMES[s]}'s tier ${k + 1}`;
+  return Object.keys(opts).length > 1 ? pick("Line up with", pre + "levelWith", tr.levelWith || "", opts) : "";
+}
 function tierBlocks(arr, above, base, bySide, ends){
   return arr.map((tr,k) => {
     const isT = tr.type === "terrace", nm = tierName(k, arr.length, above), stacked = k > 0 || above;
