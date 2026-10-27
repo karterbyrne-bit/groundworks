@@ -1194,8 +1194,8 @@ function build(){
 
   /* ---------- obstructed views ---------- */
   { const A = S.arch || {}, H = Math.max(8, outerTop), fm = floodMode();
-    if (fm === "masts" || fm === "pylons"){ const roundish = F.r >= Math.min(F.W, F.H)/2 - 1, a = Math.PI/6, mh = Math.max(maxH + 16, 30);
-      for (const sx of [-1,1]) for (const sz of [-1,1]) viewPosts.push({x: roundish ? sx*(sext[0] + 8)*Math.cos(a) : sx*(sext[0] + 8), z: roundish ? sz*(sext[1] + 8)*Math.sin(a) : sz*(sext[1] + 8), r: fm === "pylons" ? 3 : 1, y0:0, y1:mh + 4, cause:"mast"}); }
+    if (fm === "masts" || fm === "pylons"){ const mh = Math.max(maxH + 16, 30);
+      for (const [x, z] of floodMastSpots(F, sext, outline)) viewPosts.push({x, z, r: fm === "pylons" ? 3 : 1, y0:0, y1:mh + 4, cause:"mast"}); }
     for (const sp of archSpans(A, F, set, sext, H, standInfo)) for (const u of [.02, .98]){ const c = sp.C(u), c2 = sp.C(u < .5 ? .07 : .93); viewPosts.push({x:c.x, z:c.z, r:sp.r0*1.5, y0:0, y1:c2.y, cause:"arch"}); }
     for (const p of screenPlans) if (p.kind === "board"){ const px = -p.n[1]*p.w/2, pz = p.n[0]*p.w/2; viewWalls.push({a:[p.x - px, p.z - pz], b:[p.x + px, p.z + pz], y0:p.y - p.h/2, y1:p.y + p.h/2, cause:"screen"}); }
     const OV = obstructedViews(allRecs, F, viewPosts, viewWalls, boardsOn ? {hx: FP.W/2 + offX, hz: FP.H/2 + offZ, h: bH} : null);
@@ -1256,8 +1256,6 @@ function build(){
   }
   const A = S.arch || {}, B2 = {}, buf2 = k => (B2[k] = B2[k] || []);
   drawSite(site, buf2, ext);
-  if (!DRY){ const B3 = {}; drawNeighbourhood(poly, ext.slice(), site, k => (B3[k] = B3[k] || [])); // the streets round the ground: no shadows, to keep it quick
-    for (const key in B3) if (B3[key].length){ const mesh = meshFrom(B3[key], M[key], false); mesh.receiveShadow = false; mesh.userData.stadium = true; group.add(mesh); } }
   if (!DRY && S.halo) addHalo(anchors, buf2);
   if (!DRY && S.statues > 0) addStatues(Math.min(4, S.statues | 0), bounds, poly, buf2);
   const archTop = addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, buf2, ext, anchors);
@@ -1268,16 +1266,17 @@ function build(){
   if (fm === "roof") roofLights(anchors, buf2, F);
   if (fm === "masts" || fm === "pylons"){
     const mh = Math.max(maxH + 16, 30);
-    for (const sx of [-1,1]) for (const sz of [-1,1]){
-      // round grounds keep their masts close in, a third of the way round from each end, rather than out at a square's corners
-      const roundish = F.r >= Math.min(F.W, F.H)/2 - 1, a = Math.PI/6;
-      const x = roundish ? sx*(sext[0] + 8)*Math.cos(a) : sx*(sext[0] + 8), z = roundish ? sz*(sext[1] + 8)*Math.sin(a) : sz*(sext[1] + 8);
+    for (const [x, z, sx, sz] of floodMastSpots(F, sext, outline)){ // just behind the stands at each corner (see floodMastSpots)
       if (fm === "pylons") pylon(buf2, x, z, mh);
       else { const mm = new THREE.Mesh(new THREE.CylinderGeometry(.6,1.1,mh,10), M.mast); mm.position.set(x,mh/2,z); mm.castShadow = true; group.add(mm); }
       group.add(lampHead(x, mh + 3, z));
       if (S.night){ const sp = new THREE.SpotLight(0xfff4dc, LUX.flood, 0, 0.75, 0.6, 0); sp.position.set(x, mh+2, z); sp.target.position.set(-sx*F.W*0.15, 0, -sz*F.H*0.15); group.add(sp); group.add(sp.target); }
     }
   }
+  // the streets round the ground: laid out last, round everything built (signature architecture and floodlights too), with no shadows to keep it quick
+  if (!DRY){ const B3 = {}, keep = ext.slice(); if (fm === "masts" || fm === "pylons") for (const [x, z] of floodMastSpots(F, sext, outline)){ keep[0] = Math.max(keep[0], Math.abs(x) + 4); keep[1] = Math.max(keep[1], Math.abs(z) + 4); }
+    drawNeighbourhood(poly, keep, site, k => (B3[k] = B3[k] || []));
+    for (const key in B3) if (B3[key].length){ const mesh = meshFrom(B3[key], M[key], false); mesh.receiveShadow = false; mesh.userData.stadium = true; group.add(mesh); } }
   for (const key in B2) if (B2[key].length){ const mesh = meshFrom(B2[key], M[key], !["glass","roofGlass"].includes(key)); mesh.userData.stadium = true; group.add(mesh); }
   // drag handles for the selected stand
   if (handles.length){ const r = Math.max(0.9, Math.max(...sext)*0.012);

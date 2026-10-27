@@ -42,7 +42,7 @@ function drawNeighbourhood(poly, ext, site, bf){
   const rnd = () => { seed = (seed*16807) % 2147483647; return seed/2147483647; };
   const B = ccwRing(poly ? poly : (() => { const ex = ext[0] + 10, ez = ext[1] + 10; return [[-ex,-ez],[ex,-ez],[ex,ez],[-ex,ez]]; })());
   const n = B.length, blocked = site.map(f => featurePoly(f, 3));
-  const clear = (x, z) => !inPoly([x, z], B) && !blocked.some(p => inPoly([x, z], p)); // outside the site, clear of Surroundings
+  const clear = (x, z) => !inPoly([x, z], B) && !blocked.some(p => inPoly([x, z], p)) && (Math.abs(x) > ext[0] + 6 || Math.abs(z) > ext[1] + 6); // outside the site and everything built, clear of Surroundings
   const at = (p, y) => [p[0], y, p[1]];
   // the point d metres out from the boundary, a fraction s of the way along edge i (between the corner mitres)
   const along = (i, s, d) => { const a = miterAt(B, i, d), b = miterAt(B, (i+1)%n, d); return [a[0] + (b[0]-a[0])*s, a[1] + (b[1]-a[1])*s]; };
