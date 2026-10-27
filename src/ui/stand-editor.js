@@ -222,8 +222,9 @@ function renderEditor(){
 function renderSummary(){
   const el = $("standSummary"); if (!el || !LAST) return;
   const si = LAST.standInfo[tab]; const name = tabName(tab);
-  const mine = mergeParts(LAST.parts.filter(p => p.key === tab)), tiers = [].concat(...mine.map(p => p.tiers || []));
-  el.innerHTML = si ? `<b>${name}</b>${tab === "C" ? "" : `<span>${fmt(si.width)} m long</span>`}<span>${fmt(si.depth)} m deep</span><span>${fmt(si.height)} m high</span><span>${fmt(si.seats)} places</span>` +
+  const mine = (tab === "B" ? mergeParts(LAST.parts) : foldBowlIntoSides(mergeParts(LAST.parts), LAST.bowlSides)).filter(p => p.key === tab), tiers = [].concat(...mine.map(p => p.tiers || [])); // on a lower bowl, the bowl in front counts too
+  const places = mine.length ? mine.reduce((a, p) => a + p.seats, 0) : si && si.seats, bowlNote = mine.some(p => p.bowlSeats) ? ` (with ${fmt(mine.reduce((a, p) => a + (p.bowlSeats || 0), 0))} in the lower bowl)` : "";
+  el.innerHTML = si ? `<b>${name}</b>${tab === "C" ? "" : `<span>${fmt(si.width)} m long</span>`}<span>${fmt(si.depth)} m deep</span><span>${fmt(si.height)} m high</span><span>${fmt(places)} places${bowlNote}</span>` +
     (tiers.length ? `<div class="tierlist">${tiers.map(t => `<span><em>${esc(t.name)}</em> ${fmt(t.seats)} · ${t.rows} rows ${TYPES[t.type].short}</span>`).join("")}</div>` : "")
     : `<b>${name}</b><span>Nothing built here yet.</span>`;
 }

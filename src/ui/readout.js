@@ -12,6 +12,17 @@ function mergeParts(parts){
       else ex.tiers.push(Object.assign({}, t)); } }
   return merged;
 }
+/* Stands on a lower bowl: each side's stand counts the part of the bowl in front of it (with the bowl's tiers listed in
+   its table at that side's share), instead of the lower bowl showing as a stand of its own. */
+function foldBowlIntoSides(merged, sides){
+  const bowl = merged.find(p => p.key === "B"); if (!sides || !bowl) return merged;
+  const out = merged.filter(p => p !== bowl), total = Object.values(sides).reduce((a, b) => a + b, 0) || 1;
+  for (const [k, n] of Object.entries(sides)){ if (!(n > 0)) continue; const share = n/total; let st = out.find(p => p.key === k);
+    if (!st){ st = {label: SIDE_NAMES[k], key: k, seats: 0, kinds: "", tiers: []}; out.push(st); }
+    st.seats += Math.round(n); st.bowlSeats = Math.round(n);
+    st.tiers = [...(bowl.tiers || []).map(t => Object.assign({}, t, {name: "Lower bowl: " + t.name.charAt(0).toLowerCase() + t.name.slice(1), seats: Math.round(t.seats*share)})), ...st.tiers]; }
+  return out;
+}
 function tierTable(tiers, total){
   if (!tiers || !tiers.length) return "";
   const L = S.limits;
@@ -78,8 +89,10 @@ function renderStats(){
     `<label class="toggle small"><input type="checkbox" id="trimToggle"${S.trim ? " checked" : ""}> Mark problem tiers in red in the 3D view</label>
      <label class="toggle small"><input type="checkbox" id="obsToggle"${S.showObstructed ? " checked" : ""}> Show obstructed views (amber: part of the pitch is hidden, red: a lot of it)</label>
      <p class="disclaimer">Groundworks is a creative sandbox. Passing these checks doesn't mean a design is safe, legal or buildable; real stadiums need professional design and approval.</p>`;
-  const merged = mergeParts(D.parts);
+  const merged = foldBowlIntoSides(mergeParts(D.parts), D.bowlSides);
   const max = Math.max(1, ...merged.map(p => p.seats));
+  document.getElementById("standSeats").innerHTML = merged.length ? `<h3 class="bd-h">Places by stand</h3>` + merged.map(p =>
+    `<div class="bd"><div class="bd-row"><span>${esc(p.label)}</span><span>${fmt(p.seats)}</span>${p.bowlSeats ? `<small>including ${fmt(p.bowlSeats)} in the lower bowl in front</small>` : ""}<i><b style="width:${(100*p.seats/max).toFixed(1)}%"></b></i></div></div>`).join("") : "";
   document.getElementById("breakdown").innerHTML = obstructedBreakdown(D) + (merged.length ? `<h3 class="bd-h">Capacity by stand and tier</h3>` + merged.map(p =>
     `<details class="bd"${openBd.has(p.label) ? " open" : ""} data-bd="${esc(p.label)}"><summary><span>${esc(p.label)}</span><span>${fmt(p.seats)}</span><small>${esc(p.kinds)}</small><i><b style="width:${(100*p.seats/max).toFixed(1)}%"></b></i></summary>${tierTable(p.tiers, p.seats)}</details>`).join("")
     : '<p class="hint">No stands yet. Give at least one stand a tier to start seating fans.</p>');

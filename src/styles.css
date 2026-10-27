@@ -153,6 +153,10 @@ details .inner{padding:4px 12px 12px;display:flex;flex-direction:column;gap:10px
 .breakdown .bd-h{grid-column:1 / -1}
 .breakdown .bd[open]{grid-column:1 / -1}
 .bd.obs{grid-column:1 / -1}
+.bd-row{display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:12.5px}
+.bd-row small{grid-column:1 / -1;color:var(--muted)}
+.bd-row i{grid-column:1 / -1;display:block;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.bd-row i b{display:block;height:100%;background:var(--accent)}
 .obs-st{margin:8px 0 0}
 .obs-st ul{margin:4px 0 0;padding-left:16px;display:grid;gap:3px}
 .obs-st li{display:flex;justify-content:space-between;align-items:center;gap:8px}
