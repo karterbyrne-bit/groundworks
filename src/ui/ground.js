@@ -58,7 +58,7 @@ $("kinds").addEventListener("click", e => {
   const b = e.target.closest("[data-kind]"); if (!b) return;
   const k = KINDS[b.dataset.kind];
   S.custom = {kind:b.dataset.kind, W:k.W, H:k.H, r:k.r, surface:k.surface, floor:k.floor};
-  S.setback = k.set; if (b.dataset.kind === "bullring") S.layout = "bowl"; changed(true);
+  S.setback = k.set; changed(true);
 });
 function plotShape(kind, silent){
   const had = S.plot.on; S.plot.on = false; const r = dryRun(); S.plot.on = had;
@@ -180,8 +180,6 @@ bindRadio("cshape", v => { S.cornerShape = v; changed(); });
 const bindRange = (id, fn, cam) => $(id).addEventListener("input", e => { fn(+e.target.value); changed(cam, true); });
 bindRange("setback", v => S.setback = v);
 bindRange("runoff", v => S.runoff = v);
-for (const [id, key] of [["ckL","L"],["ckW","W"]]) bindRange(id, v => { S.cricket = Object.assign({}, CRICKET, S.cricket, {[key]: v}); }, true);
-for (const [id, key] of [["bpLF","lf"],["bpCF","cf"],["bpRF","rf"],["bpWall","wall"],["bpLFW","lfWall"]]) bindRange(id, v => { S.ballpark = Object.assign({}, BALLPARK, S.ballpark, {[key]: v}); }, true);
 bindRange("corner", v => S.corner = v);
 bindRange("floorRows", v => S.custom.floor = v, true);
 for (const [id, key, max] of [["nW","W",400],["nH","H",300],["nR","r",150]]) $(id).addEventListener("change", e => {
@@ -310,7 +308,7 @@ $("archAt").addEventListener("change", e => { archOf().archAt = e.target.value; 
 $("statues").addEventListener("change", e => { S.statues = Math.max(0, Math.min(4, +e.target.value || 0)); changed(); });
 function openState(st, sideTab, tweak){
   S = upgradeCorners(st); quiet = true; if (tweak) tweak(); tab = isHybrid() ? "B" : (sideTab || "N");
-  setSeatColours(); renderTypeSizes(); renderEditor(); renderViews(); changed(true);
+  setSeatColours(); renderTypeSizes(); renderEditor(); renderViews(); changed(true); noteSwappedSport();
 }
 document.querySelectorAll("#presets button").forEach(b => b.addEventListener("click", () => {
   const P = clone(PRESETS[b.dataset.p]); openState(P, b.dataset.p === "monument" ? "E" : "N");

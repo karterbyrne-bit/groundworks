@@ -227,7 +227,7 @@ renderer.domElement.addEventListener("pointerup", e => {
 /* The view from a spot in the stands, looking at the middle of the play. Fans stand on terraces and rail seats (and all
    through the home end), so their eyes are higher; the fans right round them are cleared so the view isn't a wall of heads. */
 function seatView(h, standing, instant){
-  const f = LAST.F.home || [0,0], p = new THREE.Vector3(h.x, h.y + (standing ? 1.65 : 1.2), h.z);
+  const f = [0,0], p = new THREE.Vector3(h.x, h.y + (standing ? 1.65 : 1.2), h.z);
   const aim = new THREE.Vector3(f[0], focusY + 1, f[1]).sub(p).normalize().multiplyScalar(0.5);
   picking = false; view.classList.remove("picking"); setLook(true); clearCrowdNear([h.x, h.y + 1, h.z]); moveCam(p, p.clone().add(aim), instant); setTip();
   seatObstruction(h);

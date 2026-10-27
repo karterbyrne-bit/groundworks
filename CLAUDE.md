@@ -2,7 +2,7 @@
 
 ## Who it's for
 
-Groundworks is for football and rugby fans sketching their dream grounds. Fun comes first; the safety checks are a bonus, not the point. Wrestleball is the owner's own made-up sport: it stays, and it isn't a mistake to "fix".
+Groundworks is for football, rugby and athletics fans sketching their dream grounds, plus Wrestleball. Fun comes first; the safety checks are a bonus, not the point. Wrestleball is the owner's own made-up sport: it stays, and it isn't a mistake to "fix".
 
 ## Talking to the owner
 
@@ -46,7 +46,7 @@ Groundworks has to stay quick on a phone, so its size is capped.
 | File | What it does |
 |---|---|
 | `src/boot.js` | Starts first: the loading screen, the friendly error card, and offline support |
-| `src/data.js` | Sports, floors, seating types, safety rules, architectural styles and presets |
+| `src/data.js` | Sports (football, rugby, athletics, Wrestleball and a plain floor), seating types, safety rules, architectural styles and presets, and opening old designs that used a removed sport as football |
 | `src/core.js` | Geometry, tier stacking and sightline maths, the 3D scene and materials |
 | `src/build/basics.js` | Shared building helpers: who gets each corner, row counts, colour-tinted materials, the pieces of a bowl |
 | `src/build/atmosphere.js` | Seat patterns and lettering, the crowd, away end and home end, players, the Mexican wave, sky, scenery, day and night |

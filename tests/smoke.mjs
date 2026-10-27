@@ -84,7 +84,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.evaluate(() => { const b = document.getElementById("boards"); if (!b.checked){ b.checked = true; b.dispatchEvent(new Event("change")); } });
   await page.waitForTimeout(300);
   check(await page.evaluate(() => window.__gw.boards()), "sponsor boards go round a wrestleball pitch");
-  for (const p of ["bowl", "leitch", "bullring"]) {
+  for (const p of ["bowl", "leitch"]) {
     await page.click(`[data-p="${p}"]`); await page.waitForTimeout(300);
     check((await cap()) > 0, `preset "${p}" builds`);
   }
@@ -219,13 +219,9 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.selectOption("#standPre", "m:0"); await page.waitForTimeout(400);
   check((await page.evaluate(() => window.__gw.state().stands.E.tiers[0].type)) === "terrace", "a saved stand can be put on another side");
   await page.click('#panes [data-pane="start"]');
-  // cricket and baseball: rings of stands
-  await page.click('#panes [data-pane="start"]');
-  for (const p of ["lords", "classicpark", "ballpark"]){ await page.click(`[data-p="${p}"]`);
-    await page.waitForFunction(() => window.__gw.state().layout === "ring" && window.__gw.last().parts.length > 2); await page.waitForTimeout(200);
-    // Lord's pavilion and the classic grandstand have real pillars, so their restricted-view warnings are expected; nothing else is
-    const r = await last(), other = await page.evaluate(() => window.__gw.last().issues.filter(i => !/^obstructed:/.test(i.key)).length);
-    check(r.total > 10000 && !other, `preset "${p}" builds with no warnings (other than restricted views behind real pillars)`); }
+  // a ring of separate stands
+  await page.click('#panes [data-pane="ground"]'); await page.click('label[for="ly-ring"]');
+  await page.waitForFunction(() => window.__gw.state().layout === "ring" && window.__gw.last().parts.length > 2); await page.waitForTimeout(200);
   await page.click('#panes [data-pane="stands"]'); const nStands = await page.locator("#tabs button").count();
   await page.click('[data-ring="+"]'); await page.waitForTimeout(300);
   check((await page.locator("#tabs button").count()) === nStands + 1, "a ring can have another stand added");
