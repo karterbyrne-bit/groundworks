@@ -246,7 +246,7 @@ function build(){
        (or given padded seats). sideHere finds this stand's middle on the asked-for side: its own middle, or for a bowl
        the slice facing that way. */
     const HEb = homeEndOf(), heDir = SIDE_DIR[HEb.at], bannerRows = {};
-    const homeHere = i => !!HEb.at && HEb.banners !== false && (HEb.at === st.key || (st.key === "B" && heDir && (v[i][0]*heDir[0] + v[i][1]*heDir[1]) > .55*Math.hypot(v[i][0], v[i][1])));
+    const homeHere = i => !!HEb.at && HEb.banners !== false && (HEb.at === st.key || inCorner(HEb.at, o[i][0] + 5*v[i][0], o[i][1] + 5*v[i][1]) || (st.key === "B" && heDir && (v[i][0]*heDir[0] + v[i][1]*heDir[1]) > .55*Math.hypot(v[i][0], v[i][1])));
     const sideHere = at => { if (at === st.key && !st.drawFrom) return midI;
       const dir = {N:[0,-1], S:[0,1], E:[1,0], W:[-1,0]}[at]; if (st.key !== "B" || !dir) return -1;
       let bi = -1, bd = Infinity; for (let i=0;i<m;i++){ const vl = Math.hypot(v[i][0], v[i][1]) || 1, q = pt(i, 0), lat = Math.abs(dir[0] ? q[1] : q[0]);
@@ -873,7 +873,7 @@ function build(){
     }
     // the stadium's name (naming rights) goes along the main stand's roof front, unless that stand has lettering of its own
     const SP = sponsorsOf(), named = !fac.sign && SP.title && SP.onStand !== false && st.key === (lay === "bowl" ? "B" : lay === "ring" ? "R0" : "N");
-    const HEn = homeEndOf(), homeNamed = !fac.sign && !named && HEn.name && HEn.at === st.key; // the home end's name, like the Kop's
+    const HEn = homeEndOf(), homeNamed = !fac.sign && !named && HEn.name && (HEn.at === st.key || HEn.at === st.ck); // the home end's name, like the Kop's
     const signText = fac.sign || (named ? SP.title : homeNamed ? HEn.name : ""), signAt = named || homeNamed ? "roof" : fac.signAt;
     if (signText && !DRY){ // lettering on the outside wall, or along the roof front facing the play
       let si = midI;

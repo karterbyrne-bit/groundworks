@@ -94,7 +94,7 @@ function syncUI(){
   $("scenery").checked = S.scenery !== "model"; $("crowd").checked = S.crowd !== false; $("night").checked = !!S.night; $("seeThrough").checked = !!S.seeThrough;
   { const AW = awayOf(), fillPct = Math.round(100*(S.crowdFill == null ? 0.93 : S.crowdFill));
     $("crowdBox").hidden = S.crowd === false; $("crowdFill").value = fillPct; $("o-crowdFill").textContent = fillPct + "%";
-    const opts = tdSides(), HEs = homeEndOf(), AL = LAST && LAST.awayAlloc;
+    const HEs = homeEndOf(), AL = LAST && LAST.awayAlloc, opts = tdSides().concat(CORNERS.filter(c => (AL && AL.corners || []).includes(c.key) || c.key === AW.at || c.key === HEs.at).map(c => [c.key, c.name.toLowerCase()]));
     $("awayOn").checked = AW.on; $("awayRows").hidden = !AW.on;
     $("awayAt").innerHTML = opts.map(([k, n]) => `<option value="${k}"${k === AW.at ? " selected" : ""}>${esc(n)}</option>`).join("");
     $("awayAnchor").value = AW.anchor; $("awayGap").value = AW.gap; $("o-awayGap").textContent = AW.gap ? AW.gap + " m" : "none";
