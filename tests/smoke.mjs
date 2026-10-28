@@ -325,6 +325,10 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.check("#homeTifo"); await page.fill("#homeTexts", "never walk alone, since 1892"); await page.waitForTimeout(400);
   check(errors.length === 0 && (await page.evaluate(() => window.__gw.state().homeEnd.texts)) === "NEVER WALK ALONE, SINCE 1892", "the home end can have banners and a card display");
   await page.uncheck("#homeTifo");
+  // either end can go in a corner
+  await page.selectOption("#awayAt", "NE"); await page.selectOption("#homeAt", "SW"); await page.waitForTimeout(400); await page.waitForFunction(() => !window.__gw.busy());
+  const ce = await page.evaluate(() => ({seats: window.__gw.last().awayAlloc.seats, he: window.__gw.state().homeEnd.at}));
+  check(ce.seats > 500 && ce.he === "SW" && errors.length === 0, `the away end and the home end can each go in a corner (${Math.round(ce.seats)} away fans)`);
   await page.uncheck("#awayOn"); await page.selectOption("#homeAt", "");
   // a round field round a wrestleball pitch
   await page.click('#panes [data-pane="start"]'); await page.click('[data-p="wrestle"]'); await page.waitForTimeout(300); await page.click('#panes [data-pane="ground"]');

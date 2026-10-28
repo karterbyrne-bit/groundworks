@@ -217,7 +217,7 @@ renderer.domElement.addEventListener("pointerup", e => {
   if (picking){
     const hits = ray.intersectObjects(group.children.filter(m => m.userData.seat), false);
     if (!hits.length){ tipEl.innerHTML = "<b>That's not a seat.</b> Click on the coloured seating."; return; }
-    const he = homeEndOf().at; seatView(hits[0].point, ["terrace","rail"].includes(hits[0].object.userData.kind) || (!!he && standAt(hits[0].point) === he));
+    const he = homeEndOf().at; seatView(hits[0].point, ["terrace","rail"].includes(hits[0].object.userData.kind) || (!!he && (standAt(hits[0].point) === he || inCorner(he, hits[0].point.x, hits[0].point.z))));
     return;
   }
   if (look) return;

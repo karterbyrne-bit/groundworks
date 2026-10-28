@@ -50,11 +50,14 @@ function clearCrowdNear(eye){
 const AWAY = {on:false, colour:"#f2f2f2", at:"W", anchor:"middle", count:null, gap:3};
 const awayOf = () => Object.assign({}, AWAY, S.away || {});
 const homeEndOf = () => Object.assign({at:"", name:"", flags:true, banners:true, tifo:false, texts:""}, S.homeEnd || {});
-/* Which rows of seats belong to a stand, or a side of a bowl, and where each sits along it as the fans there see it
-   (u grows to their right). */
+/* A corner as an end: every seat beyond both the end of the play and its side, whichever stand or bowl it belongs to. */
+const cornerDir = at => { const c = CORNERS.find(c => c.key === at); return c ? [SIDE_DIR[c.a][0] + SIDE_DIR[c.b][0], SIDE_DIR[c.a][1] + SIDE_DIR[c.b][1]] : null; };
+function inCorner(at, x, z, F){ const d = cornerDir(at); if (!d) return false; F = F || field(); return x*d[0] > F.W/2 && z*d[1] > F.H/2; }
+/* Which rows of seats belong to a stand, a side of a bowl or a corner, and where each sits along it as the fans there
+   see it (u grows to their right). */
 function standRecs(recs, at){
-  const dir = SIDE_DIR[at];
-  let list = recs.filter(r => !r.floor && r.seats > 0 && (r.stand === at || (dir && r.stand === "B" && (r.x*dir[0] + r.z*dir[1]) > 0.55*Math.hypot(r.x, r.z))));
+  const dir = SIDE_DIR[at], F = cornerDir(at) && field();
+  let list = recs.filter(r => !r.floor && r.seats > 0 && (r.stand === at || (dir && r.stand === "B" && (r.x*dir[0] + r.z*dir[1]) > 0.55*Math.hypot(r.x, r.z)) || (F && inCorner(at, r.x, r.z, F))));
   if (!list.length) return [];
   let n = dir; if (!n){ const cx = list.reduce((a, r) => a + r.x, 0)/list.length, cz = list.reduce((a, r) => a + r.z, 0)/list.length, l = Math.hypot(cx, cz) || 1; n = [cx/l, cz/l]; }
   for (const r of list) r.u = -r.x*n[1] + r.z*n[0];
@@ -63,7 +66,7 @@ function standRecs(recs, at){
 function allocateAway(recs){
   for (const r of recs){ r.away = false; r.empty = false; r.home = false; }
   const HE = homeEndOf(); if (HE.at) for (const r of standRecs(recs, HE.at)) r.home = true; // the stand and its side of the bowl below
-  const A = awayOf(), out = {seats:0, gap:0}; if (!A.on) return out;
+  const A = awayOf(), out = {seats:0, gap:0, corners: isRing() ? [] : CORNERS.filter(c => standRecs(recs, c.key).length).map(c => c.key)}; if (!A.on) return out;
   const list = standRecs(recs, A.at); if (!list.length) return out;
   const us = list.map(r => r.u), lo = Math.min(...us), hi = Math.max(...us), u0 = A.anchor === "left" ? lo : A.anchor === "right" ? hi : (lo + hi)/2;
   const total = recs.reduce((a, r) => a + (r.seats || 0), 0), want = A.count != null ? A.count : Math.min(3000, Math.round(total*0.1));
