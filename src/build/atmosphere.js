@@ -225,7 +225,7 @@ function plainScenery(){ setGroundMap(null); fogReach(); }
 function applyMood(){
   const night = !!S.night;
   hemi.intensity = night ? LUX.nightHemi : LUX.hemi; sun.intensity = night ? LUX.nightSun : LUX.sun; fill.intensity = night ? LUX.nightFill : LUX.fill;
-  scene.environmentIntensity = night ? LUX.nightEnv : LUX.env;
+  scene.environmentIntensity = night ? LUX.nightEnv : LUX.env; renderer.toneMappingExposure = night ? LUX.nightExposure : LUX.exposure;
   /* The sun's place in the sky from the time of day: up in the east in the morning, high at lunchtime, low and golden in
      the evening, with long shadows. Without a time set it stays where it always was. */
   sun.color.set(0xffffff); hemi.color.set(0xffffff);

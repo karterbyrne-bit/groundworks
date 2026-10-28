@@ -289,9 +289,10 @@ function drawAO(){
 }
 /* Light levels for a day match, the golden evening and a night match, kept in one place so the look can be tuned.
    They're physical units: the sun is about three times the old numbers, and floodlights don't fade with distance
-   (the real ones are aimed and focused, so the far touchline is lit as well as the near one). */
+   (the real ones are aimed and focused, so the far touchline is lit as well as the near one). At night the camera is
+   stopped down and the sky light all but goes, so the floodlit pitch glows against dark stands instead of washing out. */
 const LUX = {exposure:1.15, sun:3.3, fill:0.6, hemi:0.7, env:0.7, eveSun:3.1, eveHemi:0.85, eveEnv:0.8,
-  nightSun:0.08, nightFill:0.05, nightHemi:0.16, nightEnv:0.1, flood:5.5, arena:5.5, arenaHigh:2};
+  nightExposure:0.9, nightSun:0.08, nightFill:0.05, nightHemi:0.08, nightEnv:0.05, flood:2.6, arena:3.5, arenaHigh:2};
 renderer.toneMappingExposure = LUX.exposure;
 const hemi = new THREE.HemisphereLight(0xffffff, 0x4a554c, LUX.hemi); scene.add(hemi);
 /* A soft sky for shiny things to reflect: glass, metal cladding and steel pick up a bright horizon and a darker ground,
