@@ -10,7 +10,7 @@ document.addEventListener("keydown", e => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest("input, select, textarea, [contenteditable]") || welcome.open || help.open || profileBox.open) return;
   const k = e.key, panes = [...document.querySelectorAll("#panes [data-pane]")];
   if (k === "?"){ openSheet(help); }
-  else if (/^[1-7]$/.test(k)) showPane(panes[+k - 1].dataset.pane);
+  else if (/^[1-6]$/.test(k)) showPane(panes[+k - 1].dataset.pane);
   else if (k === "a") goCam("aerial");
   else if (k === "p") goCam("plan");
   else if (k === "f") goCam("seat");
@@ -30,7 +30,7 @@ function syncUI(){
     : lay === "ring" ? "Any number of separate stands round the ground, each its own design. Set how many under Stands."
     : lay === "bowl" ? "One continuous bowl. Under Stands you can leave out a side, for a horseshoe, or give each side its own depth." : "Four separate stands, joined by corners if you want them.";
   $("sportNote").textContent = F.note;
-  $("customFloor").hidden = !F.custom;
+  $("customFloor").hidden = $("floorExact").hidden = !F.custom;
   { const FS = fieldShapeOf(), can = canShapeField(S.sport); $("fieldShapeBox").hidden = !can; $("fieldShape").value = FS.shape;
     $("fieldMarginRow").hidden = $("fieldShapeHint").hidden = FS.shape === "pitch"; $("fieldMargin").value = FS.margin; $("o-fieldMargin").textContent = FS.margin + " m"; }
   $("kinds").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.kind === S.custom.kind)));
@@ -94,7 +94,7 @@ function syncUI(){
   $("scenery").checked = S.scenery !== "model"; $("crowd").checked = S.crowd !== false; $("night").checked = !!S.night; $("seeThrough").checked = !!S.seeThrough;
   { const AW = awayOf(), fillPct = Math.round(100*(S.crowdFill == null ? 0.93 : S.crowdFill));
     $("crowdBox").hidden = S.crowd === false; $("crowdFill").value = fillPct; $("o-crowdFill").textContent = fillPct + "%";
-    const opts = tdSides(), HEs = homeEndOf(), AL = LAST && LAST.awayAlloc;
+    const HEs = homeEndOf(), AL = LAST && LAST.awayAlloc, opts = tdSides().concat(CORNERS.filter(c => (AL && AL.corners || []).includes(c.key) || c.key === AW.at || c.key === HEs.at).map(c => [c.key, c.name.toLowerCase()]));
     $("awayOn").checked = AW.on; $("awayRows").hidden = !AW.on;
     $("awayAt").innerHTML = opts.map(([k, n]) => `<option value="${k}"${k === AW.at ? " selected" : ""}>${esc(n)}</option>`).join("");
     $("awayAnchor").value = AW.anchor; $("awayGap").value = AW.gap; $("o-awayGap").textContent = AW.gap ? AW.gap + " m" : "none";

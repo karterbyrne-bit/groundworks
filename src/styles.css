@@ -98,6 +98,7 @@ details summary::after{content:"+";font-family:var(--f-mono);color:var(--muted)}
 details[open] summary::after{content:"–"}
 details summary small{font-family:var(--f-mono);font-weight:400;color:var(--muted);font-size:11.5px;margin-left:auto}
 details .inner{padding:4px 12px 12px;display:flex;flex-direction:column;gap:10px}
+details.group{gap:0}
 .limits{display:grid;gap:8px}
 .limits label{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:8px;font-size:12.5px}
 .limits label span:last-child{font-family:var(--f-mono);font-size:11px;color:var(--muted);width:44px}
@@ -108,12 +109,14 @@ details .inner{padding:4px 12px 12px;display:flex;flex-direction:column;gap:10px
 .view.picking canvas{cursor:crosshair}
 .view.edge-ew canvas{cursor:ew-resize}
 .view.edge-ns canvas{cursor:ns-resize}
-.cams{position:absolute;top:12px;right:max(12px, env(safe-area-inset-right,0px));display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 24px)}
+.viewbar{position:absolute;top:12px;left:max(12px, env(safe-area-inset-left,0px));right:max(12px, env(safe-area-inset-right,0px));display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;pointer-events:none}
+.viewbar > *{pointer-events:auto}
+.cams,.shows{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;min-width:0}
 .stadium-title{position:absolute;right:max(12px, env(safe-area-inset-right,0px));bottom:10px;margin:0;max-width:45%;font-family:var(--f-display);font-weight:800;font-size:22px;letter-spacing:.02em;text-transform:uppercase;color:var(--ink);background:color-mix(in srgb, var(--panel) 82%, transparent);padding:2px 10px;border-radius:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 #spNames{width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);resize:vertical}
-.cams button{font:inherit;font-size:12px;font-weight:500;padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
-.cams button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
-.cams button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.cams button,.shows button{font:inherit;font-size:12px;font-weight:500;padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+.cams button[aria-pressed="true"],.shows button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.cams button:focus-visible,.shows button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .tip{position:absolute;left:max(12px, env(safe-area-inset-left,0px));bottom:10px;right:12px;font-family:var(--f-mono);font-size:11px;color:var(--muted);margin:0}
 .tip:not(:empty){right:auto;max-width:calc(100% - 24px);background:color-mix(in srgb, var(--panel) 82%, transparent);padding:3px 8px;border-radius:6px;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
 .tip b{color:var(--ink);font-weight:500}
@@ -193,12 +196,16 @@ table.tiers .lo{color:var(--bad, #c0392b);font-weight:500}
   .topbar{padding:8px max(16px, env(safe-area-inset-right,0px)) 4px max(16px, env(safe-area-inset-left,0px))}
   .topbar h1{font-size:20px}
   .panebody{padding-right:max(16px, env(safe-area-inset-right,0px));padding-block:14px 32px}
-  .panes button{padding:8px 8px 9px;font-size:12.5px}
-  .cams{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;left:max(8px, env(safe-area-inset-left,0px));right:8px;top:8px;max-width:none;scrollbar-width:none}
+  .panes{gap:0;padding-inline:max(4px, env(safe-area-inset-left,0px)) 4px}
+  .panes button{padding:8px 3px 9px;font-size:12px;flex:1 1 auto}
+  .viewbar{top:8px;left:max(8px, env(safe-area-inset-left,0px));right:8px;flex-direction:column;align-items:stretch}
+  .cams{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;scrollbar-width:none}
   .cams::-webkit-scrollbar{display:none}
-  .cams button{flex:none;padding:5px 9px}
+  .shows{align-self:flex-start;flex-wrap:nowrap}
+  .cams button,.shows button{flex:none;padding:5px 9px}
+  .more,.bookmarks{top:86px}
   .tip{display:none}
-  .tip.msg{display:block;top:46px;bottom:auto !important;left:8px;right:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:11.5px;color:var(--ink)}
+  .tip.msg{display:block;top:84px;bottom:auto !important;left:8px;right:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:11.5px;color:var(--ink)}
   .hud{bottom:8px;padding:5px 9px}
   .hud b{font-size:18px}
   .cap .big{font-size:44px}
@@ -244,7 +251,7 @@ textarea{width:100%;box-sizing:border-box;font-family:var(--f-mono);font-size:11
 body.present .panel,body.present .readout{display:none}
 body.present .app{grid-template-columns:1fr}
 body.present .stage{grid-template-rows:1fr}
-body.present .cams,body.present .tip{display:none}
+body.present .viewbar,body.present .tip{display:none}
 body.present .exitp{display:flex;gap:6px;position:absolute;top:12px;right:max(12px, env(safe-area-inset-right,0px))}
 .veil{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .9s ease}
 .veil.on{opacity:1}
@@ -273,10 +280,10 @@ body.present .exitp{display:flex;gap:6px;position:absolute;top:12px;right:max(12
 
 /* ================= polish: motion, touch, new surfaces ================= */
 :root{--ease:cubic-bezier(.2,.8,.2,1);--shadow:0 10px 30px rgba(15,25,20,.18),0 2px 6px rgba(15,25,20,.08)}
-.btn,.cams button,.more button,.tabs button,.panes button,.seg label,.seg button,.swatches button,.savelist button,.chip button,.hud,.mini{transition:background-color .18s var(--ease),border-color .18s var(--ease),color .18s var(--ease),box-shadow .18s var(--ease),transform .12s var(--ease)}
-.btn:active:not(:disabled),.cams button:active,.tabs button:active,.hud:active,.savelist button:active,.mini:active{transform:scale(.97)}
+.btn,.cams button,.shows button,.more button,.tabs button,.panes button,.seg label,.seg button,.swatches button,.savelist button,.chip button,.hud,.mini{transition:background-color .18s var(--ease),border-color .18s var(--ease),color .18s var(--ease),box-shadow .18s var(--ease),transform .12s var(--ease)}
+.btn:active:not(:disabled),.cams button:active,.shows button:active,.tabs button:active,.hud:active,.savelist button:active,.mini:active{transform:scale(.97)}
 .swatches button:hover{transform:scale(1.08)}
-.cams button:hover{border-color:var(--accent)}
+.cams button:hover,.shows button:hover{border-color:var(--accent)}
 .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:500;text-align:center}
 .btn.primary:hover{filter:brightness(1.08)}
 .btn.icon{display:inline-grid;place-items:center;width:32px;height:32px;padding:0;text-align:center}
@@ -336,6 +343,7 @@ body.present .exitp{display:flex;gap:6px;position:absolute;top:12px;right:max(12
 .sheet[open]{animation:sheetIn .3s var(--ease)}
 @keyframes sheetIn{from{opacity:0;transform:translateY(12px) scale(.98)}}
 .sheet .lede{margin:0 0 14px;line-height:1.5}
+.sheet .lede + .hint{margin:-8px 0 14px}
 .steps{margin:0 0 14px;padding:0;list-style:none;counter-reset:s;display:grid;gap:10px}
 .steps li{counter-increment:s;display:grid;grid-template-columns:28px 1fr;column-gap:10px;line-height:1.4}
 .steps li::before{content:counter(s);grid-row:span 2;width:26px;height:26px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:500;font-size:13px}
@@ -352,10 +360,11 @@ kbd{font-family:var(--f-mono);font-size:11px;padding:1px 6px;border:1px solid va
 
 /* comfortable tap targets on touch screens */
 @media (pointer:coarse){
-  .btn.small,.savelist button,.mini,.cams button,.more button,.chip button{min-height:36px}
+  .btn.small,.savelist button,.mini,.cams button,.shows button,.more button,.chip button{min-height:36px}
   .btn.icon{width:38px;height:38px}
   .seg label,.seg button{padding-block:10px}
   .tabs button{padding:8px 12px}
+  details.group > summary{padding-block:12px}
   .toggle input{width:20px;height:20px}
   .row input[type=range]{height:28px}
   .swatches button{width:36px;height:36px}
