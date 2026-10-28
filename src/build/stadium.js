@@ -717,7 +717,7 @@ function build(){
       const live = info.filter(Boolean), needTop = Math.max(...live.map(x => x.top)) + lift, spanRef = Math.max(...live.map(spanOf));
       roofNeedMax = Math.max(roofNeedMax, needTop);
       const levelBase = alignTop != null ? Math.max(alignTop, needTop) : needTop;
-      const RR = info.map(x => { if (!x) return null; const outer = x.back + 1.5, inner = Math.min(outer - 2, x.front - rf.reach);
+      const RR = info.map((x, i) => { if (!x || !roofCovers(rf, cum[i], lenTotal, closed)) return null; const outer = x.back + 1.5, inner = Math.min(outer - 2, x.front - rf.reach);
         const span = level ? spanRef : outer - inner, base = level ? levelBase : x.top + lift;
         if (gable){ const ridge = base + Math.tan(24*Math.PI/180)*span/2; return {inner, outer, y:f => f < .5 ? lerp(base, ridge, f*2) : lerp(ridge, base, (f-.5)*2), yIn:base, yOut:base}; }
         const yIn = base + tilt*span, amp = (rf.curve || 0)*span*0.2;
@@ -780,7 +780,7 @@ function build(){
         const g = pt(i, a.outer); grow(g[0], g[1]);
       }
       if (!closed){
-        for (const i of [0, m-1]){ const a = RR[i]; if (!a) continue;
+        for (const i of [RR.findIndex(Boolean), RR.length - 1 - RR.slice().reverse().findIndex(Boolean)]){ const a = RR[i]; if (!a) continue;
           if (gable) tri(clad, V(i,a.inner,a.y(0)), V(i,at(a,.5),a.y(.5)), V(i,a.outer,a.y(1)));
           if (rf.support === "truss"){ const tg = tangent(i), s = i ? 1.6 : -1.6, q = pt(i, a.inner + .8); post(buf("steel"), q[0] + tg[0]*s, q[1] + tg[1]*s, 0, a.y(0) + 3.2, 1.6); viewPosts.push({x:q[0] + tg[0]*s, z:q[1] + tg[1]*s, r:.8, y0:0, y1:a.y(0) + 3.2, cause:"pillar"}); } }
         const leitchGable = fac.gable && sty.era === "Traditional" && RR[midI];

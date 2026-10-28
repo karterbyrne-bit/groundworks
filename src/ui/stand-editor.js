@@ -89,6 +89,7 @@ function roofBlock(cfg, bowl){
   return `<details class="sub" open><summary>Roof</summary><div class="inner">
     ${pick("Shape", "roof.shape", rf.shape, shapes)}
     ${on ? `${pick("Material", "roof.mat", rf.mat, ROOF_MATS)}${pick("Structure", "roof.support", rf.support, ROOF_SUPPORTS)}
+    ${bowl ? "" : pair("Roof starts along the stand", "roof.coverFrom", Math.round((rf.coverFrom || 0)*100), 0, 90, 5, "%") + pair("Roof ends along the stand", "roof.coverTo", Math.round((rf.coverTo == null ? 1 : rf.coverTo)*100), 10, 100, 5, "%", "Measured from the left-hand end, looking at the stand from the pitch. Cover just the middle, or stop short of one end.")}
     ${pair("Reaches past the front row", "roof.reach", rf.reach, -40, 40, 0.5, "m", "Negative leaves the front rows open.")}
     ${rf.support !== "toptruss" ? check("A big steel truss along the top of the roof (like Old Trafford's)", "roof.topTruss", !!rf.topTruss) : ""}
     ${check("Level roofline (one straight height along the stand)", "roof.level", rf.level !== false)}
@@ -279,7 +280,7 @@ function setPath(obj, path, val){
   const parts = path.split("."); if (parts[0] === "cc"){ obj = {tiers:S.cornerCustom}; parts.shift(); }
   let o = obj; for (let i=0;i<parts.length-1;i++) o = o[parts[i]] = o[parts[i]] || {};
   const last = parts[parts.length-1];
-  if (last === "curve" || last === "opening" || last === "entryAt" || last === "edge") val = val/100;
+  if (last === "curve" || last === "opening" || last === "entryAt" || last === "edge" || last === "coverFrom" || last === "coverTo") val = val/100;
   o[last] = val;
 }
 $("editor").addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.more){ if (d.open) openMore.add(d.dataset.more); else openMore.delete(d.dataset.more); } }, true);
