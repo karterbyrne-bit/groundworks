@@ -59,7 +59,7 @@ const bowlGone = k => !!(S.bowl.removed && S.bowl.removed[k]);
 function bowlPiece(tag, nc){
   const tot = 4*(nc+1), tg = ((tag % tot) + tot) % tot, g = Math.min(3, Math.floor(tg/(nc+1))), loc = tg - g*(nc+1);
   return loc <= nc + 1e-6 ? {key:GROUP_KEY[g], corner:true, f: nc ? Math.min(1, loc/nc) : 0.5, before:CORNER_BEFORE[g], after:CORNER_AFTER[g]}
-    : {key:CORNER_AFTER[g], corner:false};
+    : {key:CORNER_AFTER[g], corner:false, f: loc - nc}; // f: how far along the side, corner to corner
 }
 const sideRowsOf = (tr, s) => S.bowl.varyRows && tr.sideRows && tr.sideRows[s] != null ? Math.max(0, tr.sideRows[s]) : tr.rows;
 const sideTypeOf = (tr, s) => S.bowl.varyRows && tr.sideType && TYPES[tr.sideType[s]] ? tr.sideType[s] : tr.type;
@@ -68,6 +68,14 @@ const onSide = (tr, s) => Object.assign({}, tr, {type:sideTypeOf(tr, s), rows:si
 /* The bowl's tiers at one point round the ring: that side's seating and rows, a blend in a corner, or nothing where it's
    left out. A corner between two kinds of seating blends the depth and keeps the roomier kind (seats over terracing) all the way round. */
 function bowlTiersAt(tag, nc){
+  const T = bowlTiersFlat(tag, nc); if (!T.some(t => t.taper)) return T;
+  /* A tier can slope down towards the corners, like the Emirates' upper tier: deepest at the middle of each side, then
+     falling away smoothly so the corners have the fewest rows. */
+  const pc = bowlPiece(tag, nc), d = pc.corner ? 1 : Math.abs(2*pc.f - 1);
+  const k = (1 - Math.cos(Math.PI*d))/2; // eases in at the middle and out into the corner, so there's no kink at either
+  return T.map(t => t.taper ? Object.assign({}, t, {rows: t.rows*(1 - t.taper*k)}) : t);
+}
+function bowlTiersFlat(tag, nc){
   const pc = bowlPiece(tag, nc), T = S.bowl.tiers;
   if (bowlGone(pc.key)) return withRows(T, () => 0);
   if (!S.bowl.varyRows) return T;
