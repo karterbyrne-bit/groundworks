@@ -10,7 +10,7 @@ document.addEventListener("keydown", e => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest("input, select, textarea, [contenteditable]") || welcome.open || help.open) return;
   const k = e.key, panes = [...document.querySelectorAll("#panes [data-pane]")];
   if (k === "?"){ openSheet(help); }
-  else if (/^[1-7]$/.test(k)) showPane(panes[+k - 1].dataset.pane);
+  else if (/^[1-6]$/.test(k)) showPane(panes[+k - 1].dataset.pane);
   else if (k === "a") goCam("aerial");
   else if (k === "p") goCam("plan");
   else if (k === "f") goCam("seat");
@@ -30,7 +30,7 @@ function syncUI(){
     : lay === "ring" ? "Any number of separate stands round the ground, each its own design. Set how many under Stands."
     : lay === "bowl" ? "One continuous bowl. Under Stands you can leave out a side, for a horseshoe, or give each side its own depth." : "Four separate stands, joined by corners if you want them.";
   $("sportNote").textContent = F.note;
-  $("customFloor").hidden = !F.custom;
+  $("customFloor").hidden = $("floorExact").hidden = !F.custom;
   { const FS = fieldShapeOf(), can = canShapeField(S.sport); $("fieldShapeBox").hidden = !can; $("fieldShape").value = FS.shape;
     $("fieldMarginRow").hidden = $("fieldShapeHint").hidden = FS.shape === "pitch"; $("fieldMargin").value = FS.margin; $("o-fieldMargin").textContent = FS.margin + " m"; }
   $("kinds").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.kind === S.custom.kind)));

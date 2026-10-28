@@ -78,6 +78,16 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(await page.locator("#welcome").evaluate(d => d.open), "welcome card greets a first-time visitor");
   await page.click("#welcome .btn.primary");
   const cap = () => page.evaluate(() => window.__gw.last().total);
+  // the layout: six section tabs that fit without scrolling, folded groups of controls, Night match and the flyover in reach
+  check(await page.locator("#panes [data-pane]").count() === 6 && await page.$eval("#panes", n => n.scrollWidth <= n.clientWidth + 1), "the six section tabs fit without scrolling");
+  check(await page.$$eval('details[data-keep^="look-"]', ds => ds.map(d => d.open).join()) === "true,false,false,false,false", "only the first group of the Look tab starts open");
+  check(await page.$$eval('details[data-keep^="rules-"], #groundMore', ds => ds.length === 4 && ds.every(d => !d.open)), "the rules and the Ground tab's Advanced section start shut");
+  check(await page.locator("#nightBtn").isVisible() && await page.locator('.shows [data-fly="play"]').isVisible(), "Night match and Kick-off flyover sit over the 3D view");
+  await page.click("#nightBtn"); await page.waitForTimeout(300); const nightOn = await page.evaluate(() => window.__gw.state().night);
+  await page.click("#nightBtn"); await page.waitForTimeout(300);
+  check(nightOn === true && !(await page.evaluate(() => window.__gw.state().night)), "the Night match button switches the lights on and off");
+  await page.$$eval("details[data-keep]", ds => ds.forEach(d => { d.open = true; })); await page.waitForTimeout(200); // open for the clicks below
+  check(await page.evaluate(() => { const o = JSON.parse(localStorage.getItem("groundworks-open") || "{}"); return ["look-crowd", "look-pitchside", "ground-advanced", "rules-safety"].every(k => o[k] === true) && Object.values(o).every(Boolean); }), "the app remembers which groups were opened");
   check((await cap()) > 1000, "default stadium has a capacity");
 
   await page.click('[data-p="wrestle"]'); await page.waitForTimeout(300);
@@ -281,7 +291,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.click("#undoBtn"); await page.waitForTimeout(300);
   check((await page.evaluate(() => JSON.stringify(window.__gw.state()))) === beforeRandom, "Undo goes back to the previous design");
 
-  for (const pane of ["ground", "stands", "look", "results", "rules", "start"]) await page.click(`#panes [data-pane="${pane}"]`);
+  for (const pane of ["ground", "stands", "look", "results", "details", "start"]) await page.click(`#panes [data-pane="${pane}"]`);
   check(await page.locator('#panebody > [data-pane="start"].on').first().isVisible(), "section tabs switch");
 
   await page.click('#panes [data-pane="results"]');
@@ -344,7 +354,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.check("#dgOn"); await page.waitForTimeout(300);
   for (const style of ["sunk", "seats", "bubble"]){ await page.selectOption("#dgStyle", style); await page.waitForTimeout(300); }
   check(errors.length === 0 && (await page.evaluate(() => window.__gw.state().dugouts.style)) === "bubble", "dugouts can be perspex, sunk into the stand or padded seats");
-  await page.click('#panes [data-pane="rules"]'); const em0 = await page.evaluate(() => window.__gw.last().slowestEm);
+  await page.click('#panes [data-pane="details"]'); const em0 = await page.evaluate(() => window.__gw.last().slowestEm);
   await page.evaluate(() => { const el = document.getElementById("emergEvery"); el.value = "20"; el.dispatchEvent(new Event("input", {bubbles:true})); }); await page.waitForTimeout(300);
   check((await page.evaluate(() => window.__gw.last().slowestEm)) < em0, "emergency exits at the back of the tiers speed up an evacuation");
   // wheelchair spaces meet the guidance when switched on; emergency vehicles get a way onto the pitch
@@ -366,7 +376,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.locator('select[data-p="facilities"]').selectOption("premium"); await page.waitForTimeout(300);
   check(errors.length === 0 && /premium/.test(await page.evaluate(() => JSON.stringify(window.__gw.state()))), "a stand's facilities can be chosen");
   // each stand can set its own wheelchair platforms, and a roof can have a see-through strip at the front
-  await page.click('#panes [data-pane="rules"]'); await page.check("#acOn"); await page.waitForTimeout(400); const wc0 = await page.evaluate(() => window.__gw.last().wheelchair);
+  await page.click('#panes [data-pane="details"]'); await page.check("#acOn"); await page.waitForTimeout(400); const wc0 = await page.evaluate(() => window.__gw.last().wheelchair);
   await page.click('#panes [data-pane="stands"]'); await page.waitForTimeout(200);
   const accCount = page.locator('input[type=number][data-p="access.count"]').first();
   if (!(await accCount.isVisible())) await page.locator('details.sub', {hasText:"Facilities, access and fire risk"}).locator("summary").first().click();
@@ -375,7 +385,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   const edgeBox = page.locator('input[type=number][data-p="roof.edge"]').first();
   if (await edgeBox.count()){ await edgeBox.fill("40"); await edgeBox.press("Tab"); await page.waitForTimeout(300);
     check(/"edge":0.4/.test(await page.evaluate(() => JSON.stringify(window.__gw.state()))) && errors.length === 0, "a roof can have a see-through strip along its front"); }
-  await page.click('#panes [data-pane="rules"]'); await page.uncheck("#acOn");
+  await page.click('#panes [data-pane="details"]'); await page.uncheck("#acOn");
   await page.click('#panes [data-pane="look"]'); await page.uncheck("#tnOn"); await page.uncheck("#dgOn");
   // the pitch-side boards can be set further back
   if (!(await page.locator("#boards").isChecked())) await page.check("#boards");

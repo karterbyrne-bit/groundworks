@@ -125,7 +125,7 @@ const ARCH_ACTS = {
   boxes:() => { showPane("stands"); return "nochange"; },
   access:() => { S.access = Object.assign(accessOf(), {on:true}); },
   vehicle:() => { const opts = tdSides(); S.vehicle = Object.assign(vehicleOf(), {on:true, at: opts.some(o => o[0] === "W") ? "W" : (opts[0] || ["N"])[0]}); },
-  name:() => { showPane("look"); setTimeout(() => $("spTitle").focus(), 50); return "nochange"; }
+  name:() => { showPane("look"); $("spTitle").closest("details").open = true; setTimeout(() => $("spTitle").focus(), 50); return "nochange"; }
 };
 /* The critic's phrasebook: the same design always gets the same words, but different designs (and different stands in one
    design) get different ones. */
@@ -225,7 +225,7 @@ function architectNotes(D){
   if (evac > L.maxEvac*0.85 && evac <= L.maxEvac) note("tip", `The slowest stand takes ${evac.toFixed(1)} minutes to empty, close to the ${L.maxEvac}-minute limit. A few more exits would give some slack.`, "exits", "Add exits");
   // wheelchair spaces and a way in for emergency vehicles
   const need = wheelchairNeed(D.total), AC = accessOf();
-  if (!AC.on) note("tip", `No wheelchair spaces yet. A ground this size should have about ${need}. Switch them on under Rules.`, "access", "Add wheelchair spaces");
+  if (!AC.on) note("tip", `No wheelchair spaces yet. A ground this size should have about ${need}. Switch them on under Details.`, "access", "Add wheelchair spaces");
   if (!vehicleOf().on && (lay === "bowl" || lay === "hybrid" || corners === 4)) note("warn", "There's no way for an ambulance or fire engine to drive onto the pitch. Add an emergency vehicle entrance through one of the stands.", "vehicle", "Add one");
   // facilities, stand by stand
   const fac = cfgs.map(c => facilitiesOf(c)), basic = fac.filter(f => f === "basic").length;
@@ -342,6 +342,7 @@ function fixAll(){
 let pane = "start";
 try { pane = localStorage.getItem("groundworks-pane") || "start"; } catch(e) {}
 function showPane(name, keepScroll){
+  if (name === "stats" || name === "rules") name = "details"; // the two tabs that became one
   if (!document.querySelector(`#panes [data-pane="${name}"]`)) name = "start";
   pane = name;
   document.querySelectorAll("#panes [data-pane]").forEach(b => { b.setAttribute("aria-selected", String(b.dataset.pane === name)); b.tabIndex = b.dataset.pane === name ? 0 : -1; });
@@ -356,6 +357,11 @@ document.getElementById("panes").addEventListener("keydown", e => {
   if (j < 0) return; e.preventDefault(); tabs[j].focus(); showPane(tabs[j].dataset.pane);
 });
 document.getElementById("hud").addEventListener("click", () => showPane("results"));
+/* Folding groups of controls (data-keep) remember whether each was left open or shut. */
+let keptOpen = {};
+try { keptOpen = JSON.parse(localStorage.getItem("groundworks-open")) || {}; } catch(e) {}
+document.querySelectorAll("details[data-keep]").forEach(d => { const k = d.dataset.keep; if (k in keptOpen) d.open = !!keptOpen[k];
+  d.addEventListener("toggle", () => { keptOpen[k] = d.open; try { localStorage.setItem("groundworks-open", JSON.stringify(keptOpen)); } catch(e) {} }); });
 function updateHud(){
   if (!LAST) return;
   countTo($("hudCap"), LAST.total);
