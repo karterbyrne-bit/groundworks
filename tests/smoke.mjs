@@ -398,6 +398,15 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(/Architect's notes/.test(await page.locator("#architect").textContent()) && await page.locator("#architect .score").count() === 5, "the architect's notes score the design");
   await page.click('#panes [data-pane="look"]');
 
+  // roof pillars can stand at the front, further back or outside the stand, where they block nobody's view
+  { await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300);
+    await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="N"]'); await page.waitForTimeout(300);
+    const r0 = await page.evaluate(() => window.__gw.last().restricted), c0 = await cap();
+    await page.selectOption('select[data-p="roof.colAt"]', "outside"); await page.waitForTimeout(400); await page.waitForFunction(() => !window.__gw.busy());
+    const r1 = await page.evaluate(() => window.__gw.last().restricted);
+    check(r1 < r0 && (await cap()) === c0 && errors.length === 0, `roof pillars moved outside the stand stop blocking views (${r0} → ${r1} restricted seats)`);
+    await page.selectOption('select[data-p="roof.colAt"]', "front"); await page.waitForTimeout(300); await page.click('#panes [data-pane="look"]'); }
+
   // memory stays flat: picking colour after colour mustn't leave old materials behind
   const memBefore = await page.evaluate(() => window.__gw.memory());
   for (let i = 0; i < 25; i++){ await page.evaluate(i => { const el = document.querySelector('input[type=color][data-p]'); el.value = "#" + (0x204060 + i*0x050301).toString(16); el.dispatchEvent(new Event("input", {bubbles:true})); }, i); await page.waitForTimeout(40); }

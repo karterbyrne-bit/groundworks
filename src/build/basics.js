@@ -109,3 +109,8 @@ function bowlSeatsBySide(recs, F, set){
     out[end ? (r.x > 0 ? "E" : "W") : (r.z < 0 ? "N" : "S")] += r.seats; }
   return out;
 }
+/* Where a stand's roof pillars stand, as a distance out from the front of the stand: at the front of the seats (the old
+   way, right in the view), partway back, along the back row, or outside behind the stand, holding the roof up from
+   beyond it so no seat looks past one. */
+function roofPillarAt(rf, x, a){ const w = rf.colAt || "front";
+  return w === "outside" ? a.outer + 3 : w === "back" ? Math.max(x.front + .6, x.back - .4) : w === "mid" ? lerp(x.front, x.back, .5) : Math.max(a.inner + .6, x.front + .6); }
