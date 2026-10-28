@@ -7,7 +7,7 @@ welcome.addEventListener("close", () => { try { localStorage.setItem("groundwork
 for (const d of [welcome, help]) d.addEventListener("click", e => { // tap outside the card to close
   const r = d.getBoundingClientRect(); if (e.target === d && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) d.close(); });
 document.addEventListener("keydown", e => {
-  if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest("input, select, textarea, [contenteditable]") || welcome.open || help.open) return;
+  if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest("input, select, textarea, [contenteditable]") || welcome.open || help.open || profileBox.open) return;
   const k = e.key, panes = [...document.querySelectorAll("#panes [data-pane]")];
   if (k === "?"){ openSheet(help); }
   else if (/^[1-7]$/.test(k)) showPane(panes[+k - 1].dataset.pane);

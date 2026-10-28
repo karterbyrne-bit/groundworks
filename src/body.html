@@ -39,6 +39,7 @@
       <button class="btn hero" id="randomBtn"><span class="dice" aria-hidden="true">🎲</span><span>Surprise me<small>a random stadium to play with</small></span></button>
       <button class="btn hero" id="shareBtn"><span class="dice" aria-hidden="true">🔗</span><span>Share this design<small>copies a link anyone can open</small></span></button>
       <button class="btn hero" id="imageBtn" data-saveimage><span class="dice" aria-hidden="true">🖼️</span><span>Save as image<small>a picture of this view to share</small></span></button>
+      <button class="btn hero" id="profileBtn"><span class="dice" aria-hidden="true">📖</span><span>Ground profile<small>its encyclopedia page</small></span></button>
     </div>
 
     <section class="group" data-pane="start">
@@ -419,6 +420,10 @@
   </ol>
   <p class="hint">Everything can be undone, and your work saves itself as you go.</p>
   <form method="dialog" class="sheet-acts"><button class="btn primary" value="go">Start building</button></form>
+</dialog>
+<dialog class="sheet profile" id="profile" aria-label="Ground profile">
+  <div class="sheet-acts"><button class="btn" id="profileSave">Save as image</button><button class="btn primary" id="profileClose">Close</button></div>
+  <article id="profileBody"></article>
 </dialog>
 <dialog class="sheet" id="help" aria-labelledby="helpTitle">
   <h2 id="helpTitle">Help and shortcuts</h2>

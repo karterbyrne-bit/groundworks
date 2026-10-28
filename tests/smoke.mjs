@@ -111,6 +111,17 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
       else { check(a.named && a.distinct, `the architect's notes on "${p}" critique each stand by name, each in its own words`); verdicts.add(a.verdict); }
     }
     check(verdicts.size === 3, "the architect gives Old Trafford, the Dell and the bowl different verdicts"); }
+  // the ground profile: an encyclopedia page about the ground, opening differently for each
+  { const leads = new Set();
+    for (const p of ["ot", "dell", "wrestle"]) {
+      await page.evaluate(() => { window.__before = window.__gw.last(); });
+      await page.click(`[data-p="${p}"]`); await page.waitForFunction(() => !window.__gw.busy() && window.__gw.last() !== window.__before);
+      await page.click("#profileBtn"); await page.waitForTimeout(300);
+      const pr = await page.evaluate(() => { const el = document.getElementById("profileBody"), names = window.__gw.last().parts.map(x => x.label);
+        return {open: document.getElementById("profile").open, lead: el.querySelector("p").textContent, named: names.some(n => el.textContent.includes("The " + n + " holds")), text: el.textContent}; });
+      check(pr.open && pr.named && (p !== "wrestle" || /Wrestleball is a contact sport/.test(pr.text)) && errors.length === 0, `the ground profile opens for "${p}" and describes a stand by name`);
+      leads.add(pr.lead); await page.click("#profileClose"); }
+    check(leads.size === 3, "the ground profiles of Old Trafford, the Dell and the Wrestleball ground open differently"); }
   // upper tiers on their own outline, and façade looks
   for (const p of ["oval", "cartuja"]) {
     await page.click(`[data-p="${p}"]`); await page.waitForTimeout(300);
