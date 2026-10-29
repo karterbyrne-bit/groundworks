@@ -412,6 +412,15 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(/Architect's notes/.test(await page.locator("#architect").textContent()) && await page.locator("#architect .score").count() === 5, "the architect's notes score the design");
   await page.click('#panes [data-pane="look"]');
 
+  // the big truss over a roof can arch up and land its legs outside, like Stadium Australia's
+  { await page.click('#panes [data-pane="start"]'); await page.click('[data-p="ot"]'); await page.waitForTimeout(300);
+    await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="N"]'); await page.waitForTimeout(300);
+    const c0 = await cap(), h0 = await page.evaluate(() => window.__gw.last().maxH);
+    await page.check('input[data-p="roof.topTruss"]'); await page.waitForTimeout(300); await page.check('input[data-p="roof.trussArch"]');
+    await page.waitForTimeout(400); await page.waitForFunction(() => !window.__gw.busy());
+    check((await cap()) === c0 && (await page.evaluate(() => window.__gw.last().maxH)) > h0 + 10 && errors.length === 0, "the big roof truss can arch over the stand, like Stadium Australia's");
+    await page.click("#undoBtn"); await page.waitForTimeout(200); await page.click("#undoBtn"); await page.waitForTimeout(300); await page.click('#panes [data-pane="look"]'); }
+
   // a stand's roof can cover just part of its length
   { await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300);
     await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="N"]'); await page.waitForTimeout(300);

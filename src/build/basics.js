@@ -117,6 +117,9 @@ function bowlSeatsBySide(recs, F, set){
     out[end ? (r.x > 0 ? "E" : "W") : (r.z < 0 ? "N" : "S")] += r.seats; }
   return out;
 }
+/* The big truss along the top of a roof can arch up over the stand, like Stadium Australia's: rising to its highest at
+   the middle of the stand, with its legs carrying on down past each end to land on the ground outside the ground. */
+const trussRise = (rf, closed, u, len) => rf.trussArch && !closed ? len*.14*Math.sin(Math.PI*Math.min(1, Math.max(0, u/len))) : 0;
 /* How much of a stand's length its roof covers: all of it by default, or from one point along it to another (as a
    share of the length, from its left-hand end looking at it from the pitch), so a roof can cover just the middle, or stop short. */
 const roofCovers = (rf, u, len, closed) => closed || ((rf.coverFrom || 0) <= u/len + .001 && u/len <= (rf.coverTo == null ? 1 : rf.coverTo) + .001);
