@@ -412,6 +412,14 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(/Architect's notes/.test(await page.locator("#architect").textContent()) && await page.locator("#architect .score").count() === 5, "the architect's notes score the design");
   await page.click('#panes [data-pane="look"]');
 
+  // a bowl tier can slope down towards the corners, like the Emirates' upper tier
+  { await page.click('#panes [data-pane="start"]'); await page.click('[data-p="bowl"]'); await page.waitForTimeout(300);
+    await page.click('#panes [data-pane="stands"]'); await page.waitForTimeout(300); const c0 = await cap();
+    await page.locator('input[type=range][data-p="tiers.2.taper"]').evaluate(el => { el.value = "50"; el.dispatchEvent(new Event("input", {bubbles:true})); el.dispatchEvent(new Event("change", {bubbles:true})); });
+    await page.waitForTimeout(400); await page.waitForFunction(() => !window.__gw.busy()); const c1 = await cap();
+    check(c1 < c0 && c1 > c0*0.7 && !(await page.evaluate(() => window.__gw.last().issues.length)) && errors.length === 0, `a bowl's upper tier can slope down towards the corners (${c0} → ${c1})`);
+    await page.click("#undoBtn"); await page.waitForTimeout(300); await page.click('#panes [data-pane="look"]'); }
+
   // memory stays flat: picking colour after colour mustn't leave old materials behind
   const memBefore = await page.evaluate(() => window.__gw.memory());
   for (let i = 0; i < 25; i++){ await page.evaluate(i => { const el = document.querySelector('input[type=color][data-p]'); el.value = "#" + (0x204060 + i*0x050301).toString(16); el.dispatchEvent(new Event("input", {bubbles:true})); }, i); await page.waitForTimeout(40); }
