@@ -109,3 +109,6 @@ function bowlSeatsBySide(recs, F, set){
     out[end ? (r.x > 0 ? "E" : "W") : (r.z < 0 ? "N" : "S")] += r.seats; }
   return out;
 }
+/* The big truss along the top of a roof can arch up over the stand, like Stadium Australia's: rising to its highest at
+   the middle of the stand, with its legs carrying on down past each end to land on the ground outside the ground. */
+const trussRise = (rf, closed, u, len) => rf.trussArch && !closed ? len*.14*Math.sin(Math.PI*Math.min(1, Math.max(0, u/len))) : 0;

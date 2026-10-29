@@ -755,14 +755,14 @@ function build(){
          the ends of an open stand. A roof support style of its own, or added to any roof on top of its usual support. */
       if (rf.support === "toptruss" || rf.topTruss){
         const sb = buf("steel"), fT = .38, D = 5.5, half = 1.7, live = []; for (let i=0;i<m;i++) if (RR[i]) live.push(i);
-        const P3 = (i, up, side) => { const a = RR[i], q = pt(i, at(a, fT) + side*half); return [q[0], a.y(fT) + .3 + up, q[1]]; };
+        const P3 = (i, up, side) => { const a = RR[i], q = pt(i, at(a, fT) + side*half); return [q[0], a.y(fT) + .3 + up + trussRise(rf, closed, cum[i], lenTotal), q[1]]; };
         for (let n=0;n<live.length;n++){ const i = live[n], j = live[n+1] != null ? live[n+1] : (closed ? live[0] : null); if (j == null || (!closed && j !== i + 1)) continue;
           for (const sd of [-1, 1]){ bar(sb, P3(i, 0, sd), P3(j, 0, sd), .5); bar(sb, P3(i, D, sd), P3(j, D, sd), .5); // the four chords
             bar(sb, n % 2 ? P3(i, 0, sd) : P3(i, D, sd), n % 2 ? P3(j, D, sd) : P3(j, 0, sd), .3); } // diagonals down each face
           bar(sb, P3(i, 0, -1), P3(i, D, -1), .25); bar(sb, P3(i, 0, 1), P3(i, D, 1), .25); // verticals
           bar(sb, P3(i, D, -1), P3(i, D, 1), .22); bar(sb, n % 2 ? P3(i, D, -1) : P3(i, D, 1), n % 2 ? P3(j, D, 1) : P3(j, D, -1), .18); bar(sb, P3(i, 0, -1), P3(i, 0, 1), .22); } // and across
         if (!closed) for (const i of [live[0], live[live.length-1]]) if (i != null){ const tg = tangent(i), s2 = i === live[0] ? -1 : 1, q = P3(i, D, 0), b0 = pt(i, at(RR[i], fT));
-          post(sb, b0[0] + tg[0]*s2*2.5, b0[1] + tg[1]*s2*2.5, 0, q[1] + .5, 1.8); } // end posts carry it to the ground
+          if (rf.trussArch && !closed){ const run = Math.min(70, q[1]/.44), g = [b0[0] + tg[0]*s2*run, 0, b0[1] + tg[1]*s2*run]; for (const sd of [-1, 1]) bar(sb, P3(i, D/2, sd), g, 1.1); } else post(sb, b0[0] + tg[0]*s2*2.5, b0[1] + tg[1]*s2*2.5, 0, q[1] + .5, 1.8); } // end posts (or the arch's legs) carry it to the ground
         topAll = Math.max(topAll, ...live.map(i => P3(i, D, 0)[1] + .5));
       }
       for (let i=0;i<m;i++){ const a = RR[i]; if (!a) continue;

@@ -91,6 +91,7 @@ function roofBlock(cfg, bowl){
     ${on ? `${pick("Material", "roof.mat", rf.mat, ROOF_MATS)}${pick("Structure", "roof.support", rf.support, ROOF_SUPPORTS)}
     ${pair("Reaches past the front row", "roof.reach", rf.reach, -40, 40, 0.5, "m", "Negative leaves the front rows open.")}
     ${rf.support !== "toptruss" ? check("A big steel truss along the top of the roof (like Old Trafford's)", "roof.topTruss", !!rf.topTruss) : ""}
+    ${rf.support === "toptruss" || rf.topTruss ? check("Arch it, with its legs on the ground outside the stand (like Stadium Australia)", "roof.trussArch", !!rf.trussArch) : ""}
     ${check("Level roofline (one straight height along the stand)", "roof.level", rf.level !== false)}
     ${check("Line up every roof in the ground at the same height", "roofAlign", !!S.roofAlign)}
     ${pair(rf.level !== false ? "Height above the tallest row" : "Height above the top row", "roof.lift", rf.lift, 1.5, 40, 0.5, "m")}
@@ -305,7 +306,7 @@ $("editor").addEventListener("input", e => {
       renderEditor(); changed(); return; }
     if (p === "distSame"){ cfgForTab().dist = el.checked ? null : (LAST ? LAST.set : S.setback); renderEditor(); changed(); return; }
     setPath(targetObj(), p, el.checked);
-    if (p.endsWith(".auto")) renderEditor();
+    if (p.endsWith(".auto") || p === "roof.topTruss") renderEditor(); // the truss brings its own options
     changed(); return;
   }
   if (el.type === "color"){ setPath(targetObj(), p, el.value); changed(false, true); return; }
