@@ -233,7 +233,10 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
       return [reg.o[i][0] + d*reg.v[i][0], pr.hs[j], reg.o[i][1] + d*reg.v[i][1]]; });
     if (spot){ await page.evaluate(([x, y, z]) => window.__gw.seat(x, y, z, true), spot); await page.waitForTimeout(300);
       check(errors.length === 0, "the view from a terrace is at standing height with the fans in front cleared");
-      await page.click('[data-cam="aerial"]'); await page.waitForTimeout(300); }
+      const full = () => page.evaluate(() => document.querySelector(".panel").offsetHeight === 0);
+      if (name === "phone") check(await full(), "on a phone the view from a seat fills the screen");
+      await page.click('[data-cam="aerial"]'); await page.waitForTimeout(300);
+      if (name === "phone") check(!(await full()), "Aerial brings the controls back"); }
     await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300); }
   // a famous kind of stand, and saving a stand to reuse
   await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="W"]'); await page.waitForTimeout(200);
