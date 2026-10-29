@@ -233,7 +233,10 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
       return [reg.o[i][0] + d*reg.v[i][0], pr.hs[j], reg.o[i][1] + d*reg.v[i][1]]; });
     if (spot){ await page.evaluate(([x, y, z]) => window.__gw.seat(x, y, z, true), spot); await page.waitForTimeout(300);
       check(errors.length === 0, "the view from a terrace is at standing height with the fans in front cleared");
-      await page.click('[data-cam="aerial"]'); await page.waitForTimeout(300); }
+      const full = () => page.evaluate(() => document.querySelector(".panel").offsetHeight === 0);
+      if (name === "phone") check(await full(), "on a phone the view from a seat fills the screen");
+      await page.click('[data-cam="aerial"]'); await page.waitForTimeout(300);
+      if (name === "phone") check(!(await full()), "Aerial brings the controls back"); }
     await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300); }
   // a famous kind of stand, and saving a stand to reuse
   await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="W"]'); await page.waitForTimeout(200);
@@ -417,6 +420,32 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
     await page.waitForTimeout(400); await page.waitForFunction(() => !window.__gw.busy());
     check((await cap()) === c0 && (await page.evaluate(() => window.__gw.last().maxH)) > h0 + 10 && errors.length === 0, "the big roof truss can arch over the stand, like Stadium Australia's");
     await page.click("#undoBtn"); await page.waitForTimeout(200); await page.click("#undoBtn"); await page.waitForTimeout(300); await page.click('#panes [data-pane="look"]'); }
+
+  // a stand's roof can cover just part of its length
+  { await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300);
+    await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="N"]'); await page.waitForTimeout(300);
+    const cov = () => page.evaluate(() => window.__gw.last().covered), v0 = await cov(), c0 = await cap();
+    await page.locator('input[type=range][data-p="roof.coverTo"]').evaluate(el => { el.value = "50"; el.dispatchEvent(new Event("input", {bubbles:true})); el.dispatchEvent(new Event("change", {bubbles:true})); });
+    await page.waitForTimeout(400); await page.waitForFunction(() => !window.__gw.busy());
+    check((await cov()) < v0 && (await cap()) === c0 && errors.length === 0, "a roof can cover just part of its stand, and fewer fans are under cover");
+    await page.click("#undoBtn"); await page.waitForTimeout(300); await page.click('#panes [data-pane="look"]'); }
+
+  // roof pillars can stand at the front, further back or outside the stand, where they block nobody's view
+  { await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300);
+    await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="N"]'); await page.waitForTimeout(300);
+    const r0 = await page.evaluate(() => window.__gw.last().restricted), c0 = await cap();
+    await page.selectOption('select[data-p="roof.colAt"]', "outside"); await page.waitForTimeout(400); await page.waitForFunction(() => !window.__gw.busy());
+    const r1 = await page.evaluate(() => window.__gw.last().restricted);
+    check(r1 < r0 && (await cap()) === c0 && errors.length === 0, `roof pillars moved outside the stand stop blocking views (${r0} → ${r1} restricted seats)`);
+    await page.selectOption('select[data-p="roof.colAt"]', "front"); await page.waitForTimeout(300); await page.click('#panes [data-pane="look"]'); }
+
+  // a bowl tier can slope down towards the corners, like the Emirates' upper tier
+  { await page.click('#panes [data-pane="start"]'); await page.click('[data-p="bowl"]'); await page.waitForTimeout(300);
+    await page.click('#panes [data-pane="stands"]'); await page.waitForTimeout(300); const c0 = await cap();
+    await page.locator('input[type=range][data-p="tiers.2.taper"]').evaluate(el => { el.value = "50"; el.dispatchEvent(new Event("input", {bubbles:true})); el.dispatchEvent(new Event("change", {bubbles:true})); });
+    await page.waitForTimeout(400); await page.waitForFunction(() => !window.__gw.busy()); const c1 = await cap();
+    check(c1 < c0 && c1 > c0*0.7 && !(await page.evaluate(() => window.__gw.last().issues.length)) && errors.length === 0, `a bowl's upper tier can slope down towards the corners (${c0} → ${c1})`);
+    await page.click("#undoBtn"); await page.waitForTimeout(300); await page.click('#panes [data-pane="look"]'); }
 
   // memory stays flat: picking colour after colour mustn't leave old materials behind
   const memBefore = await page.evaluate(() => window.__gw.memory());
