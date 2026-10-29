@@ -13,7 +13,9 @@ function setLook(on){
   look = on; if (!on && crowdClear) clearCrowdNear(null); if (!on) clearObsOutline();
   controls.enableZoom = !on; controls.enablePan = !on;
   controls.rotateSpeed = on ? -0.35 : 1;
-  controls.maxPolarAngle = on ? Math.PI*0.8 : Math.PI*0.49;
+  controls.maxPolarAngle = on ? Math.PI*0.95 : Math.PI*0.49; // in a seat you can crane right up to the roof
+  /* On a phone, a seat (or pitchside) takes the whole screen; Aerial or any other view brings the controls back. */
+  document.body.classList.toggle("seatfull", on); requestAnimationFrame(resize);
 }
 function applyLimits(){
   if (look){ controls.minDistance = 0.5; controls.maxDistance = 0.5; }
@@ -303,7 +305,9 @@ function constrain(){
   }
   if (c.y < minY) c.y = minY;
 }
-function resize(){ const w = view.clientWidth, h = view.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); persp.aspect = w/h; persp.updateProjectionMatrix(); invalidate();
+function resize(){ const w = view.clientWidth, h = view.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); persp.aspect = w/h;
+  // in a seat on a tall phone screen, widen the view so it takes in as much from side to side as a wide screen would
+  persp.fov = look && w < h*1.4 ? Math.min(95, 2*Math.atan(Math.tan(21*Math.PI/180)*1.4*h/w)*180/Math.PI) : 42; persp.updateProjectionMatrix(); invalidate();
   if (AO){ const pr = LIGHT ? 1 : renderer.getPixelRatio(); AO.gtao.setSize(Math.round(w*pr), Math.round(h*pr)); }
   if (camera === ortho){ const hh = (ortho.top - ortho.bottom)/2; ortho.left = -hh*w/h; ortho.right = hh*w/h; ortho.updateProjectionMatrix(); } }
 new ResizeObserver(resize).observe(view);
