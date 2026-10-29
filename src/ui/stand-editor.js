@@ -71,6 +71,7 @@ function tierBlocks(arr, above, base, bySide, ends){
     return `<div class="tier" data-k="${k}"><div class="tier-h"><span>${nm ? nm + " tier" : "Tier"}</span><button class="mini" data-act="removeTier" data-k="${k}" aria-label="Remove this tier">Remove</button></div>
       ${bySide ? "" : `<div class="row"><label>Type</label><select data-p="${pre}type" aria-label="Seating type">${Object.entries(TYPES).map(([v,o]) => `<option value="${v}"${v===tr.type?" selected":""}>${o.label}</option>`).join("")}</select></div>`}
       ${bySide ? sideRowsBox(tr, pre) : pair(isT ? "Steps" : "Rows", pre + "rows", tr.rows, 1, 90, 1, "", `${depth.toFixed(1)} m deep`)}
+      ${tab === "B" && !base ? pair("Slopes down towards the corners", pre + "taper", Math.round((tr.taper || 0)*100), 0, 80, 5, "%", "Like the Emirates' upper tier: deepest at the middle of each side, with fewer rows towards the corners.") : ""}
       <div class="row"><label class="toggle"><input type="checkbox" data-p="${pre}auto"${tr.auto ? " checked" : ""}> Auto steepness</label><output id="o-rk-${k}"></output>
         ${tr.auto ? "" : `<input type="range" data-p="${pre}rake" min="8" max="60" step="1" value="${tr.rake}" aria-label="Steepness in degrees">`}</div>
       ${stacked ? `${pair("Projects forward over the tier below", pre + "over", tr.over || 0, -15, 40, 0.5, "m", "Negative sets it back instead.")}
@@ -90,6 +91,7 @@ function roofBlock(cfg, bowl){
     ${pick("Shape", "roof.shape", rf.shape, shapes)}
     ${on ? `${pick("Material", "roof.mat", rf.mat, ROOF_MATS)}${pick("Structure", "roof.support", rf.support, ROOF_SUPPORTS)}
     ${bowl ? "" : pair("Roof starts along the stand", "roof.coverFrom", Math.round((rf.coverFrom || 0)*100), 0, 90, 5, "%") + pair("Roof ends along the stand", "roof.coverTo", Math.round((rf.coverTo == null ? 1 : rf.coverTo)*100), 10, 100, 5, "%", "Measured from the left-hand end, looking at the stand from the pitch. Cover just the middle, or stop short of one end.")}
+    ${rf.support === "columns" ? pick("Pillars stand", "roof.colAt", rf.colAt || "front", PILLAR_SPOTS) + pair("Space between pillars", "roof.colEvery", rf.colEvery || 14, 6, 40, 1, "m", "Outside the stand, they hold the roof up from behind and block nobody's view.") : ""}
     ${pair("Reaches past the front row", "roof.reach", rf.reach, -40, 40, 0.5, "m", "Negative leaves the front rows open.")}
     ${rf.support !== "toptruss" ? check("A big steel truss along the top of the roof (like Old Trafford's)", "roof.topTruss", !!rf.topTruss) : ""}
     ${check("Level roofline (one straight height along the stand)", "roof.level", rf.level !== false)}
@@ -280,7 +282,7 @@ function setPath(obj, path, val){
   const parts = path.split("."); if (parts[0] === "cc"){ obj = {tiers:S.cornerCustom}; parts.shift(); }
   let o = obj; for (let i=0;i<parts.length-1;i++) o = o[parts[i]] = o[parts[i]] || {};
   const last = parts[parts.length-1];
-  if (last === "curve" || last === "opening" || last === "entryAt" || last === "edge" || last === "coverFrom" || last === "coverTo") val = val/100;
+  if (last === "curve" || last === "opening" || last === "entryAt" || last === "edge" || last === "taper" || last === "coverFrom" || last === "coverTo") val = val/100;
   o[last] = val;
 }
 $("editor").addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.more){ if (d.open) openMore.add(d.dataset.more); else openMore.delete(d.dataset.more); } }, true);

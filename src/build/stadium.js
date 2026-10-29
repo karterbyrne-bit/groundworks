@@ -745,7 +745,7 @@ function build(){
         if (rf.support === "truss" && !closed) latticeAlong(buf("steel"), i, j1, (k, off) => { const r = k === i ? a : b; return [V(k, r.inner + off, r.y(Math.max(0, off)/(r.outer - r.inner)))]; });
         roofQuads.push([pt(i,a.inner), pt(j1,b.inner), pt(j1,b.outer), pt(i,a.outer)]);
       }
-      const ribAt = marks(12), colAt = marks(14), mastAt = marks(32), rafterAt = mkey !== "roofConcrete" ? marks(7) : new Set();
+      const ribAt = marks(12), colAt = marks(rf.colEvery || 14), mastAt = marks(32), rafterAt = mkey !== "roofConcrete" ? marks(7) : new Set();
       for (const i of rafterAt){ const a = RR[i]; if (!a) continue; // steel rafters under the sheets, deeper towards the back
         const f0 = Math.max(.02, edge), steps = Math.max(2, nS*2);
         for (let q=0;q<steps;q++){ const fa = lerp(f0, .98, q/steps), fb = lerp(f0, .98, (q+1)/steps), da = .35 + 1.7*fa, db = .35 + 1.7*fb;
@@ -771,8 +771,8 @@ function build(){
         topAll = Math.max(topAll, peak + (rf.support === "truss" ? 3.2 : rf.support === "ribs" ? 4 : .5));
         if (rf.support === "ribs" && ribAt.has(i)) for (let s=0;s<nS;s++){ const f0 = s/nS, f1 = (s+1)/nS;
           quad(buf("steel"), V(i,at(a,f0),a.y(f0)), V(i,at(a,f1),a.y(f1)), V(i,at(a,f1),a.y(f1) + .4 + 3.6*f1), V(i,at(a,f0),a.y(f0) + .4 + 3.6*f0)); }
-        if (rf.support === "columns" && colAt.has(i)){ const x = info[i], cd = Math.max(a.inner + .6, x.front + .6), f = (cd - a.inner)/(a.outer - a.inner), q = pt(i, cd);
-          post(buf("column"), q[0], q[1], heightAt(x.prof, cd), a.y(f), 0.35); viewPosts.push({x:q[0], z:q[1], r:.25, y0:heightAt(x.prof, cd), y1:a.y(f), cause:"pillar"}); }
+        if (rf.support === "columns" && colAt.has(i)){ const x = info[i], cd = roofPillarAt(rf, x, a), out = cd > a.outer, f = Math.min(1, (cd - a.inner)/(a.outer - a.inner)), q = pt(i, cd), y0 = out ? 0 : heightAt(x.prof, cd);
+          post(buf("column"), q[0], q[1], y0, a.y(f) + (out ? 1 : 0), out ? .6 : .35); if (out) bar(buf("steel"), [q[0], a.y(1) + 1, q[1]], V(i, at(a, .6), a.y(.6)), .3); else viewPosts.push({x:q[0], z:q[1], r:.25, y0, y1:a.y(f), cause:"pillar"}); }
         if (rf.support === "masts" && mastAt.has(i)){ const q = pt(i, a.outer + 4), top = a.y(1) + 22, tip = pt(i, a.inner + 1), mid = pt(i, at(a, .45)), tg = tangent(i);
           post(buf("steel"), q[0], q[1], 0, top, .9);
           for (const [p2, y2] of [[tip, a.y(0)], [mid, a.y(.45)]]) quad(buf("cable"), [q[0]-tg[0]*.08, top, q[1]-tg[1]*.08], [q[0]+tg[0]*.08, top, q[1]+tg[1]*.08], [p2[0]+tg[0]*.08, y2, p2[1]+tg[1]*.08], [p2[0]-tg[0]*.08, y2, p2[1]-tg[1]*.08]);
