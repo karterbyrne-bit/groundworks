@@ -90,6 +90,7 @@ function roofBlock(cfg, bowl){
   return `<details class="sub" open><summary>Roof</summary><div class="inner">
     ${pick("Shape", "roof.shape", rf.shape, shapes)}
     ${on ? `${pick("Material", "roof.mat", rf.mat, ROOF_MATS)}${pick("Structure", "roof.support", rf.support, ROOF_SUPPORTS)}
+    ${rf.support === "columns" ? pick("Pillars stand", "roof.colAt", rf.colAt || "front", PILLAR_SPOTS) + pair("Space between pillars", "roof.colEvery", rf.colEvery || 14, 6, 40, 1, "m", "Outside the stand, they hold the roof up from behind and block nobody's view.") : ""}
     ${pair("Reaches past the front row", "roof.reach", rf.reach, -40, 40, 0.5, "m", "Negative leaves the front rows open.")}
     ${rf.support !== "toptruss" ? check("A big steel truss along the top of the roof (like Old Trafford's)", "roof.topTruss", !!rf.topTruss) : ""}
     ${check("Level roofline (one straight height along the stand)", "roof.level", rf.level !== false)}
