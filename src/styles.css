@@ -397,3 +397,11 @@ kbd{font-family:var(--f-mono);font-size:11px;padding:1px 6px;border:1px solid va
 .row.colour input[type=color]{width:40px;height:28px;padding:0 2px;border:1px solid var(--line);border-radius:6px;background:var(--paper)}
 .reach{display:flex;flex-direction:column;gap:6px;padding:8px 0 2px;border-top:1px dashed var(--line)}
 .siderows select{width:100%;min-width:0;box-sizing:border-box;font-size:11.5px;padding:4px 2px}
+/* the ground profile: an encyclopedia-style page, full screen */
+.sheet.profile{max-width:860px;height:100svh;max-height:100svh;padding-top:0;line-height:1.6}
+.profile .sheet-acts{position:sticky;top:0;margin:0;padding:10px 0;background:var(--panel)}
+.profile h3{margin:18px 0 6px;border-bottom:1px solid var(--line)}
+.infobox{border:1px solid var(--line);border-radius:8px;background:var(--sunk);padding:8px;margin-bottom:12px;font-size:12.5px}
+.infobox img{width:100%;aspect-ratio:3/2}
+.infobox th{text-align:left;padding-right:10px}
+@media (min-width:600px){.infobox{float:right;width:270px;margin-left:18px}}

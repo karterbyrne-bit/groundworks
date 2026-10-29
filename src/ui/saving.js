@@ -133,10 +133,10 @@ async function stadiumImage(){
   return new Promise((res, rej) => pic.toBlob(b => b ? res(b) : rej(new Error("no image")), "image/png"));
 }
 /* Phones get the share sheet with the picture where they can; everything else downloads it. */
-async function saveImage(btn){
+async function saveImage(btn, make, what){
   if (!LAST) return; btn.disabled = true;
   try {
-    const blob = await stadiumImage(), fname = ((sponsorsOf().title || "my stadium").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "my-stadium") + ".png";
+    const blob = await (make || stadiumImage)(), fname = ((sponsorsOf().title || "my stadium").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "my-stadium") + (what || "") + ".png";
     const file = new File([blob], fname, {type:"image/png"});
     if (navigator.canShare && matchMedia("(pointer:coarse)").matches && navigator.canShare({files:[file]})){
       try { await navigator.share({files:[file], title: sponsorsOf().title || "My Groundworks stadium"}); return; } catch(e) { if (e && e.name === "AbortError") return; } }
