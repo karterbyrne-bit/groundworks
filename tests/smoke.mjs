@@ -412,6 +412,15 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(/Architect's notes/.test(await page.locator("#architect").textContent()) && await page.locator("#architect .score").count() === 5, "the architect's notes score the design");
   await page.click('#panes [data-pane="look"]');
 
+  // a stand's roof can cover just part of its length
+  { await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300);
+    await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="N"]'); await page.waitForTimeout(300);
+    const cov = () => page.evaluate(() => window.__gw.last().covered), v0 = await cov(), c0 = await cap();
+    await page.locator('input[type=range][data-p="roof.coverTo"]').evaluate(el => { el.value = "50"; el.dispatchEvent(new Event("input", {bubbles:true})); el.dispatchEvent(new Event("change", {bubbles:true})); });
+    await page.waitForTimeout(400); await page.waitForFunction(() => !window.__gw.busy());
+    check((await cov()) < v0 && (await cap()) === c0 && errors.length === 0, "a roof can cover just part of its stand, and fewer fans are under cover");
+    await page.click("#undoBtn"); await page.waitForTimeout(300); await page.click('#panes [data-pane="look"]'); }
+
   // roof pillars can stand at the front, further back or outside the stand, where they block nobody's view
   { await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300);
     await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="N"]'); await page.waitForTimeout(300);
