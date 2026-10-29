@@ -71,6 +71,7 @@ function tierBlocks(arr, above, base, bySide, ends){
     return `<div class="tier" data-k="${k}"><div class="tier-h"><span>${nm ? nm + " tier" : "Tier"}</span><button class="mini" data-act="removeTier" data-k="${k}" aria-label="Remove this tier">Remove</button></div>
       ${bySide ? "" : `<div class="row"><label>Type</label><select data-p="${pre}type" aria-label="Seating type">${Object.entries(TYPES).map(([v,o]) => `<option value="${v}"${v===tr.type?" selected":""}>${o.label}</option>`).join("")}</select></div>`}
       ${bySide ? sideRowsBox(tr, pre) : pair(isT ? "Steps" : "Rows", pre + "rows", tr.rows, 1, 90, 1, "", `${depth.toFixed(1)} m deep`)}
+      ${tab === "B" && !base ? pair("Slopes down towards the corners", pre + "taper", Math.round((tr.taper || 0)*100), 0, 80, 5, "%", "Like the Emirates' upper tier: deepest at the middle of each side, with fewer rows towards the corners.") : ""}
       <div class="row"><label class="toggle"><input type="checkbox" data-p="${pre}auto"${tr.auto ? " checked" : ""}> Auto steepness</label><output id="o-rk-${k}"></output>
         ${tr.auto ? "" : `<input type="range" data-p="${pre}rake" min="8" max="60" step="1" value="${tr.rake}" aria-label="Steepness in degrees">`}</div>
       ${stacked ? `${pair("Projects forward over the tier below", pre + "over", tr.over || 0, -15, 40, 0.5, "m", "Negative sets it back instead.")}
@@ -280,7 +281,7 @@ function setPath(obj, path, val){
   const parts = path.split("."); if (parts[0] === "cc"){ obj = {tiers:S.cornerCustom}; parts.shift(); }
   let o = obj; for (let i=0;i<parts.length-1;i++) o = o[parts[i]] = o[parts[i]] || {};
   const last = parts[parts.length-1];
-  if (last === "curve" || last === "opening" || last === "entryAt" || last === "edge") val = val/100;
+  if (last === "curve" || last === "opening" || last === "entryAt" || last === "edge" || last === "taper") val = val/100;
   o[last] = val;
 }
 $("editor").addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.more){ if (d.open) openMore.add(d.dataset.more); else openMore.delete(d.dataset.more); } }, true);

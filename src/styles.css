@@ -257,6 +257,7 @@ body.present .exitp{display:flex;gap:6px;position:absolute;top:12px;right:max(12
 .veil.on{opacity:1}
 .exitp button{font:inherit;font-size:12px;padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
 @media (max-width:860px){ body.present .app{grid-template-rows:100svh} body.present .stage{grid-template-rows:100svh} }
+@media (max-width:860px){ body.seatfull .app{grid-template-rows:100svh 0} body.seatfull .panel,body.seatfull .shows{display:none} body.seatfull .toasts{top:auto} }
 .checks-h{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .checks-h h3{margin:0 6px 0 0;font-size:13.5px}
 .cgroup{margin-top:8px;background:transparent;border-color:var(--line)}
