@@ -94,7 +94,7 @@ function roofBlock(cfg, bowl){
     ${rf.support === "columns" ? pick("Pillars stand", "roof.colAt", rf.colAt || "front", PILLAR_SPOTS) + pair("Space between pillars", "roof.colEvery", rf.colEvery || 14, 6, 40, 1, "m", "Outside the stand, they hold the roof up from behind and block nobody's view.") : ""}
     ${pair("Reaches past the front row", "roof.reach", rf.reach, -40, 40, 0.5, "m", "Negative leaves the front rows open.")}
     ${rf.support !== "toptruss" ? check("A big steel truss along the top of the roof (like Old Trafford's)", "roof.topTruss", !!rf.topTruss) : ""}
-    ${rf.support === "toptruss" || rf.topTruss ? check("Arch it, with its legs on the ground outside the stand (like Stadium Australia)", "roof.trussArch", !!rf.trussArch) : ""}
+    ${rf.support === "toptruss" || rf.topTruss ? pick("The truss comes down", "roof.trussEnds", trussEndsOf(rf), TRUSS_ENDS) : ""}
     ${check("Level roofline (one straight height along the stand)", "roof.level", rf.level !== false)}
     ${check("Line up every roof in the ground at the same height", "roofAlign", !!S.roofAlign)}
     ${pair(rf.level !== false ? "Height above the tallest row" : "Height above the top row", "roof.lift", rf.lift, 1.5, 40, 0.5, "m")}

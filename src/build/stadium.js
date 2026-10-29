@@ -28,7 +28,7 @@ function build(){
     sweepMats(); CLOCK_FACES.length = 0;
     group = new THREE.Group(); scene.add(group);
   }
-  const Bf = {}; const buf = k => (Bf[k] = Bf[k] || []);
+  const Bf = {}; const buf = k => (Bf[k] = Bf[k] || []); TRUSS_RUNS.length = 0;
   const issues = [], byType = {seated:0,exec:0,rail:0,bench:0,terrace:0}, parts = [], standInfo = {}, handles = [];
   /* Every check result has a category (geometry note, viewing issue, rule break), a key so a fix can test it worked, and an optional fix. */
   const issue = (text, key, cat, extra) => issues.push(Object.assign({text, key, cat}, extra || {}));
@@ -761,8 +761,8 @@ function build(){
             bar(sb, n % 2 ? P3(i, 0, sd) : P3(i, D, sd), n % 2 ? P3(j, D, sd) : P3(j, 0, sd), .3); } // diagonals down each face
           bar(sb, P3(i, 0, -1), P3(i, D, -1), .25); bar(sb, P3(i, 0, 1), P3(i, D, 1), .25); // verticals
           bar(sb, P3(i, D, -1), P3(i, D, 1), .22); bar(sb, n % 2 ? P3(i, D, -1) : P3(i, D, 1), n % 2 ? P3(j, D, 1) : P3(j, D, -1), .18); bar(sb, P3(i, 0, -1), P3(i, 0, 1), .22); } // and across
-        if (!closed) for (const i of [live[0], live[live.length-1]]) if (i != null){ const tg = tangent(i), s2 = i === live[0] ? -1 : 1, q = P3(i, D, 0), b0 = pt(i, at(RR[i], fT));
-          if (rf.trussArch && !closed){ const run = Math.min(70, q[1]/.44), g = [b0[0] + tg[0]*s2*run, 0, b0[1] + tg[1]*s2*run]; for (const sd of [-1, 1]) bar(sb, P3(i, D/2, sd), g, 1.1); } else post(sb, b0[0] + tg[0]*s2*2.5, b0[1] + tg[1]*s2*2.5, 0, q[1] + .5, 1.8); } // end posts (or the arch's legs) carry it to the ground
+        if (!closed) for (const i of [live[0], live[live.length-1]]) if (i != null){ const tg = tangent(i), s2 = i === live[0] ? -1 : 1, q = P3(i, D, 0), b0 = pt(i, at(RR[i], fT)); if (trussEndsOf(rf) === "legs") TRUSS_RUNS.push({b0, dir:[tg[0]*s2, tg[1]*s2], P:[P3(i, 0, -1), P3(i, D, -1), P3(i, 0, 1), P3(i, D, 1)]}); // straight on out (see drawTrussRuns)
+          else if (trussEndsOf(rf) === "arch") TRUSS_RUNS.push({b0, dir:[tg[0]*s2, tg[1]*s2], P:[P3(i, 0, -1), P3(i, D, -1), P3(i, 0, 1), P3(i, D, 1)], arch:Object.assign([P3(i, D/2, -1), P3(i, D/2, 1)], {run:Math.min(70, q[1]/.44)})}); else post(sb, b0[0] + tg[0]*s2*2.5, b0[1] + tg[1]*s2*2.5, 0, q[1] + .5, 1.8); } // end posts (or the arch's legs) carry it to the ground
         topAll = Math.max(topAll, ...live.map(i => P3(i, D, 0)[1] + .5));
       }
       for (let i=0;i<m;i++){ const a = RR[i]; if (!a) continue;
@@ -1171,7 +1171,7 @@ function build(){
     issue(`The furthest fan${farRef ? " (back of the " + farRef.name.toLowerCase() + ")" : ""} is ${Math.round(far)} m from the ${farName}. The limit is ${L.maxView} m.`, "far", "view",
       {fix: farFixes[0], alts: farFixes.slice(1)});
   }
-  const sext = [Math.max(-bounds[0], bounds[1]), Math.max(-bounds[2], bounds[3])];
+  drawTrussRuns(outline, buf, bounds, outerTop); const sext = [Math.max(-bounds[0], bounds[1]), Math.max(-bounds[2], bounds[3])];
   { const AC = accessOf(), need = wheelchairNeed(total); // enough wheelchair spaces for a ground this size
     if (AC.on && total > 500 && wheelchair < need) issue(`Wheelchair spaces: ${wheelchair}, but guidance asks for about ${need} at a ground holding ${fmt(total)}.`, "access:spaces", "rules",
       {fix:{label:"Add more wheelchair platforms", run:() => { const at0 = accessOf().at, sizes = [[2,9],[3,9],[4,9],[4,12],[6,12],[6,15],[8,12],[6,18],[8,15],[6,24],[10,15],[8,20],[8,24],[12,18],[12,24]];

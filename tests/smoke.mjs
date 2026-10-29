@@ -416,10 +416,15 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   { await page.click('#panes [data-pane="start"]'); await page.click('[data-p="ot"]'); await page.waitForTimeout(300);
     await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="N"]'); await page.waitForTimeout(300);
     const c0 = await cap(), h0 = await page.evaluate(() => window.__gw.last().maxH);
-    await page.check('input[data-p="roof.topTruss"]'); await page.waitForTimeout(300); await page.check('input[data-p="roof.trussArch"]');
+    await page.evaluate(() => { window.__gwCheck = true; }); const verts = () => page.evaluate(() => window.__gw.last().verts);
+    await page.check('input[data-p="roof.topTruss"]'); await page.waitForTimeout(400); await page.waitForFunction(() => !window.__gw.busy()); const r0 = await verts();
+    await page.selectOption('select[data-p="roof.trussEnds"]', "arch");
     await page.waitForTimeout(400); await page.waitForFunction(() => !window.__gw.busy());
     check((await cap()) === c0 && (await page.evaluate(() => window.__gw.last().maxH)) > h0 + 10 && errors.length === 0, "the big roof truss can arch over the stand, like Stadium Australia's");
-    await page.click("#undoBtn"); await page.waitForTimeout(200); await page.click("#undoBtn"); await page.waitForTimeout(300); await page.click('#panes [data-pane="look"]'); }
+    await page.selectOption('select[data-p="roof.trussEnds"]', "legs"); await page.waitForTimeout(400); await page.waitForFunction(() => !window.__gw.busy());
+    const r1 = await verts(); check((await cap()) === c0 && r1 > r0 && !(await page.evaluate(() => window.__gw.last().nan)) && errors.length === 0, "or run straight on out past the ground onto upright legs");
+    await page.evaluate(() => { delete window.__gwCheck; });
+    await page.click("#undoBtn"); await page.waitForTimeout(200); await page.click("#undoBtn"); await page.waitForTimeout(200); await page.click("#undoBtn"); await page.waitForTimeout(300); await page.click('#panes [data-pane="look"]'); }
 
   // a stand's roof can cover just part of its length
   { await page.click('#panes [data-pane="start"]'); await page.click('[data-p="mixed"]'); await page.waitForTimeout(300);
