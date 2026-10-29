@@ -125,16 +125,23 @@ const trussRise = (rf, closed, u, len) => trussEndsOf(rf) === "arch" && !closed 
    to stand on a pair of upright legs there. Each stand notes its truss's ends as it's built; they're drawn once the
    whole ground is up, so the legs land clear of every stand and corner, not just this one. */
 const TRUSS_RUNS = [];
-function drawTrussRuns(outline, buf, bounds){
-  const runs = TRUSS_RUNS.splice(0); if (!runs.length) return; const hull = hull2(outline), sb = buf("steel");
-  for (const {b0, dir, P} of runs){ // P: the bottom and top chords on one face, then the other, at the stand's end
-    const run = Math.min(80, Math.max(4, exitDist(hull, b0, dir, 0) + 4)), n = Math.max(1, Math.round(run/6)), at = (p, t) => [p[0] + dir[0]*t, p[1], p[2] + dir[1]*t];
-    for (let k=0;k<n;k++){ const t0 = run*k/n, t1 = run*(k+1)/n;
-      for (const c of P) bar(sb, at(c, t0), at(c, t1), .5); // the four chords
-      for (const s of [0, 2]){ bar(sb, at(P[s + k%2], t0), at(P[s + 1 - k%2], t1), .3); bar(sb, at(P[s], t1), at(P[s + 1], t1), .25); } // diagonals and verticals down each face
-      bar(sb, at(P[0], t1), at(P[2], t1), .22); bar(sb, at(P[1], t1), at(P[3], t1), .22); } // and across
-    for (const s of [0, 2]){ const g = at(P[s], run); post(sb, g[0], g[2], 0, P[s + 1][1] + .3, 1.6); // the upright legs
-      bounds[0] = Math.min(bounds[0], g[0]); bounds[1] = Math.max(bounds[1], g[0]); bounds[2] = Math.min(bounds[2], g[2]); bounds[3] = Math.max(bounds[3], g[2]); }
+function drawTrussRuns(outline, buf, bounds, outerTop){
+  const runs = TRUSS_RUNS.splice(0); if (!runs.length) return; const hull = hull2(outline), sb = buf("steel"), A = S.arch || {};
+  const skin = A.skin && A.skin !== "none", H = Math.max(8, outerTop), clear = skin ? (A.skinShape === "round" ? 5 : 1.5) + H*.06 + 2 : 4; // past the outer skin, if there is one
+  const grow = g => { bounds[0] = Math.min(bounds[0], g[0]); bounds[1] = Math.max(bounds[1], g[0]); bounds[2] = Math.min(bounds[2], g[2]); bounds[3] = Math.max(bounds[3], g[2]); };
+  for (const {b0, dir, P, arch} of runs){ const out = Math.max(0, exitDist(hull, b0, dir, 0)) + clear, at = (p, t) => [p[0] + dir[0]*t, p[1], p[2] + dir[1]*t];
+    const straight = run => { const n = Math.max(1, Math.round(run/6));
+      for (let k=0;k<n;k++){ const t0 = run*k/n, t1 = run*(k+1)/n;
+        for (const c of P) bar(sb, at(c, t0), at(c, t1), .5); // the four chords
+        for (const s of [0, 2]){ bar(sb, at(P[s + k%2], t0), at(P[s + 1 - k%2], t1), .3); bar(sb, at(P[s], t1), at(P[s + 1], t1), .25); } // diagonals and verticals down each face
+        bar(sb, at(P[0], t1), at(P[2], t1), .22); bar(sb, at(P[1], t1), at(P[3], t1), .22); } }; // and across
+    if (arch){ // the arch's legs: on down from the truss to the ground, far enough out to pass over the skin rather than through it
+      const h = arch[0][1], r = Math.min(120, Math.max(arch.run, skin && h > H + 2 ? out*h/(h - H - 1) : out));
+      if (skin && h*(1 - out/r) < H + .5){ // too little room above the skin: carry the truss straight on past it first, then down
+        straight(out); const g = [b0[0] + dir[0]*(out + h*.6), 0, b0[1] + dir[1]*(out + h*.6)]; for (const p of arch) bar(sb, at(p, out), g, 1.1); grow(g); continue; }
+      const g = [b0[0] + dir[0]*r, 0, b0[1] + dir[1]*r]; for (const p of arch) bar(sb, p, g, 1.1); grow(g); continue; }
+    const run = Math.min(80, Math.max(4, out)); straight(run);
+    for (const s of [0, 2]){ const g = at(P[s], run); post(sb, g[0], g[2], 0, P[s + 1][1] + .3, 1.6); grow(g); } // the upright legs
   }
 }
 /* How much of a stand's length its roof covers: all of it by default, or from one point along it to another (as a
