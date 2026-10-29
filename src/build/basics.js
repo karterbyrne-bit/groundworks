@@ -119,7 +119,24 @@ function bowlSeatsBySide(recs, F, set){
 }
 /* The big truss along the top of a roof can arch up over the stand, like Stadium Australia's: rising to its highest at
    the middle of the stand, with its legs carrying on down past each end to land on the ground outside the ground. */
-const trussRise = (rf, closed, u, len) => rf.trussArch && !closed ? len*.14*Math.sin(Math.PI*Math.min(1, Math.max(0, u/len))) : 0;
+const trussEndsOf = rf => rf.trussEnds || (rf.trussArch ? "arch" : "posts"); // designs saved before the choice had just the arch switch
+const trussRise = (rf, closed, u, len) => trussEndsOf(rf) === "arch" && !closed ? len*.14*Math.sin(Math.PI*Math.min(1, Math.max(0, u/len))) : 0;
+/* Or it can run on dead straight past each end of the stand, over the corners and out beyond the back of the ground,
+   to stand on a pair of upright legs there. Each stand notes its truss's ends as it's built; they're drawn once the
+   whole ground is up, so the legs land clear of every stand and corner, not just this one. */
+const TRUSS_RUNS = [];
+function drawTrussRuns(outline, buf, bounds){
+  const runs = TRUSS_RUNS.splice(0); if (!runs.length) return; const hull = hull2(outline), sb = buf("steel");
+  for (const {b0, dir, P} of runs){ // P: the bottom and top chords on one face, then the other, at the stand's end
+    const run = Math.min(80, Math.max(4, exitDist(hull, b0, dir, 0) + 4)), n = Math.max(1, Math.round(run/6)), at = (p, t) => [p[0] + dir[0]*t, p[1], p[2] + dir[1]*t];
+    for (let k=0;k<n;k++){ const t0 = run*k/n, t1 = run*(k+1)/n;
+      for (const c of P) bar(sb, at(c, t0), at(c, t1), .5); // the four chords
+      for (const s of [0, 2]){ bar(sb, at(P[s + k%2], t0), at(P[s + 1 - k%2], t1), .3); bar(sb, at(P[s], t1), at(P[s + 1], t1), .25); } // diagonals and verticals down each face
+      bar(sb, at(P[0], t1), at(P[2], t1), .22); bar(sb, at(P[1], t1), at(P[3], t1), .22); } // and across
+    for (const s of [0, 2]){ const g = at(P[s], run); post(sb, g[0], g[2], 0, P[s + 1][1] + .3, 1.6); // the upright legs
+      bounds[0] = Math.min(bounds[0], g[0]); bounds[1] = Math.max(bounds[1], g[0]); bounds[2] = Math.min(bounds[2], g[2]); bounds[3] = Math.max(bounds[3], g[2]); }
+  }
+}
 /* How much of a stand's length its roof covers: all of it by default, or from one point along it to another (as a
    share of the length, from its left-hand end looking at it from the pitch), so a roof can cover just the middle, or stop short. */
 const roofCovers = (rf, u, len, closed) => closed || ((rf.coverFrom || 0) <= u/len + .001 && u/len <= (rf.coverTo == null ? 1 : rf.coverTo) + .001);
