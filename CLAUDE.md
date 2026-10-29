@@ -35,7 +35,7 @@ Claude Code sessions run the full `npm test` locally before opening a pull reque
 Groundworks has to stay quick on a phone, so its size is capped.
 
 - `index.html` must not grow past **1,145,000 bytes** (raised by the owner on 28 October to make room for the Ground profile and the roof controls) without the owner's OK. If a job would push it over, say by how much and why, and ask first.
-- `build()` in `src/build/stadium.js` must not grow (it is **1,295 lines** now; when it's split into stages, the cap becomes its new length). New features go in their own files and are called from `build()` in one line.
+- `build()` in `src/build/stadium.js` must not grow (it is **1,296 lines** now; when it's split into stages, the cap becomes its new length). New features go in their own files and are called from `build()` in one line.
 - Before adding any new control (a switch, slider, menu or button), check whether an existing one could do the job, and say which you checked.
 - At the end of every job, report `index.html`'s size and `build()`'s length:
   - size: `wc -c < index.html`

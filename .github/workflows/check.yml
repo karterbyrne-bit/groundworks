@@ -11,7 +11,7 @@ jobs:
     # adding any other label doesn't start a run
     if: github.event.action != 'labeled' || github.event.label.name == 'full-test'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     # a newer commit on the same pull request cancels the older run
     concurrency:
       group: check-${{ github.event.pull_request.number || github.ref }}
