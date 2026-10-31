@@ -229,3 +229,32 @@ function execBoxes(buf, V, i, j1, p0, p1, n0, n1, u0, u1){
     quad(buf("riser"), V(i, g0 + .05, f0), V(i, p0.back, p0.hs[n0 - 1]), V(i, p0.back, top0), V(i, g0 + .05, top0));
     bar(buf("steel"), V(i, g0 - .03, f0), V(i, g0 - .03, top0), .14); }
 }
+/* What's behind and under a stand that has no building: a banked terrace's grassy earth bank sloping away from the
+   back row to the ground, or a temporary stand's bare scaffold of steel tubes (an upright under every other row every
+   2.5 m along, with rails and cross-braces along the back). */
+function standUnder(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1, base, kind, u0, u1, grow){
+  if (kind === "bank"){ const r0 = bk0 + 1 + t0*1.7, r1 = bk1 + 1 + t1*1.7, g0 = V(i, r0, 0), g1 = V(j1, r1, 0);
+    quad(buf("bank"), V(i, bk0, t0 + .2), V(j1, bk1, t1 + .2), V(j1, r1, base(j1, r1)), V(i, r0, base(i, r0)));
+    grow(g0[0], g0[2]); grow(g1[0], g1[2]); return; }
+  const sb = buf("steel");
+  if (Math.floor(u0/2.5) !== Math.floor(u1/2.5)) for (let j=0;j<p0.hs.length;j+=2){ const d = p0.front + (j + .5)*p0.T; bar(sb, V(i, d, base(i, d)), V(i, d, p0.hs[j]), .1); }
+  for (const f of [.33, .66]) bar(sb, V(i, bk0, t0*f), V(j1, bk1, t1*f), .08); // rails along the back
+  bar(sb, V(i, bk0, base(i, bk0)), V(j1, bk1, Math.min(t0, t1)*.9), .07); bar(sb, V(i, bk0, t0 + 1.1), V(j1, bk1, t1 + 1.1), .07); // a brace, and the guard rail along the top
+}
+/* The ways into a banked terrace, matching how its fans get in: with exit tunnels partway up, each tunnel runs on
+   through the bank to a concrete tunnel mouth standing out of its foot; coming in at the back, a flight of steps climbs the bank,
+   with a handrail each side. across(w, d, y, side) is a point d out from the front, w to one side of the slice. */
+function bankWay(buf, across, p, T, kind){
+  const n = p.hs.length, bk = p.front + n*T, top = p.hs[n - 1] + .2, foot = bk + 1 + (top - .2)*1.7, w = S.design.exitWidth/2;
+  const bankY = d => Math.max(0, top*(1 - (d - bk)/(foot - bk))), cb = buf("concrete");
+  if (kind === "tunnel"){ const dp = Math.max(bk + .5, bk + (foot - bk)*(1 - 3/top)), H = 3; // a concrete tunnel mouth standing out of the bank's foot
+    quad(cb, across(w + .6, dp, H, -1), across(w + .6, dp, H, 1), across(w + .6, foot, H, 1), across(w + .6, foot, H, -1));
+    for (const side of [-1, 1]) quad(cb, across(w + .6, dp, 0, side), across(w + .6, foot, 0, side), across(w + .6, foot, H, side), across(w + .6, dp, H, side));
+    quad(cb, across(w + .6, foot, 0, -1), across(w + .6, foot, 0, 1), across(w + .6, foot, H, 1), across(w + .6, foot, H, -1));
+    quad(buf("void"), across(w, foot + .03, 0, -1), across(w, foot + .03, 0, 1), across(w, foot + .03, 2.4, 1), across(w, foot + .03, 2.4, -1));
+    quad(cb, across(w, foot, .03, -1), across(w, foot, .03, 1), across(w, foot + 3, .03, 1), across(w, foot + 3, .03, -1)); return; }
+  quad(cb, across(w, bk, top + .02, -1), across(w, bk, top + .02, 1), across(w, foot, .05, 1), across(w, foot, .05, -1)); // the flight up the bank
+  const steps = Math.max(2, Math.round(top/.6));
+  for (let q=1;q<steps;q++){ const d = lerp(foot, bk, q/steps), y = bankY(d) + .03; quad(buf("barrier"), across(w, d, y, -1), across(w, d, y, 1), across(w, d + .08, y, 1), across(w, d + .08, y, -1)); }
+  for (const side of [-1, 1]) bar(buf("steel"), across(w, foot, 1, side), across(w, bk, top + 1, side), .06);
+}
