@@ -220,7 +220,7 @@ function build(){
       const a = cum[iL], len = cum[iR] - a, inner = len - 2*endLen, pos = []; if (len < step*0.6) return out;
       if (inner <= 0) pos.push(a + len/2);
       else { const n = Math.max(1, Math.ceil(inner/step)); for (let q=0;q<=n;q++) pos.push(a + endLen + inner*q/n); }
-      pos.forEach((x, q) => { let at = -1;
+      pos.forEach((x, q) => { let at = -1; const gw = S.design.gangWidth/2 + .3; if (q > 0 && q < pos.length - 1) for (const b of blocks) if (b.kind === "access" && Math.abs(x - b.c) < b.hw + gw) x = b.c + (x < b.c ? -1 : 1)*(b.hw + gw); // a gangway steps round a wheelchair platform rather than running into it
         if (q === 0){ for (let i=iL;i<=iR;i++) if (cum[i] <= x + 1e-6) at = i; } // the end blocks round down, never over
         else if (q === pos.length - 1){ for (let i=iR;i>=iL;i--) if (cum[i] >= x - 1e-6) at = i; }
         else { let bd = Infinity; for (let i=iL;i<=iR;i++){ const d = Math.abs(cum[i] - x); if (d < bd){ bd = d; at = i; } } }
@@ -535,14 +535,14 @@ function build(){
         }
         const tg = tangent(s);
         const across = (w, d, y, side) => { const q = pt(s, d); return [q[0] + tg[0]*w*side, y, q[1] + tg[1]*w*side]; };
-        if (aisleAt.has(s) && !(CT && inCut(cum[s], CT))){ // a stepped gangway: two steps to each row where the rake is steep, yellow nosings, a handrail
+        if (aisleAt.has(s) && !(CT && inCut(cum[s], CT.filter(b => b.kind !== "access")))){ // a stepped gangway: two steps to each row where the rake is steep, yellow nosings, a handrail
           const gw = S.design.gangWidth/2, at = (d, y, side) => across(gw, d, y, side), seats = tierType !== "terrace";
           const tread = (d0, d1, y) => { quad(buf("aisle"), at(d0,y,-1), at(d0,y,1), at(d1,y,1), at(d1,y,-1)); quad(buf("barrier"), at(d0,y+.01,-1), at(d0,y+.01,1), at(d0+.07,y+.01,1), at(d0+.07,y+.01,-1)); };
           const riser = (d, y0, y1) => { if (y1 > y0 + .01) quad(buf("riser"), at(d,y0,-1), at(d,y0,1), at(d,y1,1), at(d,y1,-1)); };
-          for (let j=0;j<n;j++){ const a = p.front + j*T, h = p.hs[j] + .02, prev = j ? p.hs[j-1] + .02 : h, rise = h - prev;
+          for (let j=0;j<n;j++){ if (CT && cutAt(cum[s], j, CT)) continue; const a = p.front + j*T, h = p.hs[j] + .02, prev = j ? p.hs[j-1] + .02 : h, rise = h - prev; // only the rows a platform sits on are left to it
             if (seats && rise > .3){ const mid = h - rise/2; riser(a, prev, mid); tread(a, a + T/2, mid); riser(a + T/2, mid, h); tread(a + T/2, a + T, h); }
             else { riser(a, prev, h); tread(a, a + T, h); } }
-          if (seats && n >= 4 && p.steep > 25) for (let j=0;j<n-1;j++){ const q0 = pt(s, p.front + (j+.5)*T), q1 = pt(s, p.front + (j+1.5)*T);
+          if (seats && n >= 4 && p.steep > 25 && !(CT && inCut(cum[s], CT))) for (let j=0;j<n-1;j++){ const q0 = pt(s, p.front + (j+.5)*T), q1 = pt(s, p.front + (j+1.5)*T);
             bar(buf("steel"), [q0[0], p.hs[j]+.95, q0[1]], [q1[0], p.hs[j+1]+.95, q1[1]], .06);
             if (j % 3 === 0) bar(buf("steel"), [q0[0], p.hs[j], q0[1]], [q0[0], p.hs[j]+.95, q0[1]], .05); }
         }
