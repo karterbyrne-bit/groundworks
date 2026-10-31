@@ -212,3 +212,15 @@ function drawScreens(plans, bf, anchors){
     if (p.legs != null) for (const e of ends) post(bf("steel"), e[0], e[1], p.legs, p.legTop != null ? p.legTop : p.y - p.h/2, .6);
   }
 }
+/* What's behind and under a stand that has no building: a banked terrace's grassy earth bank sloping away from the
+   back row to the ground, or a temporary stand's bare scaffold of steel tubes (an upright under every other row every
+   2.5 m along, with rails and cross-braces along the back). */
+function standUnder(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1, base, kind, u0, u1, grow){
+  if (kind === "bank"){ const r0 = bk0 + 1 + t0*1.7, r1 = bk1 + 1 + t1*1.7, g0 = V(i, r0, 0), g1 = V(j1, r1, 0);
+    quad(buf("bank"), V(i, bk0, t0 + .2), V(j1, bk1, t1 + .2), V(j1, r1, base(j1, r1)), V(i, r0, base(i, r0)));
+    grow(g0[0], g0[2]); grow(g1[0], g1[2]); return; }
+  const sb = buf("steel");
+  if (Math.floor(u0/2.5) !== Math.floor(u1/2.5)) for (let j=0;j<p0.hs.length;j+=2){ const d = p0.front + (j + .5)*p0.T; bar(sb, V(i, d, base(i, d)), V(i, d, p0.hs[j]), .1); }
+  for (const f of [.33, .66]) bar(sb, V(i, bk0, t0*f), V(j1, bk1, t1*f), .08); // rails along the back
+  bar(sb, V(i, bk0, base(i, bk0)), V(j1, bk1, Math.min(t0, t1)*.9), .07); bar(sb, V(i, bk0, t0 + 1.1), V(j1, bk1, t1 + 1.1), .07); // a brace, and the guard rail along the top
+}

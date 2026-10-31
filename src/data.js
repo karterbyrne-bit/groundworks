@@ -153,7 +153,15 @@ const STYLES = {
   unfinished:{label:"Unfinished terrace", era:"Specialist", clad:0xa9a49a, look:"plain", wall:"concrete", facade:{},
     tiers:() => [t("terrace",10,20,false)],
     roof:() => R("none"),
-    note:"A few bare concrete steps, as if the money ran out."}
+    note:"A few bare concrete steps, as if the money ran out."},
+  banked:{label:"Banked terrace on an earth bank", era:"Traditional", clad:0x8f8b80, look:"plain", wall:"concrete", facade:{}, under:"bank",
+    tiers:() => [t("terrace",36,20,false)],
+    roof:() => R("none"),
+    note:"Steps laid straight into a grassy earth bank that slopes away behind, as at most grounds before the 1970s. Swap the terrace for seats to get a seated bank."},
+  scaffold:{label:"Temporary scaffold stand", era:"Specialist", clad:0xb9bec2, look:"plain", wall:"concrete", facade:{}, under:"scaffold",
+    tiers:() => [t("seated",14,24)],
+    roof:() => R("none"),
+    note:"Seats on a bare steel scaffold, put up for a big match or a cup run: open underneath and behind, with no roof."}
 };
 /* Quick size presets for a stand: the shape of the tier stack, not its look. */
 const SCALES = {

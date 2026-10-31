@@ -288,7 +288,7 @@ function build(){
       const y1 = p.stacked ? (from === 0 ? p.hF - 1.5 : p.hs[from] - 1.5) : 0, y2 = p.stacked ? p.hs[to-1] - 1.5 : 0;
       /* the end of a tier: a solid side wall stepping up with the rows to a little over a metre above them, so nobody stands
          at an open edge, with a concrete coping and a handrail along the top */
-      const yb = d => lerp(y1, y2, (d - d1)/Math.max(1e-6, d2 - d1)), cb = buf("concrete"), up = rail === false ? .15 : 1.1;
+      const yb = d => lerp(y1, y2, (d - d1)/Math.max(1e-6, d2 - d1)), cb = buf(sty.under === "bank" ? "bank" : sty.under === "scaffold" ? "steel" : "concrete"), up = rail === false ? .15 : 1.1;
       for (let j=from;j<to;j++){ const a = p.front + j*T, b = a + T, h = p.hs[j] + up; quad(cb, V(s,a,yb(a)), V(s,b,yb(b)), V(s,b,h), V(s,a,h));
         if (j > from && p.hs[j] > p.hs[j-1]) quad(cb, V(s,a,p.hs[j-1] + up), V(s,a,p.hs[j] + up), V(s,a,p.hs[j] + up), V(s,a,p.hs[j-1] + up)); }
       if (rail === false) return; // where it meets the next stand, the wall only closes any step between them
@@ -509,11 +509,11 @@ function build(){
             }
             if (p0.over > 0.3 && !p0.lowerGhost) roofQuads.push([pt(i,p0.front), pt(j1,p1.front), pt(j1,Math.min(p1.lowerBack, bk1)), pt(i,Math.min(p0.lowerBack, bk0))]);
           }
-          quad(buf(wallKey), V(i,bk0,base(i,bk0)), V(j1,bk1,base(j1,bk1)), V(j1,bk1,t1+1.2), V(i,bk0,t0+1.2));
+          if (sty.under && !(sty.under === "bank" && p0.stacked)) standUnder(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1, base, sty.under, cum[i], closed && j1 === 0 ? lenTotal : cum[j1], grow); else quad(buf(wallKey), V(i,bk0,base(i,bk0)), V(j1,bk1,base(j1,bk1)), V(j1,bk1,t1+1.2), V(i,bk0,t0+1.2));
           // where the depth changes from one slice to the next (an oval or blended outline), a smooth outer wall hides the steps
-          if (n0 !== n1 && !profs[i].slice(k+1).some(q => q && !q.ghost && nRows(q) >= 1)){
+          if (n0 !== n1 && !sty.under && !profs[i].slice(k+1).some(q => q && !q.ghost && nRows(q) >= 1)){
             const e0 = p0.front + n0*T, e1 = p1.front + n1*T; quad(buf(wallKey), V(i,e0,base(i,e0)), V(j1,e1,base(j1,e1)), V(j1,e1,p1.hs[n1-1]+1.2), V(i,e0,p0.hs[n0-1]+1.2)); }
-          if (look === "plain" && !roofOn && t0 > 12 && t1 > 12 && sty.wall !== "glassClad"){ const y0 = t0*0.46, y1 = t1*0.46; quad(buf("band"), V(i,bk0+.08,y0), V(j1,bk1+.08,y1), V(j1,bk1+.08,y1+2.4), V(i,bk0+.08,y0+2.4)); }
+          if (look === "plain" && !roofOn && !sty.under && t0 > 12 && t1 > 12 && sty.wall !== "glassClad"){ const y0 = t0*0.46, y1 = t1*0.46; quad(buf("band"), V(i,bk0+.08,y0), V(j1,bk1+.08,y1), V(j1,bk1+.08,y1+2.4), V(i,bk0+.08,y0+2.4)); }
         }
         if (n0 > mr) cap(i, p0, mr, n0);
         if (n1 > mr) cap(j1, p1, mr, n1);
