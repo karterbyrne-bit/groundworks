@@ -555,7 +555,7 @@ function build(){
           const ew = S.design.exitWidth/2, at = (d, y, side) => across(ew, d, y, side), bk = p.front + n*T - .02, y0 = p.hs[n-1] + .02;
           quad(buf("void"), at(bk, y0, -1), at(bk, y0, 1), at(bk, y0 + 1.15, 1), at(bk, y0 + 1.15, -1));
           const c = pt(s, bk - .08); post(buf("emerg"), c[0], c[1], y0 + 1.25, y0 + 1.55, .55); }
-        if (backAt.has(s) && n >= 2){ // an entrance at the back, at the head of a gangway: a doorway from the concourse onto the walkway
+        if (sty.under === "bank" && !p.stacked && entry === "back" && marks(entryEvery).has(s)) bankWay(buf, across, p, T, "steps"); if (backAt.has(s) && n >= 2){ // an entrance at the back, at the head of a gangway: a doorway from the concourse onto the walkway
           const ew = S.design.exitWidth/2, WR = walkRows(n), y0 = (WR ? p.hs[WR[0]] : p.hs[n-1]) + .02, bk = p.front + n*T - .02, cb = buf("concrete");
           const at = (d, y, side, w) => across(w, d, y, side);
           quad(buf("void"), at(bk, y0, -1, ew), at(bk, y0, 1, ew), at(bk, y0 + 2.1, 1, ew), at(bk, y0 + 2.1, -1, ew));
@@ -574,7 +574,7 @@ function build(){
           for (const side of [-1, 1]){
             for (let j=ja;j<jb;j++){ const d0 = p.front + j*T; quad(buf("concrete"), at(d0,fl,side), at(d0+T,fl,side), at(d0+T,p.hs[j]+.45,side), at(d0,p.hs[j]+.45,side)); }
             bar(buf("steel"), at(dF, fl + 1, side), at(dB, p.hs[jb-1] + 1.4, side), .06); }
-          bar(buf("steel"), at(dF, fl + 1, -1), at(dF, fl + 1, 1), .06);
+          bar(buf("steel"), at(dF, fl + 1, -1), at(dF, fl + 1, 1), .06); if (sty.under === "bank" && !p.stacked) bankWay(buf, across, p, T, "tunnel"); // on through a bank to a portal at its foot
         }
         // pillars under a stacked tier's front (always when the tier below is left open)
         if (p.stacked && (p.pillars || p.lowerGhost) && tc.hold !== "towers" && pillarAt.has(s)){
