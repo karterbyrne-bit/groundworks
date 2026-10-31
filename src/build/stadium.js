@@ -483,7 +483,7 @@ function build(){
           if (FP){ const Ef = (d0, y0, d1, y1, f) => { const p = V(i, d0, y0), q = V(j1, d1, y1); return [lerp(p[0],q[0],f), lerp(p[1],q[1],f), lerp(p[2],q[2],f)]; };
             for (const [fa, fb, md] of FP) if (md !== "cut") quad(fasc, Ef(p0.front,y00,p1.front,y10,fa), Ef(p0.front,y00,p1.front,y10,fb), Ef(p0.front,p0.hF,p1.front,p1.hF,fb), Ef(p0.front,p0.hF,p1.front,p1.hF,fa)); }
           else quad(fasc, V(i,p0.front,y00), V(j1,p1.front,y10), V(j1,p1.front,p1.hF), V(i,p0.front,p0.hF));
-          if (tierType === "exec" || front === "glass") quad(buf("glass"), V(i,p0.front,p0.hF), V(j1,p1.front,p1.hF), V(j1,p1.front,p1.hF+1.1), V(i,p0.front,p0.hF+1.1));
+          if (tierType === "exec") execBoxes(buf, V, i, j1, p0, p1, n0, n1, cum[i], closed && j1 === 0 ? lenTotal : cum[j1]); else if (front === "glass") quad(buf("glass"), V(i,p0.front,p0.hF), V(j1,p1.front,p1.hF), V(j1,p1.front,p1.hF+1.1), V(i,p0.front,p0.hF+1.1));
           if (front === "concrete" || front === "brick") quad(fasc, V(i,p0.front,p0.hF), V(j1,p1.front,p1.hF), V(j1,p1.front,p1.hF+1), V(i,p0.front,p0.hF+1)); // a solid parapet
           if (homeHere(i) && homeHere(j1) && !CV){ // the home end's banners, hung over the front of every tier
             const t0 = p0.hF + (p0.stacked ? 1.05 : .75), t1 = p1.hF + (p1.stacked ? 1.05 : .75), dh = Math.min(1.5, Math.max(.8, Math.min(t0, t1) - .2));
