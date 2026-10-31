@@ -212,16 +212,20 @@ function drawScreens(plans, bf, anchors){
     if (p.legs != null) for (const e of ends) post(bf("steel"), e[0], e[1], p.legs, p.legTop != null ? p.legTop : p.y - p.h/2, .6);
   }
 }
-/* Executive boxes, like the row along the back of Filbert Street's main stand: each tier of boxes is glazed from its
-   floor to a ceiling a little above the back row, with a dark band over the glass and a wall between one box and the
-   next every few metres. Drawn one stretch of the tier at a time (u0, u1: how far along the stand each end is). */
+/* Executive boxes, like the row along the back of Filbert Street's main stand: the front rows of the tier are open
+   seats outside the boxes, behind a glass rail; the rows behind them are inside the boxes, glazed from their floor to
+   a ceiling a little above the back row, with a dark band over the glass and a wall between one box and the next every
+   few metres. A single row is all inside. Drawn one stretch of the tier at a time (u0, u1: how far along the stand). */
 const BOX_WIDTH = 4.5;
 function execBoxes(buf, V, i, j1, p0, p1, n0, n1, u0, u1){
+  const out = n => n >= 2 ? Math.floor(n/2) : 0, s0 = out(n0), s1 = out(n1); // how many rows sit outside
+  const g0 = p0.front + s0*p0.T, g1 = p1.front + s1*p1.T, f0 = p0.hs[s0], f1 = p1.hs[s1]; // where the glass stands, and its floor
   const top0 = p0.hs[n0 - 1] + 2.6, top1 = p1.hs[n1 - 1] + 2.6;
-  quad(buf("glass"), V(i, p0.front, p0.hF), V(j1, p1.front, p1.hF), V(j1, p1.front, top1), V(i, p0.front, top0));
-  quad(buf("dark"), V(i, p0.front - .05, top0), V(j1, p1.front - .05, top1), V(j1, p1.front - .05, top1 + .7), V(i, p0.front - .05, top0 + .7)); // the band over the glass
-  quad(buf("concrete"), V(i, p0.front, top0 + .7), V(j1, p1.front, top1 + .7), V(j1, p1.back, top1 + .7), V(i, p0.back, top0 + .7)); // the ceiling
+  if (s0 || s1) quad(buf("glass"), V(i, p0.front, p0.hF), V(j1, p1.front, p1.hF), V(j1, p1.front, p1.hF + 1.1), V(i, p0.front, p0.hF + 1.1)); // the rail in front of the open seats
+  quad(buf("glass"), V(i, g0, f0), V(j1, g1, f1), V(j1, g1, top1), V(i, g0, top0));
+  quad(buf("dark"), V(i, g0 - .05, top0), V(j1, g1 - .05, top1), V(j1, g1 - .05, top1 + .7), V(i, g0 - .05, top0 + .7)); // the band over the glass
+  quad(buf("concrete"), V(i, g0, top0 + .7), V(j1, g1, top1 + .7), V(j1, p1.back, top1 + .7), V(i, p0.back, top0 + .7)); // the ceiling
   if (Math.floor(u0/BOX_WIDTH) !== Math.floor(u1/BOX_WIDTH)){ // a wall between two boxes, with a mullion at the front
-    quad(buf("riser"), V(i, p0.front + .05, p0.hF), V(i, p0.back, p0.hs[n0 - 1]), V(i, p0.back, top0), V(i, p0.front + .05, top0));
-    bar(buf("steel"), V(i, p0.front - .03, p0.hF), V(i, p0.front - .03, top0), .14); }
+    quad(buf("riser"), V(i, g0 + .05, f0), V(i, p0.back, p0.hs[n0 - 1]), V(i, p0.back, top0), V(i, g0 + .05, top0));
+    bar(buf("steel"), V(i, g0 - .03, f0), V(i, g0 - .03, top0), .14); }
 }
