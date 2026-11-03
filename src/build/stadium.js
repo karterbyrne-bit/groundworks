@@ -1131,7 +1131,7 @@ function build(){
         for (const [p2, y2] of [[P(i, dIn[i] + 1), a(0)], [P(i, at(i, .45)), a(.45)]]) quad(buf("cable"), [q[0]-tg[0]*.08, mt, q[1]-tg[1]*.08], [q[0]+tg[0]*.08, mt, q[1]+tg[1]*.08], [p2[0]+tg[0]*.08, y2, p2[1]+tg[1]*.08], [p2[0]-tg[0]*.08, y2, p2[1]-tg[1]*.08]);
         top = Math.max(top, mt); grow(q[0], q[1]); }
       const g = P(i, dOut[i]); grow(g[0], g[1]);
-    }
+    } top = Math.max(top, groundRoofStructure({n, P, dIn, dOut, Y, buf, gr, cum, grow})); // rafters, trusses or girders (see ground-roof.js)
     if (gr.cover === "closed"){ // closed over the floor, optionally with an opening in the middle
       const cy = yIn + 9, op = Math.max(0, Math.min(0.9, gr.opening || 0)), b = buf("roofClosed");
       for (let i=0;i<n;i++){ const j = (i+1)%n, pa = P(i,dIn[i]), pc = P(j,dIn[j]);

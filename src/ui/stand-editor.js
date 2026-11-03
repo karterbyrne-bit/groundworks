@@ -392,7 +392,8 @@ const groundRoofOf = () => (S.groundRoof = Object.assign({}, GROUND_ROOF, S.grou
 function renderGroundRoof(){
   const box = $("groundRoof"), on = groundRoofOn(); box.hidden = !on; if (!on){ box.innerHTML = ""; return; }
   const gr = groundRoofOf(), p = k => "gr." + k;
-  box.innerHTML = `${pick("Outline", p("shape"), gr.shape, GROUND_ROOF_SHAPES)}${pick("Cover", p("cover"), gr.cover, GROUND_ROOF_COVER)}
+  const famous = Object.fromEntries([["", "Pick one…"], ...Object.entries(FAMOUS_ROOFS).map(([k, f]) => [k, f.label])]);
+  box.innerHTML = `${pick("Start from a famous roof", p("famous"), "", famous)}${pick("Outline", p("shape"), gr.shape, GROUND_ROOF_SHAPES)}${pick("Cover", p("cover"), gr.cover, GROUND_ROOF_COVER)}
     ${gr.cover === "closed" ? pair("Opening in the middle", p("opening"), Math.round((gr.opening||0)*100), 0, 90, 5, "%") : ""}
     ${pick("Material", p("mat"), gr.mat, ROOF_MATS)}${pick("Structure", p("support"), gr.support, GROUND_ROOF_SUPPORTS)}
     ${pair("Reaches past the front row", p("reach"), gr.reach, -20, 40, 0.5, "m", gr.shape === "follow" ? "Negative leaves the front rows open." : "Measured halfway along the long sides. Negative leaves the front rows open.")}
@@ -409,5 +410,8 @@ $("groundRoof").addEventListener("input", e => { const el = e.target, p = el.dat
   gr[key] = key === "curve" || key === "opening" ? v/100 : v;
   $("groundRoof").querySelectorAll(`[data-p="${p}"]`).forEach(o => { if (o !== el) o.value = el.value; });
   changed(false, el.type === "range"); });
-$("groundRoof").addEventListener("change", e => { const el = e.target; if (el.tagName !== "SELECT" || !el.dataset.p) return; groundRoofOf()[el.dataset.p.slice(3)] = el.value; renderGroundRoof(); changed(); });
+$("groundRoof").addEventListener("change", e => { const el = e.target; if (el.tagName !== "SELECT" || !el.dataset.p) return;
+  const key = el.dataset.p.slice(3), f = FAMOUS_ROOFS[el.value]; if (key === "famous"){ if (!f) return; // a famous roof: its settings, and the architecture that goes with it
+    Object.assign(groundRoofOf(), f.roof); S.arch = Object.assign({}, S.arch || {}, {arch:false, ramps:false, skin:"none"}, f.arch || {}); renderGroundRoof(); changed(); toast(`<b>${esc(f.label.split(":")[0])}.</b> Everything stays editable.`); return; } // (its own arch, ramps or skin, and none left over from another)
+  groundRoofOf()[key] = el.value; renderGroundRoof(); changed(); });
 
