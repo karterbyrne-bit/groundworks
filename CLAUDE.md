@@ -58,7 +58,7 @@ Groundworks has to stay quick on a phone, so its size is capped.
 | `src/build/views.js` | Obstructed views: which seats have pillars, overhangs, masts or screens in the way, and how badly, plus the amber/red colouring |
 | `src/build/leveller.js` | The tier leveller: an upper tier set to line up with the same tier of another stand |
 | `src/build/stadium.js` | `build()`: builds the whole stadium, works out capacity, runs every check, plus the one-tap fix search |
-| `src/ui/readout.js` | The results readout, the architect's notes, pop-up messages, one-tap fixes, and the panes of controls |
+| `src/ui/readout.js` | The results readout, pop-up messages, one-tap fixes, and the panes of controls |
 | `src/ui/camera.js` | The camera and saved views, dragging handles in 3D, the drawing loop, light/dark theme, undo/redo and autosave |
 | `src/ui/stand-editor.js` | The stand editor (tiers, roofs, walls, stand presets and my stands) and the one roof over the whole ground |
 | `src/ui/ground.js` | Seating sizes and rules, floors and sports, the site plot and surroundings, screens, layouts, the preset buttons |

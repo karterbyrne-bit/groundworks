@@ -219,7 +219,7 @@ function renderEditor(){
       ${ring ? "" : roofBlock(cfg, bowl)}
       <details class="sub"><summary>Facilities, access and fire risk</summary><div class="inner">
         ${pick("Facilities", "facilities", facilitiesOf(cfg), FACILITIES)}
-        <p class="hint">Better facilities cost more to build but make for happier fans (see the Architect's notes under Results).</p>
+        <p class="hint">Better facilities cost more to build but make for happier fans.</p>
         ${accessOf().on ? (() => { const SA = standAccessOf(cfg), own = cfg.access || {}, here = LAST ? LAST.parts.filter(p => p.key === tab).reduce((a, p) => a + (p.wheel || 0), 0) : 0;
           return `<div class="row"><label>Wheelchair platforms</label><output>${here} spaces here</output></div>
             ${pair(isBowl() ? "Platforms on each side" : "Platforms in this stand", "access.count", SA.per, 0, 16, 1, "")}
