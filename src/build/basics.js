@@ -21,6 +21,10 @@ function cornerPlan(c){
   const gap = !meet && hi - lo > 0.04 && ra <= 0 && rb <= 0 ? [lo, hi] : null;
   return {wa, wb, ra, rb, meet, gap, stand: !!(gap && cc.mode === "stand" && S.cornerCustom.length)};
 }
+/* How far round a rounded corner of the bowl (as a share of the corner) a stand on top must carry on for its front, d
+   out from the play, to reach the end of the pitch: the corner's curve starts r short of the pitch's end, so without
+   this the stands above stop short of the corner flags. */
+const cornerReach = (r, d, shape) => shape === "square" || !(r > 0) ? 0 : Math.asin(Math.min(1, r/(r + Math.max(0, d))))/(Math.PI/2);
 /* A tier's row count for fixes: on a bowl with its own rows per side, its deepest side. Setting it trims every side to it. */
 const variesBySide = tr => !!(tr && tr.sideRows && S.bowl.varyRows && S.bowl.tiers.includes(tr));
 const rowsOf = tr => variesBySide(tr) ? Math.max(tr.rows, ...Object.values(tr.sideRows)) : tr.rows;
