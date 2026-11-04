@@ -3,9 +3,10 @@
    a point d out along slice i, dIn/dOut its inner and outer edges, Y(i)(f) the roof's height a share f of the way out,
    cum how far round the ring each slice is. Every roof but a hidden one gets slim rafters under the sheeting; deep
    trusses hang under it front to back on columns behind the stands; a deep girder runs round the top of it on great corner
-   towers, with trusses reaching in, as at San Siro. Returns the highest point it reaches. */
+   towers, with trusses reaching in, as at San Siro. room(i): how far out slice i can go before the plot's edge or a
+   road, so the towers stand inside it. Returns the highest point it reaches. */
 function groundRoofStructure(R){
-  const {n, P, dIn, dOut, Y, buf, gr, cum, grow} = R, sb = buf(gr.colour ? tint("steel", gr.colour) : "steel"), kind = gr.support; // the steel in its own colour, if it has one
+  const {n, P, dIn, dOut, Y, buf, gr, cum, grow, room = () => Infinity} = R, sb = buf(gr.colour ? tint("steel", gr.colour) : "steel"), kind = gr.support; // the steel in its own colour, if it has one
   const at = (i, f, y) => { const q = P(i, lerp(dIn[i], dOut[i], f)); return [q[0], y, q[1]]; };
   const every = step => { const out = []; let next = step/2; for (let i=0;i<n;i++) if (cum[i] >= next){ out.push(i); next += step; } return out; };
   let top = 0;
@@ -25,7 +26,7 @@ function groundRoofStructure(R){
       for (let k=0;k<K;k++){ const f0 = k/K, f1 = (k+1)/K; bar(gb, at(i, f0, t(f0)), at(i, f1, t(f1)), .4); bar(gb, at(i, f1, a(f1) + .35), at(i, f1, t(f1)), .2); } }
     const corner = [[1,1],[1,-1],[-1,1],[-1,-1]].map(([sx, sz]) => { let best = 0, bd = -2; // the slice pointing most nearly at each corner
       for (let i=0;i<n;i++){ const p0 = P(i, dIn[i]), p1 = P(i, dOut[i]), dx = p1[0]-p0[0], dz = p1[1]-p0[1], l = Math.hypot(dx, dz) || 1, d = (dx*sx + dz*sz)/(l*Math.SQRT2); if (d > bd){ bd = d; best = i; } } return best; });
-    for (const i of corner){ const q = P(i, dOut[i] + 5), yT = hi(i) + 2; post(buf("concrete"), q[0], q[1], 0, yT, 7); bar(gb, at(i, 1, hi(i)), [q[0], yT - 1, q[1]], .6); grow(q[0], q[1]); top = Math.max(top, yT); }
+    for (const i of corner){ const q = P(i, Math.min(dOut[i] + 5, room(i) - 4)), yT = hi(i) + 2; post(buf("concrete"), q[0], q[1], 0, yT, 7); bar(gb, at(i, 1, hi(i)), [q[0], yT - 1, q[1]], .6); grow(q[0], q[1]); top = Math.max(top, yT); }
     top = Math.max(top, ...Array.from({length:n}, (_, i) => hi(i))); }
   return top;
 }
