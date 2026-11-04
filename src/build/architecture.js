@@ -176,7 +176,7 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
     const corners = [[1,1],[1,-1],[-1,-1],[-1,1]].map(([sx, sz]) => { let bi = 0, bv = -Infinity;
       for (let i=0;i<n;i++){ const v = P[i][0]*sx/(sext[0] || 1) + P[i][1]*sz/(sext[1] || 1); if (v > bv){ bv = v; bi = i; } } return bi; });
     for (const i of corners){
-      const c = [P[i][0] + N[i][0]*(R1 + gap), P[i][1] + N[i][1]*(R1 + gap)];
+      const off = poly && inPoly(P[i], poly) ? Math.min(R1 + gap, exitDist(poly, P[i], N[i], 0) - R1 - 1) : R1 + gap, c = [P[i][0] + N[i][0]*off, P[i][1] + N[i][1]*off]; if (off < 0) continue; // inside the plot, if it's a tight one (and none where there's no room for it)
       // the stand nearest this corner: its tiers' back rows are where the ramp's bridges go in, and its top tier is how high it climbs
       const lv = rampLevels(anchors, P[i]), h = lv.length ? lv[lv.length - 1].y : H*0.92;
       const ys = []; let y0 = 0; for (const L of (lv.length ? lv.map(l => l.y) : [h])){ const k = Math.max(1, Math.ceil((L - y0)/9)); for (let t=1;t<=k;t++) ys.push(y0 + (L - y0)*t/k); y0 = L; } // a full turn (or a few) per tier
