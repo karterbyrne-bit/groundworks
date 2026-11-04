@@ -155,7 +155,7 @@ async function openFromLink(){
 }
 function randomStadium(){
   const pick = a => a[Math.floor(Math.random()*a.length)];
-  const keys = Object.keys(PRESETS), styleKeys = Object.keys(STYLES);
+  const keys = Object.keys(PRESETS).filter(k => shown([k])), styleKeys = Object.keys(STYLES);
   openState(clone(PRESETS[pick(keys)]), null, () => {
     if (isBowl()) applyStyle(S.bowl, pick(styleKeys), false);
     else { const one = Math.random() < .5 ? pick(styleKeys) : null;

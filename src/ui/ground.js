@@ -53,7 +53,7 @@ function syncLimits(){
 }
 
 /* ================= floors, site plot, layout ================= */
-$("kinds").innerHTML = Object.entries(KINDS).map(([k,o]) => `<button data-kind="${k}" aria-pressed="false">${o.label}</button>`).join("");
+$("kinds").innerHTML = Object.entries(KINDS).filter(shown).map(([k,o]) => `<button data-kind="${k}" aria-pressed="false">${o.label}</button>`).join("");
 $("kinds").addEventListener("click", e => {
   const b = e.target.closest("[data-kind]"); if (!b) return;
   const k = KINDS[b.dataset.kind];
@@ -81,7 +81,7 @@ $("plotClip").addEventListener("change", e => { S.plot.clip = e.target.checked; 
 /* Convertible grounds: a second sport, how room is made, and which set-up is shown. */
 const convOf = () => (S.convert = Object.assign({}, CONVERT, S.convert || {}));
 const sportName = sp => CONVERT_TO[sp] || (sp === "custom" ? (KINDS[S.custom.kind] || KINDS.plain).label : cap1(sp));
-$("cvOn").addEventListener("change", e => { const C = convOf(); C.on = e.target.checked; if (C.to === S.sport) C.to = Object.keys(CONVERT_TO).find(k => k !== S.sport); if (!C.on) C.show = "base"; changed(true); });
+$("cvOn").addEventListener("change", e => { const C = convOf(); C.on = e.target.checked; if (C.to === S.sport) C.to = Object.keys(CONVERT_TO).find(k => k !== S.sport && shown([k])); if (!C.on) C.show = "base"; changed(true); });
 $("cvTo").addEventListener("change", e => { convOf().to = e.target.value; changed(true); });
 $("cvHow").addEventListener("change", e => { convOf().how = e.target.value; changed(); });
 $("cvPull").addEventListener("change", e => { convOf().pull = e.target.checked; changed(); });
@@ -90,7 +90,7 @@ let capsFor = null;
 function syncConvert(){
   const C = Object.assign({}, CONVERT, S.convert || {});
   $("cvOn").checked = !!C.on; $("cvMore").hidden = !C.on;
-  $("cvTo").innerHTML = Object.entries(CONVERT_TO).filter(([k]) => k !== S.sport).map(([k, v]) => `<option value="${k}"${k === C.to ? " selected" : ""}>${v}</option>`).join("");
+  $("cvTo").innerHTML = Object.entries(CONVERT_TO).filter(shown).filter(([k]) => k !== S.sport).map(([k, v]) => `<option value="${k}"${k === C.to ? " selected" : ""}>${v}</option>`).join("");
   $("cvHow").value = C.how; $("cvPull").checked = C.pull !== false;
   $("cvBaseLabel").textContent = sportName(S.sport); $("cvSecondLabel").textContent = sportName(C.to);
   document.querySelector(`input[name=cvShow][value=${C.show === "second" ? "second" : "base"}]`).checked = true;
@@ -314,4 +314,4 @@ document.querySelectorAll("#presets button").forEach(b => b.addEventListener("cl
   const P = clone(PRESETS[b.dataset.p]); openState(P, b.dataset.p === "monument" ? "E" : "N");
   toast(b.dataset.p === "blank" ? "<b>Blank pitch.</b> Open Stands, pick a side and press + Tier to start building." : `<b>${esc(b.firstChild.textContent.trim())}</b> loaded. Tap any stand to make it yours.`, UNDO);
 }));
-
+for (const b of document.querySelectorAll('[data-p="wrestle"]')) b.hidden = !WRESTLEBALL; // the Wrestleball ground preset, only where Wrestleball is switched on

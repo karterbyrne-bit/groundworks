@@ -9,6 +9,12 @@ const SPORTS = {
    front rows; a smaller one gets pull-out seats coming forward. show picks which set-up is drawn. */
 const CONVERT = {on:false, to:"athletics", how:"slide", pull:true, show:"base"};
 const CONVERT_TO = {football:"Football", rugby:"Rugby", athletics:"Athletics", wrestleball:"Wrestleball"};
+/* Wrestleball is the owner's own sport: kept out of the public app, and switched on for one browser by opening the app
+   once with ?wrestleball on the end of its address (?nowrestleball switches it off again). Designs that use it still open. */
+const WRESTLEBALL = (() => { try { const q = location.search;
+  if (/[?&]wrestleball\b/.test(q)) localStorage.setItem("groundworks-wb", "1"); if (/[?&]nowrestleball\b/.test(q)) localStorage.removeItem("groundworks-wb");
+  return localStorage.getItem("groundworks-wb") === "1"; } catch(e) { return false; } })();
+const shown = ([k]) => k !== "wrestleball" && k !== "wrestle" || WRESTLEBALL; // for lists of sports and presets
 const KINDS = {
   wrestleball:{label:"Wrestleball", W:16.5,H:4.5,r:0,surface:"grass",set:2.5,floor:0,zones:[4,8.5,4],outdoor:true,note:"An outdoor sport on grass: 16.5 × 4.5 m, with two 4 m end zones either side of an 8.5 m central playing area."},
   plain:{label:"Plain floor", W:100,H:64,r:0,surface:"grass",set:4,floor:0,note:"Any floor up to 400 × 300 m. Set the exact size below."}

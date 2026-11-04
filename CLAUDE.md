@@ -2,7 +2,7 @@
 
 ## Who it's for
 
-Groundworks is for football, rugby and athletics fans sketching their dream grounds, plus Wrestleball. Fun comes first; the safety checks are a bonus, not the point. Wrestleball is the owner's own made-up sport: it stays, and it isn't a mistake to "fix".
+Groundworks is for football, rugby and athletics fans sketching their dream grounds, plus Wrestleball. Fun comes first; the safety checks are a bonus, not the point. Wrestleball is the owner's own made-up sport: it stays, and it isn't a mistake to "fix". It's hidden from the public app: it only shows in a browser that has opened the app once with `?wrestleball` on the end of its address (`?nowrestleball` hides it again). Keep it that way, and keep any new list of sports or presets hiding it too.
 
 ## Talking to the owner
 

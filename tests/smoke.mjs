@@ -28,6 +28,7 @@ const quick = process.argv.includes("--quick");
 {
   console.log("\npinned capacities");
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  await ctx.addInitScript(() => { try { localStorage.setItem("groundworks-wb", "1"); } catch(e) {} }); // Wrestleball switched on, as for the owner
   const page = await ctx.newPage();
   page.setDefaultTimeout(120000);
   await page.goto(base, { timeout: 120000 });
@@ -62,6 +63,7 @@ const quick = process.argv.includes("--quick");
 for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["phone", { width: 390, height: 844 }]].filter(([n]) => !quick || n === "phone")) {
   console.log(`\n${name} (${viewport.width}×${viewport.height})`);
   const ctx = await browser.newContext({ viewport, hasTouch: name === "phone" });
+  await ctx.addInitScript(() => { try { localStorage.setItem("groundworks-wb", "1"); } catch(e) {} }); // Wrestleball switched on, as for the owner
   const page = await ctx.newPage();
   page.setDefaultTimeout(120000);
   await page.addInitScript(() => { window.__frames = 0; const raf = window.requestAnimationFrame.bind(window); window.requestAnimationFrame = f => raf(t => { window.__frames++; f(t); }); });
@@ -475,6 +477,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page2.waitForTimeout(800);
   check((await page2.evaluate(() => JSON.stringify(window.__gw.state()))) === before, "the shared link opens the same stadium");
   check(!page2.url().includes("#d="), "the link is tidied out of the address bar");
+  check(await page2.evaluate(() => !document.querySelector('#kinds [data-kind="wrestleball"]') && document.querySelector('[data-p="wrestle"]').hidden), "Wrestleball stays hidden for everyone who hasn't switched it on");
   await ctx2.close();
 
   // a tampered link is refused instead of being run
@@ -508,6 +511,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
 // a broken saved design shows the recovery card, not a blank page
 {
   const ctx = await browser.newContext();
+  await ctx.addInitScript(() => { try { localStorage.setItem("groundworks-wb", "1"); } catch(e) {} }); // Wrestleball switched on, as for the owner
   const page = await ctx.newPage();
   page.setDefaultTimeout(120000);
   await page.goto(base);
@@ -525,6 +529,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
 // if the 3D engine doesn't arrive (a page cut off on a patchy connection), say so instead of showing a blank screen
 {
   const ctx = await browser.newContext();
+  await ctx.addInitScript(() => { try { localStorage.setItem("groundworks-wb", "1"); } catch(e) {} }); // Wrestleball switched on, as for the owner
   const page = await ctx.newPage();
   page.setDefaultTimeout(60000);
   await page.route(base, async route => { const parts = readFileSync(new URL("index.html", root), "utf8").split("<script>");
