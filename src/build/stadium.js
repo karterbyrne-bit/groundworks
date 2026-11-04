@@ -720,8 +720,8 @@ function build(){
       const RR = info.map((x, i) => { if (!x || !roofCovers(rf, cum[i], lenTotal, closed)) return null; const outer = x.back + 1.5, inner = Math.min(outer - 2, x.front - rf.reach);
         const span = level ? spanRef : outer - inner, base = level ? levelBase : x.top + lift;
         if (gable){ const ridge = base + Math.tan(24*Math.PI/180)*span/2; return {inner, outer, y:f => f < .5 ? lerp(base, ridge, f*2) : lerp(ridge, base, (f-.5)*2), yIn:base, yOut:base}; }
-        const yIn = base + tilt*span, amp = (rf.curve || 0)*span*0.2;
-        return {inner, outer, y:f => lerp(yIn, base, f) + amp*Math.sin(Math.PI*f), yIn, yOut:base}; });
+        const yIn = base + tilt*span, amp = (rf.curve || 0)*span*0.2, rise = rf.support === "toptruss" || rf.topTruss ? trussRise(rf, closed, cum[i], lenTotal) : 0; // an arched truss lifts the roof's front edge with it
+        return {inner, outer, y:f => lerp(yIn, base, f) + amp*Math.sin(Math.PI*f) + rise*(1 - f), yIn: yIn + rise, yOut:base}; });
       RRout = RR;
       const nS = gable ? 2 : (rf.curve > 0.01 ? 6 : 1);
       const at = (a, f) => lerp(a.inner, a.outer, f);
@@ -754,8 +754,8 @@ function build(){
          four chords, bracing zigzagging along its front and back faces and across its top, carried down to the ground at
          the ends of an open stand. A roof support style of its own, or added to any roof on top of its usual support. */
       if (rf.support === "toptruss" || rf.topTruss){
-        const sb = buf("steel"), fT = .38, D = 5.5, half = 1.7, live = []; for (let i=0;i<m;i++) if (RR[i]) live.push(i);
-        const P3 = (i, up, side) => { const a = RR[i], q = pt(i, at(a, fT) + side*half); return [q[0], a.y(fT) + .3 + up + trussRise(rf, closed, cum[i], lenTotal), q[1]]; };
+        const sb = buf("steel"), fT = trussEndsOf(rf) === "arch" ? .04 : .38, D = 5.5, half = 1.7, live = []; for (let i=0;i<m;i++) if (RR[i]) live.push(i);
+        const P3 = (i, up, side) => { const a = RR[i], q = pt(i, at(a, fT) + side*half); return [q[0], a.y(fT) + .3 + up, q[1]]; }; // (an arch is in the roof's own height)
         for (let n=0;n<live.length;n++){ const i = live[n], j = live[n+1] != null ? live[n+1] : (closed ? live[0] : null); if (j == null || (!closed && j !== i + 1)) continue;
           for (const sd of [-1, 1]){ bar(sb, P3(i, 0, sd), P3(j, 0, sd), .5); bar(sb, P3(i, D, sd), P3(j, D, sd), .5); // the four chords
             bar(sb, n % 2 ? P3(i, 0, sd) : P3(i, D, sd), n % 2 ? P3(j, D, sd) : P3(j, 0, sd), .3); } // diagonals down each face
@@ -763,13 +763,13 @@ function build(){
           bar(sb, P3(i, D, -1), P3(i, D, 1), .22); bar(sb, n % 2 ? P3(i, D, -1) : P3(i, D, 1), n % 2 ? P3(j, D, 1) : P3(j, D, -1), .18); bar(sb, P3(i, 0, -1), P3(i, 0, 1), .22); } // and across
         if (!closed) for (const i of [live[0], live[live.length-1]]) if (i != null){ const tg = tangent(i), s2 = i === live[0] ? -1 : 1, q = P3(i, D, 0), b0 = pt(i, at(RR[i], fT)); if (trussEndsOf(rf) === "legs") TRUSS_RUNS.push({b0, dir:[tg[0]*s2, tg[1]*s2], P:[P3(i, 0, -1), P3(i, D, -1), P3(i, 0, 1), P3(i, D, 1)]}); // straight on out (see drawTrussRuns)
           else if (trussEndsOf(rf) === "arch") TRUSS_RUNS.push({b0, dir:[tg[0]*s2, tg[1]*s2], P:[P3(i, 0, -1), P3(i, D, -1), P3(i, 0, 1), P3(i, D, 1)], arch:Object.assign([P3(i, D/2, -1), P3(i, D/2, 1)], {run:Math.min(70, q[1]/.44)})}); else post(sb, b0[0] + tg[0]*s2*2.5, b0[1] + tg[1]*s2*2.5, 0, q[1] + .5, 1.8); } // end posts (or the arch's legs) carry it to the ground
-        topAll = Math.max(topAll, ...live.map(i => P3(i, D, 0)[1] + .5));
+        topAll = Math.max(topAll, ...live.map(i => P3(i, D, 0)[1] + .5)); if (trussEndsOf(rf) === "arch" && !closed) roofDiagrid(sb, V, RR, cum); // Stadium Australia's criss-cross of steel over the sheets
       }
       for (let i=0;i<m;i++){ const a = RR[i]; if (!a) continue;
         const peak = gable ? a.y(.5) : Math.max(a.y(0), a.y(1), a.y(.5));
         outerTop = Math.max(outerTop, a.y(0), a.y(1));
         topAll = Math.max(topAll, peak + (rf.support === "truss" ? 3.2 : rf.support === "ribs" ? 4 : .5));
-        if (rf.support === "ribs" && ribAt.has(i)) for (let s=0;s<nS;s++){ const f0 = s/nS, f1 = (s+1)/nS;
+        if (rf.support === "ribs" && ribAt.has(i) && !(rf.topTruss && trussEndsOf(rf) === "arch")) for (let s=0;s<nS;s++){ const f0 = s/nS, f1 = (s+1)/nS;
           quad(buf("steel"), V(i,at(a,f0),a.y(f0)), V(i,at(a,f1),a.y(f1)), V(i,at(a,f1),a.y(f1) + .4 + 3.6*f1), V(i,at(a,f0),a.y(f0) + .4 + 3.6*f0)); }
         if (rf.support === "columns" && colAt.has(i)){ const x = info[i], cd = roofPillarAt(rf, x, a), out = cd > a.outer, f = Math.min(1, (cd - a.inner)/(a.outer - a.inner)), q = pt(i, cd), y0 = out ? 0 : heightAt(x.prof, cd);
           post(buf("column"), q[0], q[1], y0, a.y(f) + (out ? 1 : 0), out ? .6 : .35); if (out) bar(buf("steel"), [q[0], a.y(1) + 1, q[1]], V(i, at(a, .6), a.y(.6)), .3); else viewPosts.push({x:q[0], z:q[1], r:.25, y0, y1:a.y(f), cause:"pillar"}); }

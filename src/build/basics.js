@@ -117,8 +117,9 @@ function bowlSeatsBySide(recs, F, set){
     out[end ? (r.x > 0 ? "E" : "W") : (r.z < 0 ? "N" : "S")] += r.seats; }
   return out;
 }
-/* The big truss along the top of a roof can arch up over the stand, like Stadium Australia's: rising to its highest at
-   the middle of the stand, with its legs carrying on down past each end to land on the ground outside the ground. */
+/* The big truss along the top of a roof can arch up over the stand, like Stadium Australia's: it runs along the roof's
+   front edge, lifting it into a curve that's highest at the middle of the stand, with its legs carrying on down past
+   each end to land on the ground outside the ground. */
 const trussEndsOf = rf => rf.trussEnds || (rf.trussArch ? "arch" : "posts"); // designs saved before the choice had just the arch switch
 const trussRise = (rf, closed, u, len) => trussEndsOf(rf) === "arch" && !closed ? len*.14*Math.sin(Math.PI*Math.min(1, Math.max(0, u/len))) : 0;
 /* Or it can run on dead straight past each end of the stand, over the corners and out beyond the back of the ground,
@@ -152,3 +153,12 @@ const roofCovers = (rf, u, len, closed) => closed || ((rf.coverFrom || 0) <= u/l
    beyond it so no seat looks past one. */
 function roofPillarAt(rf, x, a){ const w = rf.colAt || "front";
   return w === "outside" ? a.outer + 3 : w === "back" ? Math.max(x.front + .6, x.back - .4) : w === "mid" ? lerp(x.front, x.back, .5) : Math.max(a.inner + .6, x.front + .6); }
+/* Stadium Australia's roof: a criss-cross of white steel over the sheets, from front to back, every 12 m along. RR holds
+   each slice's roof (its inner and outer edge, and its height y(f) a share f of the way back). */
+function roofDiagrid(sb, V, RR, cum){
+  const live = []; for (let i=0;i<RR.length;i++) if (RR[i]) live.push(i);
+  const at = (i, f) => V(i, lerp(RR[i].inner, RR[i].outer, f), RR[i].y(f) + .35), pick = []; let next = cum[live[0]];
+  for (const i of live) if (cum[i] >= next){ pick.push(i); next = cum[i] + 12; }
+  for (let k=0;k+1<pick.length;k++){ const i = pick[k], j = pick[k+1]; if (j - i !== live.indexOf(j) - live.indexOf(i)) continue; // not across a gap in the roof
+    bar(sb, at(i, 0), at(j, 1), .45); bar(sb, at(i, 1), at(j, 0), .45); bar(sb, at(i, .5), at(j, .5), .3); }
+}
