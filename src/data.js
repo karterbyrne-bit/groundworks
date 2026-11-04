@@ -50,16 +50,16 @@ const fireRiskOf = cfg => {
   return look === "timber" ? "high" : sty.era === "Traditional" ? "medium" : "low";
 };
 const ROOF_SHAPES = {none:"No roof", slope:"Flat or sloping", gable:"Pitched, with a gable", closed:"Closed over the floor"};
-const ROOF_MATS = {translucent:"Translucent", metal:"Metal sheet", concrete:"Concrete", green:"Painted tin", glass:"Glass"};
+const ROOF_MATS = {translucent:"Translucent", metal:"Metal sheet", concrete:"Concrete", green:"Painted tin", glass:"Glass", cushion:"Cushions (like the Allianz)"};
 const ROOF_SUPPORTS = {none:"Hidden cantilever", ribs:"Exposed ribs", columns:"Pillars", truss:"Goalpost truss", toptruss:"Big truss along the top", masts:"Masts and cables"};
 const TRUSS_ENDS = {posts:"At the stand's ends", legs:"Straight out, on upright legs", arch:"Arched (Stadium Australia)"};
 const PILLAR_SPOTS ={front:"At the front of the seats", mid:"Partway back", back:"Along the back row", outside:"Outside, behind the stand"};
-const ROOF_MAT_KEY = {translucent:"roof", metal:"roofSolid", concrete:"roofConcrete", green:"roofGreen", glass:"roofGlass"};
+const ROOF_MAT_KEY = {translucent:"roof", metal:"roofSolid", concrete:"roofConcrete", green:"roofGreen", glass:"roofGlass", cushion:"roofCushion"};
 /* One roof over the whole ground, designed on its own rather than per stand. */
 const GROUND_ROOF = {on:false, shape:"follow", cover:"ring", reach:2, back:1.5, lift:5, tilt:4, curve:0, mat:"translucent", support:"columns", opening:0.5, wall:false};
 const GROUND_ROOF_SHAPES = {follow:"Follows the stands", oval:"Oval", circle:"Round"};
 const GROUND_ROOF_COVER = {ring:"A ring, open over the play", closed:"Closed over the floor"};
-const GROUND_ROOF_SUPPORTS = {columns:"Columns round the outside", none:"Hidden (a tension ring)", ribs:"Exposed ribs", truss:"Ring truss round the inner edge", trusses:"Deep trusses under it, on columns", girders:"Big girders over it, on towers (San Siro)", masts:"Masts and cables"};
+const GROUND_ROOF_SUPPORTS = {columns:"Columns round the outside", none:"Hidden (a tension ring)", ribs:"Exposed ribs", truss:"Ring truss round the inner edge", trusses:"Deep trusses under it, on columns", girders:"Big girders over it, on towers (San Siro)", masts:"Masts and cables", cornermasts:"Four corner masts (Cardiff)"};
 const R = (shape, o) => Object.assign({shape, reach:1.5, lift:6, tilt:4, curve:0, mat:"translucent", support:"none", opening:0}, o || {});
 /* A tier: what's in it, how many rows, how steep, and (for tiers above the first) how far it projects over the one below and how high it sits. */
 const t = (type, rows, rake, auto, extra) => {
