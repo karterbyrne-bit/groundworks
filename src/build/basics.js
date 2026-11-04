@@ -135,6 +135,13 @@ const trussOut = (rp, live, end, tg) => { const a = rp(end), first = end === liv
 /* Or it can run on dead straight past each end of the stand, over the corners and out beyond the back of the ground,
    to stand on a pair of upright legs there. Each stand notes its truss's ends as it's built; they're drawn once the
    whole ground is up, so the legs land clear of every stand and corner, not just this one. */
+/* An arched truss runs dead straight in plan from one end of the stand to the other, as at Stadium Australia, even
+   where the stand curves round the play: A and B are its ends, c0 and c1 how far along the stand they are. at(c, off) is
+   its point c along the stand, off to one side; out(first) the way on out past either end. */
+function trussChord(A, B, c0, c1){
+  const dx = B[0] - A[0], dz = B[1] - A[1], l = Math.hypot(dx, dz) || 1, t = [dx/l, dz/l], nm = [-t[1], t[0]];
+  return {at:(c, off) => { const u = Math.min(1, Math.max(0, (c - c0)/((c1 - c0) || 1))); return [A[0] + dx*u + nm[0]*off, A[1] + dz*u + nm[1]*off]; }, out: first => first ? [-t[0], -t[1]] : t};
+}
 const TRUSS_RUNS = [];
 function drawTrussRuns(outline, buf, bounds, outerTop){
   const runs = TRUSS_RUNS.splice(0); if (!runs.length) return; const hull = hull2(outline), sb = buf("steel"), A = S.arch || {};
