@@ -509,7 +509,7 @@ function build(){
             }
             if (p0.over > 0.3 && !p0.lowerGhost) roofQuads.push([pt(i,p0.front), pt(j1,p1.front), pt(j1,Math.min(p1.lowerBack, bk1)), pt(i,Math.min(p0.lowerBack, bk0))]);
           }
-          if (sty.under && !(sty.under === "bank" && p0.stacked)) standUnder(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1, base, sty.under, cum[i], closed && j1 === 0 ? lenTotal : cum[j1], grow, (poly || obstacles.length ? roomAt(o[i], v[i], 0) - .5 : Infinity), (poly || obstacles.length ? roomAt(o[j1], v[j1], 0) - .5 : Infinity)); else { const b0 = sty.under === "bank" ? Math.max(base(i,bk0), bankHeight(profs[i], bk0, (poly || obstacles.length ? roomAt(o[i], v[i], 0) - .5 : Infinity))) : base(i,bk0), b1 = sty.under === "bank" ? Math.max(base(j1,bk1), bankHeight(profs[j1], bk1, (poly || obstacles.length ? roomAt(o[j1], v[j1], 0) - .5 : Infinity))) : base(j1,bk1); quad(buf(wallKey), V(i,bk0,b0), V(j1,bk1,b1), V(j1,bk1,t1+1.2), V(i,bk0,t0+1.2)); } // a stand above a bank stands on the earth
+          if (sty.under && !(sty.under === "bank" && p0.stacked)) standUnder(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1, base, sty.under, cum[i], closed && j1 === 0 ? lenTotal : cum[j1], grow, (poly || obstacles.length ? roomAt(o[i], v[i], 0) - .5 : Infinity), (poly || obstacles.length ? roomAt(o[j1], v[j1], 0) - .5 : Infinity), profs[i], profs[j1]); else { const b0 = sty.under === "bank" ? Math.max(base(i,bk0), bankHeight(profs[i], bk0, (poly || obstacles.length ? roomAt(o[i], v[i], 0) - .5 : Infinity))) : base(i,bk0), b1 = sty.under === "bank" ? Math.max(base(j1,bk1), bankHeight(profs[j1], bk1, (poly || obstacles.length ? roomAt(o[j1], v[j1], 0) - .5 : Infinity))) : base(j1,bk1); quad(buf(wallKey), V(i,bk0,b0), V(j1,bk1,b1), V(j1,bk1,t1+1.2), V(i,bk0,t0+1.2)); } // a stand above a bank stands on the earth
           // where the depth changes from one slice to the next (an oval or blended outline), a smooth outer wall hides the steps
           if (n0 !== n1 && !sty.under && !profs[i].slice(k+1).some(q => q && !q.ghost && nRows(q) >= 1)){
             const e0 = p0.front + n0*T, e1 = p1.front + n1*T; quad(buf(wallKey), V(i,e0,base(i,e0)), V(j1,e1,base(j1,e1)), V(j1,e1,p1.hs[n1-1]+1.2), V(i,e0,p0.hs[n0-1]+1.2)); }
@@ -522,7 +522,7 @@ function build(){
         const p = pk(s), n = p && !p.ghost ? nRows(p) : 0; if (n < 1) continue;
         // open stand ends: close the tier, and wall in the space under a stacked tier
         if (!closed && (s === 0 || s === m-1)){
-          cap(s, p, 0, n, endOpen(s)); if (sty.under === "bank" && !p.stacked && endOpen(s)){ const tg0 = tangent(s), o = s === 0 ? [-tg0[0], -tg0[1]] : tg0; bankEnd(buf, (d, y, w) => { const q = pt(s, d); return [q[0] + o[0]*w, y, q[1] + o[1]*w]; }, p, !profs[s].slice(k+1).some(q => q && !q.ghost && nRows(q) >= 1)); } // the bank slopes off at an open end
+          cap(s, p, 0, n, endOpen(s)); if (sty.under === "bank" && !p.stacked && endOpen(s)){ const tg0 = tangent(s), o = s === 0 ? [-tg0[0], -tg0[1]] : tg0; bankEnd(buf, (d, y, w) => { const q = pt(s, d); return [q[0] + o[0]*w, y, q[1] + o[1]*w]; }, p, !profs[s].slice(k+1).some(q => q && !q.ghost && nRows(q) >= 1), (bankCrest(profs[s]) || {}).crest); } // the bank slopes off at an open end
           if (p.stacked){ const bk = p.front + n*T, top = p.hs[n-1], lb = Math.min(p.lowerBack, bk);
             const soff = d => lerp(p.hF - 1.5, top - 1.5, (d - p.front)/Math.max(.1, bk - p.front));
             if (bk > lb + .1){ quad(buf(wallKey), V(s,lb,base(s,lb)), V(s,bk,base(s,bk)), V(s,bk,top-1.5), V(s,lb,soff(lb)));
@@ -555,7 +555,7 @@ function build(){
           const ew = S.design.exitWidth/2, at = (d, y, side) => across(ew, d, y, side), bk = p.front + n*T - .02, y0 = p.hs[n-1] + .02;
           quad(buf("void"), at(bk, y0, -1), at(bk, y0, 1), at(bk, y0 + 1.15, 1), at(bk, y0 + 1.15, -1));
           const c = pt(s, bk - .08); post(buf("emerg"), c[0], c[1], y0 + 1.25, y0 + 1.55, .55); }
-        if (sty.under === "bank" && !p.stacked && entry === "back" && marks(entryEvery).has(s)) bankWay(buf, across, p.front + n*T, p.hs[n-1], "steps", (poly || obstacles.length ? roomAt(o[s], v[s], 0) - .5 : Infinity)); if (backAt.has(s) && n >= 2){ // an entrance at the back, at the head of a gangway: a doorway from the concourse onto the walkway
+        if (sty.under === "bank" && !p.stacked && entry === "back" && marks(entryEvery).has(s)) bankWay(buf, across, p.front + n*T, p.hs[n-1], "steps", (poly || obstacles.length ? roomAt(o[s], v[s], 0) - .5 : Infinity), profs[s]); if (backAt.has(s) && n >= 2){ // an entrance at the back, at the head of a gangway: a doorway from the concourse onto the walkway
           const ew = S.design.exitWidth/2, WR = walkRows(n), y0 = (WR ? p.hs[WR[0]] : p.hs[n-1]) + .02, bk = p.front + n*T - .02, cb = buf("concrete");
           const at = (d, y, side, w) => across(w, d, y, side);
           quad(buf("void"), at(bk, y0, -1, ew), at(bk, y0, 1, ew), at(bk, y0 + 2.1, 1, ew), at(bk, y0 + 2.1, -1, ew));
@@ -574,7 +574,7 @@ function build(){
           for (const side of [-1, 1]){
             for (let j=ja;j<jb;j++){ const d0 = p.front + j*T; quad(buf("concrete"), at(d0,fl,side), at(d0+T,fl,side), at(d0+T,p.hs[j]+.45,side), at(d0,p.hs[j]+.45,side)); }
             bar(buf("steel"), at(dF, fl + 1, side), at(dB, p.hs[jb-1] + 1.4, side), .06); }
-          bar(buf("steel"), at(dF, fl + 1, -1), at(dF, fl + 1, 1), .06); if (sty.under === "bank" && !p.stacked) bankWay(buf, across, p.front + n*T, p.hs[n-1], "tunnel", (poly || obstacles.length ? roomAt(o[s], v[s], 0) - .5 : Infinity)); // on through a bank to a portal at its foot
+          bar(buf("steel"), at(dF, fl + 1, -1), at(dF, fl + 1, 1), .06); if (sty.under === "bank" && !p.stacked) bankWay(buf, across, p.front + n*T, p.hs[n-1], "tunnel", (poly || obstacles.length ? roomAt(o[s], v[s], 0) - .5 : Infinity), profs[s]); // on through a bank to a portal at its foot
         }
         // pillars under a stacked tier's front (always when the tier below is left open)
         if (p.stacked && (p.pillars || p.lowerGhost) && tc.hold !== "towers" && pillarAt.has(s)){
