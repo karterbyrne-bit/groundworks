@@ -231,7 +231,7 @@ function build(){
       const tx = b[0]-a[0], tz = b[1]-a[1], l = Math.hypot(tx,tz) || 1; return [tx/l, tz/l]; };
     const above = st.drawFrom > 0, K = Math.max(0, ...profs.map(p => p.length));
     const realCount = Math.max(0, ...profs.map(p => p.filter((x,k) => k >= st.drawFrom && !x.ghost).length));
-    let standWc = 0, standSeats = 0, standEvac = 0, standTop = 0, standBack = 0; const kinds = new Set(), segRecs = [], tierRecs = [], towerReqs = [];
+    let vehOut = null, standWc = 0, standSeats = 0, standEvac = 0, standTop = 0, standBack = 0; const kinds = new Set(), segRecs = [], tierRecs = [], towerReqs = [];
     const wallBase = sty.wall === "concrete" ? "concrete" : sty.wall === "glassClad" ? "glassClad" : "clad_" + cfg.style;
     const wallKey = textured(tint(wallBase, fac.colour), wallBase === "glassClad" ? null : LOOK_TEX[look]); // the wall's colour and real material
     const pillarAt = marks(12), midI = (() => { let best = Math.floor(m/2), bd = Infinity; for (let i=0;i<m;i++){ const d = Math.abs(cum[i] - lenTotal/2); if (d < bd && profs[i].some(p => nRows(p) >= 1 && !p.ghost)){ bd = d; best = i; } } return best; })();
@@ -594,7 +594,7 @@ function build(){
           quad(buf("void"), Q(s0,dB,.03), Q(s1,dB,.03), Q(s1,dB,top), Q(s0,dB,top));
           for (const e2 of [s0, s1]){ for (let j=0;j<R;j++){ const d0 = dF + j*T2; quad(buf("concrete"), Q(e2,d0,0), Q(e2,d0+T2,0), Q(e2,d0+T2,Math.max(P.hs[j]+.45, 0)), Q(e2,d0,Math.max(P.hs[j]+.45, 0))); }
             for (let y=0;y<4.4;y+=.8) quad(buf("barrier"), Q(e2,dF-.02,y), Q(e2,dF+.25,y), Q(e2,dF+.25,y+.4), Q(e2,dF-.02,y+.4)); }
-          const c = Q(b.c, dB - .05, 4.75); post(buf("emerg"), c[0], c[2], 4.6, 4.95, .7); continue; }
+          const c = Q(b.c, dB - .05, 4.75); post(buf("emerg"), c[0], c[2], 4.6, 4.95, .7); vehOut = {Q, s0, s1, c:b.c, top}; continue; }
         if (b.kind === "access" && b.R){ // a level platform with a low rail in front and the blue sign at each end
           const r0 = b.r0, y = P.hs[Math.min(n - 1, r0)] + .02, d0 = dF + r0*T2, d1 = dF + b.R*T2, yb = P.hs[Math.min(n - 1, b.R)];
           quad(buf("concrete"), Q(s0,d0,y), Q(s1,d0,y), Q(s1,d1,y), Q(s0,d1,y));
@@ -870,7 +870,7 @@ function build(){
       const d0 = roofed ? ra.outer : x0.back, d1 = roofed ? rb.outer : x1.back, y0 = roofed ? ra.y(1) : x0.top, y1 = roofed ? rb.y(1) : x1.top;
       const nv = [v[i][0] + v[j1][0], v[i][1] + v[j1][1]], nl = Math.hypot(nv[0], nv[1]) || 1;
       dressWall(buf, look, wallKey, pt(i, d0), pt(j1, d1), y0, y1, [nv[0]/nl, nv[1]/nl], Object.assign({along: cum[i], total: lenTotal, lift: Math.max(base(i, d0), base(j1, d1))}, wallOpt));
-    }
+    } if (vehOut && !DRY) vehicleWayOut(buf, vehOut, info, RRout, roofOn, profs, sty.under, cum); // and on out through the back of the stand
     // the stadium's name (naming rights) goes along the main stand's roof front, unless that stand has lettering of its own
     const SP = sponsorsOf(), named = !fac.sign && SP.title && SP.onStand !== false && st.key === (lay === "bowl" ? "B" : lay === "ring" ? "R0" : "N");
     const HEn = homeEndOf(), homeNamed = !fac.sign && !named && HEn.name && (HEn.at === st.key || HEn.at === st.ck); // the home end's name, like the Kop's
