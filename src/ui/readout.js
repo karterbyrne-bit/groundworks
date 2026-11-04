@@ -113,6 +113,14 @@ document.getElementById("breakdown").addEventListener("click", e => {
   if (!S.showObstructed){ S.showObstructed = true; changed(); }
   showObstructedAt(at);
 });
+document.getElementById("safety").addEventListener("click", e => {
+  const fb = e.target.closest("[data-fix]"), sb = e.target.closest("[data-show]"), fa = e.target.closest("[data-fixall]");
+  if (fb){ const is = LAST.issues[+fb.dataset.fix]; runFix(fb.dataset.alt != null ? {fix:is.alts[+fb.dataset.alt]} : is); }
+  else if (sb) showIssue(LAST.issues[+sb.dataset.show]);
+  else if (fa) fixAll();
+});
+document.getElementById("safety").addEventListener("change", e => { if (e.target.id === "trimToggle"){ S.trim = e.target.checked; changed(); } if (e.target.id === "keepClose"){ S.keepClose = e.target.checked; changed(); } if (e.target.id === "obsToggle"){ S.showObstructed = e.target.checked; changed(); } });
+/* Pop-up messages. An optional action (usually Undo) gives a one-tap way back. */
 function toast(msg, action, ms){
   const box = $("toasts"), el = document.createElement("div");
   el.className = "toast"; el.innerHTML = `<span>${msg}</span>`;
