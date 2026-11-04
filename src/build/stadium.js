@@ -1058,8 +1058,8 @@ function build(){
     const plans = {}; for (const c of CORNERS) plans[c.key] = cornerPlan(c);
     for (const s of SIDES){
       const cfg = S.stands[s]; if (!cfg.tiers.length && cfg.roof.shape === "none") continue;
-      const [gb, ga] = SIDE_GROUPS[s], P0 = plans[GROUP_KEY[gb]], P1 = plans[GROUP_KEY[ga]];
-      const lo = gb*(nc+1) + nc*(1 - P0.wb), hi = ga*(nc+1) + nc*P1.wa;
+      const [gb, ga] = SIDE_GROUPS[s], P0 = plans[GROUP_KEY[gb]], P1 = plans[GROUP_KEY[ga]], past = cornerReach(radius, lastBack(profile(S.bowl.tiers, set)) || set, shape);
+      const lo = gb*(nc+1) + nc*(1 - Math.max(P0.wb, P0.stand ? 0 : past)), hi = ga*(nc+1) + nc*Math.max(P1.wa, P1.stand ? 0 : past); // at least as far as the corner flags
       const geo = subGeo(ring, lo, hi, total4);
       buildSliced({name:SIDE_NAMES[s], key:s, geo, cfg, set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc).concat(cfg.tiers), geo.o[i], geo.v[i]), tierRef:k => cfg.tiers[k], drawFrom:rc, sel: tab === s, levelPiece:levelBySide(geo), joined:[P0.meet, P1.meet]});
     }
@@ -1131,7 +1131,7 @@ function build(){
         for (const [p2, y2] of [[P(i, dIn[i] + 1), a(0)], [P(i, at(i, .45)), a(.45)]]) quad(buf("cable"), [q[0]-tg[0]*.08, mt, q[1]-tg[1]*.08], [q[0]+tg[0]*.08, mt, q[1]+tg[1]*.08], [p2[0]+tg[0]*.08, y2, p2[1]+tg[1]*.08], [p2[0]-tg[0]*.08, y2, p2[1]-tg[1]*.08]);
         top = Math.max(top, mt); grow(q[0], q[1]); }
       const g = P(i, dOut[i]); grow(g[0], g[1]);
-    }
+    } top = Math.max(top, groundRoofStructure({n, P, dIn, dOut, Y, buf, gr, cum, grow})); // rafters, trusses or girders (see ground-roof.js)
     if (gr.cover === "closed"){ // closed over the floor, optionally with an opening in the middle
       const cy = yIn + 9, op = Math.max(0, Math.min(0.9, gr.opening || 0)), b = buf("roofClosed");
       for (let i=0;i<n;i++){ const j = (i+1)%n, pa = P(i,dIn[i]), pc = P(j,dIn[j]);

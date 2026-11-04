@@ -180,6 +180,13 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.waitForFunction(() => !window.__gw.busy() && window.__gw.last().parts.some(p => p.label === "West end"));
   const rr = await last();
   check(rr.total > 15000 && rr.covered / rr.total > 0.9 && !rr.issues, 'preset "ringroof" builds under one roof with no warnings');
+  // famous roofs: San Siro's red girders on towers bring its ramp towers; the Allianz swaps them for its cushions
+  { await page.click('#panes [data-pane="stands"]'); await page.waitForTimeout(300);
+    const famous = async k => { await page.selectOption('select[data-p="gr.famous"]', k); await page.waitForTimeout(400); await page.waitForFunction(() => !window.__gw.busy()); };
+    await famous("sansiro"); const ss = await last(), gS = await page.evaluate(() => window.__gw.state().groundRoof || {}), aS = await page.evaluate(() => window.__gw.state().arch || {});
+    await famous("allianz"); const aA = await page.evaluate(() => window.__gw.state().arch || {});
+    check(ss.total === rr.total && gS.support === "girders" && gS.colour === "#c8102e" && aS.ramps && !aA.ramps && aA.skin === "cushion" && errors.length === 0, "the one roof can start from a famous roof (San Siro's girders, the Allianz's cushions)");
+    await page.click("#undoBtn"); await page.waitForTimeout(200); await page.click("#undoBtn"); await page.waitForTimeout(300); }
   await page.click('#panes [data-pane="start"]');
 
   // Ibrox: a deck on towers over an old stand; per-tier looks and lettering; typed plot sizes
