@@ -29,6 +29,20 @@ function groundRoofStructure(R){
     top = Math.max(top, ...Array.from({length:n}, (_, i) => hi(i))); }
   return top;
 }
+/* How far below its highest the one roof comes down at each slice of its ring, so it can follow each stand's height
+   rather than stay level all the way round: it stays the same height above whichever stand is nearest (eased round the
+   corners, so it doesn't step), and comes down that much. All nothing when it's level, or closed over the floor. drop.near(x, z) is the
+   drop at the slice nearest a point, for the stands' screens and floodlights hung from it. */
+function groundRoofDrop(gr, n, P, dOut, anchors){
+  const zero = Object.assign(new Array(n).fill(0), {near:() => 0}); if (gr.height !== "stands" || gr.cover === "closed") return zero;
+  const pts = []; for (const g of anchors) for (let i=0;i<g.m;i++){ const x = g.info[i]; if (x) pts.push([g.o[i][0] + x.back*g.v[i][0], g.o[i][1] + x.back*g.v[i][1], Math.max(4, x.top)]); }
+  if (!pts.length) return zero;
+  const h = []; for (let i=0;i<n;i++){ const q = P(i, dOut[i]); let best = Infinity, y = 4; for (const p of pts){ const d = (p[0]-q[0])**2 + (p[1]-q[1])**2; if (d < best){ best = d; y = p[2]; } } h.push(y); }
+  const k = Math.max(1, Math.round(n/30)), sm = h.map((_, i) => { let t = 0; for (let j=-k;j<=k;j++) t += h[(i + j + n) % n]; return t/(2*k + 1); }), hi = Math.max(...sm);
+  const drop = sm.map(y => hi - y);
+  drop.near = (x, z) => { let best = Infinity, b = 0; for (let i=0;i<n;i++){ const q = P(i, dOut[i]), d = (q[0]-x)**2 + (q[1]-z)**2; if (d < best){ best = d; b = drop[i]; } } return b; };
+  return drop;
+}
 /* Famous roofs to start the one roof from: its own settings, plus the signature architecture that goes with it. */
 const FAMOUS_ROOFS = {
   wembley:{label:"Wembley: a ring under an arch", roof:{shape:"oval", cover:"ring", mat:"translucent", support:"none", reach:6, back:2, lift:6, tilt:6, curve:.2, wall:false}, arch:{arch:true}},

@@ -399,7 +399,7 @@ function renderGroundRoof(){
     ${gr.support !== "none" ? `<div class="row colour"><label>Steel colour</label><input type="color" data-p="gr.colour" value="${gr.colour || "#e9ecee"}" aria-label="Steel colour"></div>` : ""}
     ${pair("Reaches past the front row", p("reach"), gr.reach, -20, 40, 0.5, "m", gr.shape === "follow" ? "Negative leaves the front rows open." : "Measured halfway along the long sides. Negative leaves the front rows open.")}
     ${pair("Overhang behind the back row", p("back"), gr.back, 0, 30, 0.5, "m")}
-    ${pair("Height above the tallest stand", p("lift"), gr.lift, 1.5, 40, 0.5, "m")}
+    ${gr.cover !== "closed" ? pick("Height", p("height"), gr.height || "level", GROUND_ROOF_HEIGHTS) : ""}${pair(gr.height === "stands" && gr.cover !== "closed" ? "Height above each stand" : "Height above the tallest stand", p("lift"), gr.lift, 1.5, 40, 0.5, "m")}
     ${pair("Tilt up towards the play", p("tilt"), gr.tilt, -15, 25, 1, "°")}${pair("Curve", p("curve"), Math.round((gr.curve||0)*100), 0, 100, 5, "%")}
     ${check("Close in the outside, down to the ground", p("wall"), gr.wall)}`;
 }
@@ -414,6 +414,6 @@ $("groundRoof").addEventListener("input", e => { const el = e.target, p = el.dat
   changed(false, el.type === "range"); });
 $("groundRoof").addEventListener("change", e => { const el = e.target; if (el.tagName !== "SELECT" || !el.dataset.p) return;
   const key = el.dataset.p.slice(3), f = FAMOUS_ROOFS[el.value]; if (key === "famous"){ if (!f) return; // a famous roof: its settings, and the architecture that goes with it
-    Object.assign(groundRoofOf(), {colour:""}, f.roof); S.arch = Object.assign({}, S.arch || {}, {arch:false, ramps:false, skin:"none"}, f.arch || {}); renderGroundRoof(); changed(); toast(`<b>${esc(f.label.split(":")[0])}.</b> Everything stays editable.`); return; } // (its own arch, ramps or skin, and none left over from another)
+    Object.assign(groundRoofOf(), {colour:"", height:"level"}, f.roof); S.arch = Object.assign({}, S.arch || {}, {arch:false, ramps:false, skin:"none"}, f.arch || {}); renderGroundRoof(); changed(); toast(`<b>${esc(f.label.split(":")[0])}.</b> Everything stays editable.`); return; } // (its own arch, ramps or skin, and none left over from another)
   groundRoofOf()[key] = el.value; renderGroundRoof(); changed(); });
 
