@@ -270,3 +270,10 @@ function bankEnd(buf, P3, p, joinBack){
   const bk = p.front + n*T, t = h(n - 1), R = run(t), K = 4; // a quarter round between the end and the back
   for (let k=0;k<K;k++){ const f0 = k/K*Math.PI/2, f1 = (k+1)/K*Math.PI/2; tri(b, P3(bk, t, 0), P3(bk + R*Math.cos(f0), 0, R*Math.sin(f0)), P3(bk + R*Math.cos(f1), 0, R*Math.sin(f1))); }
 }
+/* How high a banked terrace's earth is, d out from the front, at one slice (pr: its tiers, the banked one first): the
+   steps' own height over the terrace, then the bank falling away behind it. A stand built over the terrace stands on it. */
+function bankHeight(pr, d){
+  const p = pr.find(q => q && !q.ghost && q.hs.length); if (!p) return 0;
+  const n = p.hs.length, bk = p.front + n*p.T, top = p.hs[n - 1] + .2, foot = bk + 1 + p.hs[n - 1]*1.7;
+  return d <= bk ? top : Math.max(0, top*(1 - (d - bk)/(foot - bk)));
+}
