@@ -126,6 +126,12 @@ function bowlSeatsBySide(recs, F, set){
    each end to land on the ground outside the ground. */
 const trussEndsOf = rf => rf.trussEnds || (rf.trussArch ? "arch" : "posts"); // designs saved before the choice had just the arch switch
 const trussRise = (rf, closed, u, len) => trussEndsOf(rf) === "arch" && !closed ? len*.14*Math.sin(Math.PI*Math.min(1, Math.max(0, u/len))) : 0;
+/* Which way a truss carries on out past the end of a stand: from further along the roof towards its end. (Where a
+   stand's end fans round a corner, its last few slices meet at one spot on the roof, which gave no direction, or the
+   wrong one, and dropped that end's legs straight down onto the stand.) rp(k) is slice k's roof under the truss. */
+const trussOut = (rp, live, end, tg) => { const a = rp(end), first = end === live[0];
+  for (let n = first ? 1 : live.length - 2; n >= 0 && n < live.length; n += first ? 1 : -1){ const b = rp(live[n]), x = a[0] - b[0], z = a[1] - b[1], l = Math.hypot(x, z); if (l > 2) return [x/l, z/l]; }
+  return tg; };
 /* Or it can run on dead straight past each end of the stand, over the corners and out beyond the back of the ground,
    to stand on a pair of upright legs there. Each stand notes its truss's ends as it's built; they're drawn once the
    whole ground is up, so the legs land clear of every stand and corner, not just this one. */
