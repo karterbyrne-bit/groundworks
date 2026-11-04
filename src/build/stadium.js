@@ -1058,8 +1058,8 @@ function build(){
     const plans = {}; for (const c of CORNERS) plans[c.key] = cornerPlan(c);
     for (const s of SIDES){
       const cfg = S.stands[s]; if (!cfg.tiers.length && cfg.roof.shape === "none") continue;
-      const [gb, ga] = SIDE_GROUPS[s], P0 = plans[GROUP_KEY[gb]], P1 = plans[GROUP_KEY[ga]];
-      const lo = gb*(nc+1) + nc*(1 - P0.wb), hi = ga*(nc+1) + nc*P1.wa;
+      const [gb, ga] = SIDE_GROUPS[s], P0 = plans[GROUP_KEY[gb]], P1 = plans[GROUP_KEY[ga]], past = cornerReach(radius, lastBack(profile(S.bowl.tiers, set)) || set, shape);
+      const lo = gb*(nc+1) + nc*(1 - Math.max(P0.wb, P0.stand ? 0 : past)), hi = ga*(nc+1) + nc*Math.max(P1.wa, P1.stand ? 0 : past); // at least as far as the corner flags
       const geo = subGeo(ring, lo, hi, total4);
       buildSliced({name:SIDE_NAMES[s], key:s, geo, cfg, set, tiersFor:i => shapeT(bowlTiersAt(geo.tag[i], nc).concat(cfg.tiers), geo.o[i], geo.v[i]), tierRef:k => cfg.tiers[k], drawFrom:rc, sel: tab === s, levelPiece:levelBySide(geo), joined:[P0.meet, P1.meet]});
     }
