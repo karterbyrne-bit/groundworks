@@ -235,7 +235,7 @@ function execBoxes(buf, V, i, j1, p0, p1, n0, n1, u0, u1){
 function vehicleWayOut(buf, w, info, RRout, roofOn, profs, under, cum){
   const {Q, s0, s1, c, top} = w; let k = 0; while (k < cum.length - 1 && cum[k + 1] <= c) k++;
   const x = info[k]; if (!x) return; const ra = roofOn && RRout && RRout[k], wall = ra ? ra.outer : x.back, H = Math.min(top, 4.6), cb = buf("concrete");
-  const p = under === "bank" ? profs[k].find(q => q && !q.ghost && q.hs.length) : null, foot = p ? Math.max(wall, p.front + p.hs.length*p.T + 1 + p.hs[p.hs.length - 1]*1.7) : wall;
+  const bc = under === "bank" ? bankCrest(profs[k]) : null, foot = bc ? Math.max(wall, bc.foot) : wall; // (under a bank, out at its foot)
   quad(buf("road"), Q(s0, wall - .3, .04), Q(s1, wall - .3, .04), Q(s1, foot + 10, .04), Q(s0, foot + 10, .04)); // the road in from outside
   if (foot > wall + .5){ const dp = Math.max(wall, foot - 4); // a portal standing out of the bank's foot
     quad(cb, Q(s0 - .6, dp, H + .5), Q(s1 + .6, dp, H + .5), Q(s1 + .6, foot, H + .5), Q(s0 - .6, foot, H + .5));
