@@ -1088,10 +1088,10 @@ function build(){
     } else { // the smallest oval or circle round every stand, and a ring of even depth inside it
       const a0 = hx, b0 = hz; let A, B;
       if (gr.shape === "circle") A = B = Math.max(...hull.map(q => Math.hypot(q[0], q[1]))) + back;
-      else { const k = Math.max(1, ...hull.map(q => Math.hypot(q[0]/a0, q[1]/b0))); A = a0*k + back; B = b0*k + back; }
+      else if (gr.shape === "rect"){ A = Math.max(...hull.map(q => Math.abs(q[0]))) + back; B = Math.max(...hull.map(q => Math.abs(q[1]))) + back; } else { const k = Math.max(1, ...hull.map(q => Math.hypot(q[0]/a0, q[1]/b0))); A = a0*k + back; B = b0*k + back; } // a rectangle just takes in every stand
       const depth = Math.min(A, B) - (Math.min(F.W, F.H)/2 + set - reach); // so the inner edge is `reach` past the front row halfway along the long sides
-      dOut = ring.o.map((o2, i) => ellipseHit(o2, ring.v[i], A, B));
-      dIn = ring.o.map((o2, i) => ellipseHit(o2, ring.v[i], Math.max(1, A - depth), Math.max(1, B - depth)));
+      const hit = gr.shape === "rect" ? rectHit : ellipseHit; dOut = ring.o.map((o2, i) => hit(o2, ring.v[i], A, B));
+      dIn = ring.o.map((o2, i) => hit(o2, ring.v[i], Math.max(1, A - depth), Math.max(1, B - depth)));
     }
     for (let i=0;i<n;i++){
       dIn[i] = Math.max(inMin, dIn[i] == null ? inMin : dIn[i]);
