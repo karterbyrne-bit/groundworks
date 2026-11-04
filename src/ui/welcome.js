@@ -2,6 +2,20 @@
 const welcome = $("welcome"), help = $("help");
 const openSheet = d => { if (d.open) return; if (typeof d.showModal === "function") d.showModal(); else d.setAttribute("open", ""); };
 $("helpBtn").addEventListener("click", () => openSheet(help));
+/* A tip on installing it, so it gets its own icon, opens full screen and works offline: on an iPhone or iPad it's Share,
+   then Add to Home Screen; where the browser offers to install it (Chrome, Edge), a button. Nothing once it's installed. */
+let installAsk = null;
+const installed = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+function installTips(){
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  for (const el of document.querySelectorAll(".install-tip")){
+    el.hidden = installed() || !(ios || installAsk);
+    el.innerHTML = ios ? "<b>Install it:</b> tap Share, then <b>Add to Home Screen</b>. It gets its own icon, opens full screen and works offline."
+      : `<b>Install it</b> to give it its own icon and use it offline. <button class="btn small" data-install>Install</button>`; } }
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); installAsk = e; installTips(); });
+addEventListener("appinstalled", () => { installAsk = null; installTips(); });
+document.addEventListener("click", e => { if (!e.target.closest("[data-install]") || !installAsk) return; installAsk.prompt(); installAsk.userChoice.finally(() => { installAsk = null; installTips(); }); });
+installTips();
 help.addEventListener("close", () => { if (help.returnValue === "tour") openSheet(welcome); });
 welcome.addEventListener("close", () => { try { localStorage.setItem("groundworks-welcomed", "1"); } catch(e) {} });
 for (const d of [welcome, help]) d.addEventListener("click", e => { // tap outside the card to close
