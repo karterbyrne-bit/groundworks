@@ -26,6 +26,9 @@ function wallTexture(kind){
   else if (kind === "roofMetal"){ // 4 m: profiled sheet, a rib every half metre running front to back, a lap joint at the end of each sheet
     for (let x=0;x<N;x++){ const f = (x % (N/8))/(N/8), v = f < .12 ? 0.74 + f*2 : f < .22 ? 1 : 0.9 + 0.05*Math.cos(f*6.3); g.fillStyle = shade(v); g.fillRect(x, 0, 1, N); }
     g.fillStyle = shade(0.8); g.fillRect(0, 0, N, 3); }
+  else if (kind === "roofCushion"){ // 8 m: inflated diamond cushions (ETFE), as on the Allianz Arena, bright in the middle and seamed at the edges
+    metres = 8; g.fillStyle = shade(0.8); g.fillRect(0,0,N,N); const r = g.createRadialGradient(N/2,N/2,N/30,N/2,N/2,N*.6); r.addColorStop(0, shade(1)); r.addColorStop(1, shade(0.84));
+    g.fillStyle = r; g.beginPath(); g.moveTo(N/2,10); g.lineTo(N-10,N/2); g.lineTo(N/2,N-10); g.lineTo(10,N/2); g.closePath(); g.fill(); g.strokeStyle = shade(0.6); g.lineWidth = 8; g.stroke(); }
   else if (kind === "roofPoly"){ // 4 m: twin-wall polycarbonate, faint ribs every 25 cm and a glazing bar every 2 m
     g.fillStyle = shade(1); g.fillRect(0,0,N,N); g.fillStyle = shade(0.8); for (let x=0;x<N;x+=N/16) g.fillRect(x, 0, 3, N);
     g.fillStyle = shade(0.45); for (const x of [0, N/2]) g.fillRect(x, 0, 8, N); g.fillRect(0, 0, N, 5); }

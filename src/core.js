@@ -337,6 +337,7 @@ const M = {
   roofConcrete: std({color:0xa9a69e, roughness:.95}),
   roofClosed: std({color:0xdfe8ec, roughness:.3, transparent:true, opacity:.55}),
   roofGlass: std({color:0xbfe0ee, roughness:.08, metalness:.2, transparent:true, opacity:.45}),
+  roofCushion: std({color:0xf4f6f7, roughness:.35, metalness:.05, transparent:true, opacity:.88}),
   glassClad: std({color:0x9cc3d6, roughness:.1, metalness:.3, transparent:true, opacity:.7}),
   tower: std({color:0x8e938f, roughness:.85}), gate: std({color:0x23282b, roughness:.8}), cable: std({color:0x2b2f33, roughness:.5, metalness:.6}),
   soffit: std({color:0x9ea39f, roughness:.95}), hball: new THREE.MeshStandardMaterial({color:0xffffff, emissive:0x2b6fb3, emissiveIntensity:.9}),

@@ -231,7 +231,7 @@ function build(){
       const tx = b[0]-a[0], tz = b[1]-a[1], l = Math.hypot(tx,tz) || 1; return [tx/l, tz/l]; };
     const above = st.drawFrom > 0, K = Math.max(0, ...profs.map(p => p.length));
     const realCount = Math.max(0, ...profs.map(p => p.filter((x,k) => k >= st.drawFrom && !x.ghost).length));
-    let standWc = 0, standSeats = 0, standEvac = 0, standTop = 0, standBack = 0; const kinds = new Set(), segRecs = [], tierRecs = [], towerReqs = [];
+    let vehOut = null, standWc = 0, standSeats = 0, standEvac = 0, standTop = 0, standBack = 0; const kinds = new Set(), segRecs = [], tierRecs = [], towerReqs = [];
     const wallBase = sty.wall === "concrete" ? "concrete" : sty.wall === "glassClad" ? "glassClad" : "clad_" + cfg.style;
     const wallKey = textured(tint(wallBase, fac.colour), wallBase === "glassClad" ? null : LOOK_TEX[look]); // the wall's colour and real material
     const pillarAt = marks(12), midI = (() => { let best = Math.floor(m/2), bd = Infinity; for (let i=0;i<m;i++){ const d = Math.abs(cum[i] - lenTotal/2); if (d < bd && profs[i].some(p => nRows(p) >= 1 && !p.ghost)){ bd = d; best = i; } } return best; })();
@@ -509,7 +509,7 @@ function build(){
             }
             if (p0.over > 0.3 && !p0.lowerGhost) roofQuads.push([pt(i,p0.front), pt(j1,p1.front), pt(j1,Math.min(p1.lowerBack, bk1)), pt(i,Math.min(p0.lowerBack, bk0))]);
           }
-          if (sty.under && !(sty.under === "bank" && p0.stacked)) standUnder(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1, base, sty.under, cum[i], closed && j1 === 0 ? lenTotal : cum[j1], grow, (poly || obstacles.length ? roomAt(o[i], v[i], 0) - .5 : Infinity), (poly || obstacles.length ? roomAt(o[j1], v[j1], 0) - .5 : Infinity)); else { const b0 = sty.under === "bank" ? Math.max(base(i,bk0), bankHeight(profs[i], bk0, (poly || obstacles.length ? roomAt(o[i], v[i], 0) - .5 : Infinity))) : base(i,bk0), b1 = sty.under === "bank" ? Math.max(base(j1,bk1), bankHeight(profs[j1], bk1, (poly || obstacles.length ? roomAt(o[j1], v[j1], 0) - .5 : Infinity))) : base(j1,bk1); quad(buf(wallKey), V(i,bk0,b0), V(j1,bk1,b1), V(j1,bk1,t1+1.2), V(i,bk0,t0+1.2)); } // a stand above a bank stands on the earth
+          if (sty.under && !(sty.under === "bank" && p0.stacked)) standUnder(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1, base, sty.under, cum[i], closed && j1 === 0 ? lenTotal : cum[j1], grow, (poly || obstacles.length ? roomAt(o[i], v[i], 0) - .5 : Infinity), (poly || obstacles.length ? roomAt(o[j1], v[j1], 0) - .5 : Infinity), profs[i], profs[j1]); else { const b0 = sty.under === "bank" ? Math.max(base(i,bk0), bankHeight(profs[i], bk0, (poly || obstacles.length ? roomAt(o[i], v[i], 0) - .5 : Infinity))) : base(i,bk0), b1 = sty.under === "bank" ? Math.max(base(j1,bk1), bankHeight(profs[j1], bk1, (poly || obstacles.length ? roomAt(o[j1], v[j1], 0) - .5 : Infinity))) : base(j1,bk1); quad(buf(wallKey), V(i,bk0,b0), V(j1,bk1,b1), V(j1,bk1,t1+1.2), V(i,bk0,t0+1.2)); } // a stand above a bank stands on the earth
           // where the depth changes from one slice to the next (an oval or blended outline), a smooth outer wall hides the steps
           if (n0 !== n1 && !sty.under && !profs[i].slice(k+1).some(q => q && !q.ghost && nRows(q) >= 1)){
             const e0 = p0.front + n0*T, e1 = p1.front + n1*T; quad(buf(wallKey), V(i,e0,base(i,e0)), V(j1,e1,base(j1,e1)), V(j1,e1,p1.hs[n1-1]+1.2), V(i,e0,p0.hs[n0-1]+1.2)); }
@@ -522,7 +522,7 @@ function build(){
         const p = pk(s), n = p && !p.ghost ? nRows(p) : 0; if (n < 1) continue;
         // open stand ends: close the tier, and wall in the space under a stacked tier
         if (!closed && (s === 0 || s === m-1)){
-          cap(s, p, 0, n, endOpen(s)); if (sty.under === "bank" && !p.stacked && endOpen(s)){ const tg0 = tangent(s), o = s === 0 ? [-tg0[0], -tg0[1]] : tg0; bankEnd(buf, (d, y, w) => { const q = pt(s, d); return [q[0] + o[0]*w, y, q[1] + o[1]*w]; }, p, !profs[s].slice(k+1).some(q => q && !q.ghost && nRows(q) >= 1)); } // the bank slopes off at an open end
+          cap(s, p, 0, n, endOpen(s)); if (sty.under === "bank" && !p.stacked && endOpen(s)){ const tg0 = tangent(s), o = s === 0 ? [-tg0[0], -tg0[1]] : tg0; bankEnd(buf, (d, y, w) => { const q = pt(s, d); return [q[0] + o[0]*w, y, q[1] + o[1]*w]; }, p, !profs[s].slice(k+1).some(q => q && !q.ghost && nRows(q) >= 1), (bankCrest(profs[s]) || {}).crest); } // the bank slopes off at an open end
           if (p.stacked){ const bk = p.front + n*T, top = p.hs[n-1], lb = Math.min(p.lowerBack, bk);
             const soff = d => lerp(p.hF - 1.5, top - 1.5, (d - p.front)/Math.max(.1, bk - p.front));
             if (bk > lb + .1){ quad(buf(wallKey), V(s,lb,base(s,lb)), V(s,bk,base(s,bk)), V(s,bk,top-1.5), V(s,lb,soff(lb)));
@@ -555,7 +555,7 @@ function build(){
           const ew = S.design.exitWidth/2, at = (d, y, side) => across(ew, d, y, side), bk = p.front + n*T - .02, y0 = p.hs[n-1] + .02;
           quad(buf("void"), at(bk, y0, -1), at(bk, y0, 1), at(bk, y0 + 1.15, 1), at(bk, y0 + 1.15, -1));
           const c = pt(s, bk - .08); post(buf("emerg"), c[0], c[1], y0 + 1.25, y0 + 1.55, .55); }
-        if (sty.under === "bank" && !p.stacked && entry === "back" && marks(entryEvery).has(s)) bankWay(buf, across, p.front + n*T, p.hs[n-1], "steps", (poly || obstacles.length ? roomAt(o[s], v[s], 0) - .5 : Infinity)); if (backAt.has(s) && n >= 2){ // an entrance at the back, at the head of a gangway: a doorway from the concourse onto the walkway
+        if (sty.under === "bank" && !p.stacked && entry === "back" && marks(entryEvery).has(s)) bankWay(buf, across, p.front + n*T, p.hs[n-1], "steps", (poly || obstacles.length ? roomAt(o[s], v[s], 0) - .5 : Infinity), profs[s]); if (backAt.has(s) && n >= 2){ // an entrance at the back, at the head of a gangway: a doorway from the concourse onto the walkway
           const ew = S.design.exitWidth/2, WR = walkRows(n), y0 = (WR ? p.hs[WR[0]] : p.hs[n-1]) + .02, bk = p.front + n*T - .02, cb = buf("concrete");
           const at = (d, y, side, w) => across(w, d, y, side);
           quad(buf("void"), at(bk, y0, -1, ew), at(bk, y0, 1, ew), at(bk, y0 + 2.1, 1, ew), at(bk, y0 + 2.1, -1, ew));
@@ -574,7 +574,7 @@ function build(){
           for (const side of [-1, 1]){
             for (let j=ja;j<jb;j++){ const d0 = p.front + j*T; quad(buf("concrete"), at(d0,fl,side), at(d0+T,fl,side), at(d0+T,p.hs[j]+.45,side), at(d0,p.hs[j]+.45,side)); }
             bar(buf("steel"), at(dF, fl + 1, side), at(dB, p.hs[jb-1] + 1.4, side), .06); }
-          bar(buf("steel"), at(dF, fl + 1, -1), at(dF, fl + 1, 1), .06); if (sty.under === "bank" && !p.stacked) bankWay(buf, across, p.front + n*T, p.hs[n-1], "tunnel", (poly || obstacles.length ? roomAt(o[s], v[s], 0) - .5 : Infinity)); // on through a bank to a portal at its foot
+          bar(buf("steel"), at(dF, fl + 1, -1), at(dF, fl + 1, 1), .06); if (sty.under === "bank" && !p.stacked) bankWay(buf, across, p.front + n*T, p.hs[n-1], "tunnel", (poly || obstacles.length ? roomAt(o[s], v[s], 0) - .5 : Infinity), profs[s]); // on through a bank to a portal at its foot
         }
         // pillars under a stacked tier's front (always when the tier below is left open)
         if (p.stacked && (p.pillars || p.lowerGhost) && tc.hold !== "towers" && pillarAt.has(s)){
@@ -594,7 +594,7 @@ function build(){
           quad(buf("void"), Q(s0,dB,.03), Q(s1,dB,.03), Q(s1,dB,top), Q(s0,dB,top));
           for (const e2 of [s0, s1]){ for (let j=0;j<R;j++){ const d0 = dF + j*T2; quad(buf("concrete"), Q(e2,d0,0), Q(e2,d0+T2,0), Q(e2,d0+T2,Math.max(P.hs[j]+.45, 0)), Q(e2,d0,Math.max(P.hs[j]+.45, 0))); }
             for (let y=0;y<4.4;y+=.8) quad(buf("barrier"), Q(e2,dF-.02,y), Q(e2,dF+.25,y), Q(e2,dF+.25,y+.4), Q(e2,dF-.02,y+.4)); }
-          const c = Q(b.c, dB - .05, 4.75); post(buf("emerg"), c[0], c[2], 4.6, 4.95, .7); continue; }
+          const c = Q(b.c, dB - .05, 4.75); post(buf("emerg"), c[0], c[2], 4.6, 4.95, .7); vehOut = {Q, s0, s1, c:b.c, top}; continue; }
         if (b.kind === "access" && b.R){ // a level platform with a low rail in front and the blue sign at each end
           const r0 = b.r0, y = P.hs[Math.min(n - 1, r0)] + .02, d0 = dF + r0*T2, d1 = dF + b.R*T2, yb = P.hs[Math.min(n - 1, b.R)];
           quad(buf("concrete"), Q(s0,d0,y), Q(s1,d0,y), Q(s1,d1,y), Q(s0,d1,y));
@@ -761,7 +761,7 @@ function build(){
             bar(sb, n % 2 ? P3(i, 0, sd) : P3(i, D, sd), n % 2 ? P3(j, D, sd) : P3(j, 0, sd), .3); } // diagonals down each face
           bar(sb, P3(i, 0, -1), P3(i, D, -1), .25); bar(sb, P3(i, 0, 1), P3(i, D, 1), .25); // verticals
           bar(sb, P3(i, D, -1), P3(i, D, 1), .22); bar(sb, n % 2 ? P3(i, D, -1) : P3(i, D, 1), n % 2 ? P3(j, D, 1) : P3(j, D, -1), .18); bar(sb, P3(i, 0, -1), P3(i, 0, 1), .22); } // and across
-        if (!closed) for (const i of [live[0], live[live.length-1]]) if (i != null){ const tg = tangent(i), s2 = i === live[0] ? -1 : 1, q = P3(i, D, 0), b0 = pt(i, at(RR[i], fT)); if (trussEndsOf(rf) === "legs") TRUSS_RUNS.push({b0, dir:[tg[0]*s2, tg[1]*s2], P:[P3(i, 0, -1), P3(i, D, -1), P3(i, 0, 1), P3(i, D, 1)]}); // straight on out (see drawTrussRuns)
+        if (!closed) for (const i of [live[0], live[live.length-1]]) if (i != null){ const s2 = 1, tg = trussOut(k => pt(k, at(RR[k], fT)), live, i, tangent(i).map(c => c*(i === live[0] ? -1 : 1))), q = P3(i, D, 0), b0 = pt(i, at(RR[i], fT)); if (trussEndsOf(rf) === "legs") TRUSS_RUNS.push({b0, dir:[tg[0]*s2, tg[1]*s2], P:[P3(i, 0, -1), P3(i, D, -1), P3(i, 0, 1), P3(i, D, 1)]}); // straight on out (see drawTrussRuns)
           else if (trussEndsOf(rf) === "arch") TRUSS_RUNS.push({b0, dir:[tg[0]*s2, tg[1]*s2], P:[P3(i, 0, -1), P3(i, D, -1), P3(i, 0, 1), P3(i, D, 1)], arch:Object.assign([P3(i, D/2, -1), P3(i, D/2, 1)], {run:Math.min(70, q[1]/.44)})}); else post(sb, b0[0] + tg[0]*s2*2.5, b0[1] + tg[1]*s2*2.5, 0, q[1] + .5, 1.8); } // end posts (or the arch's legs) carry it to the ground
         topAll = Math.max(topAll, ...live.map(i => P3(i, D, 0)[1] + .5)); if (trussEndsOf(rf) === "arch" && !closed) roofDiagrid(sb, V, RR, cum); // Stadium Australia's criss-cross of steel over the sheets
       }
@@ -870,7 +870,7 @@ function build(){
       const d0 = roofed ? ra.outer : x0.back, d1 = roofed ? rb.outer : x1.back, y0 = roofed ? ra.y(1) : x0.top, y1 = roofed ? rb.y(1) : x1.top;
       const nv = [v[i][0] + v[j1][0], v[i][1] + v[j1][1]], nl = Math.hypot(nv[0], nv[1]) || 1;
       dressWall(buf, look, wallKey, pt(i, d0), pt(j1, d1), y0, y1, [nv[0]/nl, nv[1]/nl], Object.assign({along: cum[i], total: lenTotal, lift: Math.max(base(i, d0), base(j1, d1))}, wallOpt));
-    }
+    } if (vehOut && !DRY) vehicleWayOut(buf, vehOut, info, RRout, roofOn, profs, sty.under, cum); // and on out through the back of the stand
     // the stadium's name (naming rights) goes along the main stand's roof front, unless that stand has lettering of its own
     const SP = sponsorsOf(), named = !fac.sign && SP.title && SP.onStand !== false && st.key === (lay === "bowl" ? "B" : lay === "ring" ? "R0" : "N");
     const HEn = homeEndOf(), homeNamed = !fac.sign && !named && HEn.name && (HEn.at === st.key || HEn.at === st.ck); // the home end's name, like the Kop's
@@ -1102,9 +1102,9 @@ function build(){
     if (poly && !S.plot.clip && ring.o.some((_, i) => !inPoly(P(i, dOut[i]), poly))) issue("The roof over the ground runs past the plot boundary.", "site:roof", "geo",
       {fix:{label:"Cut it back to fit the plot", run:() => { S.plot.clip = true; return true; }}});
     const base = Math.max(outerTop, 4) + Math.max(1.5, gr.lift), tilt = Math.tan((gr.tilt || 0)*Math.PI/180);
-    const yIn = base + tilt*Math.max(...dOut.map((d, i) => d - dIn[i])), curve = gr.curve || 0;
+    const yIn = base + tilt*Math.max(...dOut.map((d, i) => d - dIn[i])), curve = gr.curve || 0, drop = groundRoofDrop(gr, n, P, dOut, anchors); // (drop: how far it comes down to follow a lower stand)
     const yAt = (span, f) => lerp(yIn, base, f) + curve*span*0.2*Math.sin(Math.PI*f);
-    const Y = i => f => yAt(dOut[i] - dIn[i], f), at = (i, f) => lerp(dIn[i], dOut[i], f), V3 = (i, d, y) => { const p = P(i, d); return [p[0], y, p[1]]; };
+    const Y = i => f => yAt(dOut[i] - dIn[i], f) - drop[i], at = (i, f) => lerp(dIn[i], dOut[i], f), V3 = (i, d, y) => { const p = P(i, d); return [p[0], y, p[1]]; };
     const rm = buf(ROOF_MAT_KEY[gr.mat] || "roof"), nS = curve > 0.01 ? 6 : 1, edgeH = gr.support === "none" ? 2.4 : 1.2;
     const wallKey = {translucent:"glassClad", glass:"glassClad", concrete:"concrete", green:"roofGreen"}[gr.mat] || "roofSolid";
     let top = Math.max(yIn, base);
@@ -1131,7 +1131,7 @@ function build(){
         for (const [p2, y2] of [[P(i, dIn[i] + 1), a(0)], [P(i, at(i, .45)), a(.45)]]) quad(buf("cable"), [q[0]-tg[0]*.08, mt, q[1]-tg[1]*.08], [q[0]+tg[0]*.08, mt, q[1]+tg[1]*.08], [p2[0]+tg[0]*.08, y2, p2[1]+tg[1]*.08], [p2[0]-tg[0]*.08, y2, p2[1]-tg[1]*.08]);
         top = Math.max(top, mt); grow(q[0], q[1]); }
       const g = P(i, dOut[i]); grow(g[0], g[1]);
-    } top = Math.max(top, groundRoofStructure({n, P, dIn, dOut, Y, buf, gr, cum, grow})); // rafters, trusses or girders (see ground-roof.js)
+    } top = Math.max(top, groundRoofStructure({n, P, dIn, dOut, Y, buf, gr, cum, grow, room: i => poly || obstacles.length ? roomAt(ring.o[i], ring.v[i], 0) : Infinity})); // rafters, trusses or girders (see ground-roof.js)
     if (gr.cover === "closed"){ // closed over the floor, optionally with an opening in the middle
       const cy = yIn + 9, op = Math.max(0, Math.min(0.9, gr.opening || 0)), b = buf("roofClosed");
       for (let i=0;i<n;i++){ const j = (i+1)%n, pa = P(i,dIn[i]), pc = P(j,dIn[j]);
@@ -1148,7 +1148,7 @@ function build(){
       return best; };
     for (const g of anchors) g.RR = g.info.map((x, i) => { if (!x) return null;
       const a = lastHit(inner, g.o[i], g.v[i]), b = lastHit(outer, g.o[i], g.v[i]); if (a == null || b == null || b < a + 0.5) return null;
-      return {inner:a, outer:b, y:f => yAt(b - a, f), yIn, yOut:base}; });
+      const dd = drop.near(g.o[i][0] + a*g.v[i][0], g.o[i][1] + a*g.v[i][1]); return {inner:a, outer:b, y:f => yAt(b - a, f) - dd, yIn: yIn - dd, yOut: base - dd}; });
   }
   { const seen = new Set(), uniq = issues.filter(x => !seen.has(x.key) && seen.add(x.key)); issues.length = 0; issues.push(...uniq); } // a bowl in several pieces raises each of its checks once
   let covered = 0;
