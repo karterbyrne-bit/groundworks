@@ -59,7 +59,7 @@ const ROOF_MAT_KEY = {translucent:"roof", metal:"roofSolid", concrete:"roofConcr
 const GROUND_ROOF = {on:false, shape:"follow", cover:"ring", reach:2, back:1.5, lift:5, tilt:4, curve:0, mat:"translucent", support:"columns", opening:0.5, wall:false};
 const GROUND_ROOF_SHAPES = {follow:"Follows the stands", oval:"Oval", circle:"Round"};
 const GROUND_ROOF_COVER = {ring:"A ring, open over the play", closed:"Closed over the floor"};
-const GROUND_ROOF_SUPPORTS = {columns:"Columns round the outside", none:"Hidden (a tension ring)", ribs:"Exposed ribs", truss:"Ring truss round the inner edge", masts:"Masts and cables"};
+const GROUND_ROOF_SUPPORTS = {columns:"Columns round the outside", none:"Hidden (a tension ring)", ribs:"Exposed ribs", truss:"Ring truss round the inner edge", trusses:"Deep trusses under it, on columns", girders:"Big girders over it, on towers (San Siro)", masts:"Masts and cables"};
 const R = (shape, o) => Object.assign({shape, reach:1.5, lift:6, tilt:4, curve:0, mat:"translucent", support:"none", opening:0}, o || {});
 /* A tier: what's in it, how many rows, how steep, and (for tiers above the first) how far it projects over the one below and how high it sits. */
 const t = (type, rows, rake, auto, extra) => {

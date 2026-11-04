@@ -110,28 +110,6 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.click('#panes [data-pane="results"]'); await page.check("#obsToggle"); await page.waitForTimeout(400);
   check((await page.evaluate(() => window.__gw.obsShown())) > 0, "Show obstructed views colours the restricted seats");
   await page.uncheck("#obsToggle"); await page.waitForTimeout(300); await page.click('#panes [data-pane="start"]');
-  // the architect's notes: a critique of each stand by name, a different verdict for each ground, and the Leitch-era pillars called out
-  { const verdicts = new Set();
-    for (const p of ["ot", "dell", "bowl", "leitch"]) {
-      await page.evaluate(() => { window.__before = window.__gw.last(); });
-      await page.click(`[data-p="${p}"]`); await page.waitForFunction(() => !window.__gw.busy() && window.__gw.last() !== window.__before); await page.waitForTimeout(300);
-      const a = await page.evaluate(() => { const el = document.getElementById("architect"), names = window.__gw.last().parts.map(x => x.label), stands = [...el.querySelectorAll(".stand-notes li")].map(li => li.textContent);
-        return {verdict: el.querySelector(".verdict").textContent, named: stands.some(t => names.some(n => t.startsWith(n + ":"))), distinct: new Set(stands.map(t => t.replace(/^[^:]*:/, ""))).size === stands.length, text: el.textContent}; });
-      if (p === "leitch") check(/pillar|restricted/i.test(a.text), "the architect's notes on the Leitch-era ground mention its pillars or restricted views");
-      else { check(a.named && a.distinct, `the architect's notes on "${p}" critique each stand by name, each in its own words`); verdicts.add(a.verdict); }
-    }
-    check(verdicts.size === 3, "the architect gives Old Trafford, the Dell and the bowl different verdicts"); }
-  // the ground profile: an encyclopedia page about the ground, opening differently for each
-  { const leads = new Set();
-    for (const p of ["ot", "dell", "wrestle"]) {
-      await page.evaluate(() => { window.__before = window.__gw.last(); });
-      await page.click(`[data-p="${p}"]`); await page.waitForFunction(() => !window.__gw.busy() && window.__gw.last() !== window.__before);
-      await page.click("#profileBtn"); await page.waitForTimeout(300);
-      const pr = await page.evaluate(() => { const el = document.getElementById("profileBody"), names = window.__gw.last().parts.map(x => x.label);
-        return {open: document.getElementById("profile").open, lead: el.querySelector("p").textContent, named: names.some(n => el.textContent.includes("The " + n + " holds")), text: el.textContent}; });
-      check(pr.open && pr.named && (p !== "wrestle" || /Wrestleball is a contact sport/.test(pr.text)) && errors.length === 0, `the ground profile opens for "${p}" and describes a stand by name`);
-      leads.add(pr.lead); await page.click("#profileClose"); }
-    check(leads.size === 3, "the ground profiles of Old Trafford, the Dell and the Wrestleball ground open differently"); }
   // upper tiers on their own outline, and façade looks
   for (const p of ["oval", "cartuja"]) {
     await page.click(`[data-p="${p}"]`); await page.waitForTimeout(300);
@@ -180,6 +158,13 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.waitForFunction(() => !window.__gw.busy() && window.__gw.last().parts.some(p => p.label === "West end"));
   const rr = await last();
   check(rr.total > 15000 && rr.covered / rr.total > 0.9 && !rr.issues, 'preset "ringroof" builds under one roof with no warnings');
+  // famous roofs: San Siro's red girders on towers bring its ramp towers; the Allianz swaps them for its cushions
+  { await page.click('#panes [data-pane="stands"]'); await page.waitForTimeout(300);
+    const famous = async k => { await page.selectOption('select[data-p="gr.famous"]', k); await page.waitForTimeout(400); await page.waitForFunction(() => !window.__gw.busy()); };
+    await famous("sansiro"); const ss = await last(), gS = await page.evaluate(() => window.__gw.state().groundRoof || {}), aS = await page.evaluate(() => window.__gw.state().arch || {});
+    await famous("allianz"); const aA = await page.evaluate(() => window.__gw.state().arch || {});
+    check(ss.total === rr.total && gS.support === "girders" && gS.colour === "#c8102e" && aS.ramps && !aA.ramps && aA.skin === "cushion" && errors.length === 0, "the one roof can start from a famous roof (San Siro's girders, the Allianz's cushions)");
+    await page.click("#undoBtn"); await page.waitForTimeout(200); await page.click("#undoBtn"); await page.waitForTimeout(300); }
   await page.click('#panes [data-pane="start"]');
 
   // Ibrox: a deck on towers over an old stand; per-tier looks and lettering; typed plot sizes
@@ -407,10 +392,6 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.waitForTimeout(300);
   check((await page.evaluate(() => window.__gw.state().boardSet.end)) === 8 && (await page.evaluate(() => window.__gw.boards())), "the advertising boards can be moved further from the pitch");
 
-  // architect's notes
-  await page.click('#panes [data-pane="results"]');
-  check(/Architect's notes/.test(await page.locator("#architect").textContent()) && await page.locator("#architect .score").count() === 5, "the architect's notes score the design");
-  await page.click('#panes [data-pane="look"]');
 
   // the big truss over a roof can arch up and land its legs outside, like Stadium Australia's
   { await page.click('#panes [data-pane="start"]'); await page.click('[data-p="ot"]'); await page.waitForTimeout(300);

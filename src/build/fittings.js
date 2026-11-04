@@ -232,8 +232,8 @@ function execBoxes(buf, V, i, j1, p0, p1, n0, n1, u0, u1){
 /* What's behind and under a stand that has no building: a banked terrace's grassy earth bank sloping away from the
    back row to the ground, or a temporary stand's bare scaffold of steel tubes (an upright under every other row every
    2.5 m along, with rails and cross-braces along the back). */
-function standUnder(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1, base, kind, u0, u1, grow){
-  if (kind === "bank"){ const r0 = bk0 + 1 + t0*1.7, r1 = bk1 + 1 + t1*1.7, g0 = V(i, r0, 0), g1 = V(j1, r1, 0);
+function standUnder(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1, base, kind, u0, u1, grow, lim0 = Infinity, lim1 = Infinity){ // lim: how far out the plot lets the bank go
+  if (kind === "bank"){ const r0 = Math.max(bk0 + .4, Math.min(bk0 + 1 + t0*1.7, lim0)), r1 = Math.max(bk1 + .4, Math.min(bk1 + 1 + t1*1.7, lim1)), g0 = V(i, r0, 0), g1 = V(j1, r1, 0);
     quad(buf("bank"), V(i, bk0, t0 + .2), V(j1, bk1, t1 + .2), V(j1, r1, base(j1, r1)), V(i, r0, base(i, r0)));
     grow(g0[0], g0[2]); grow(g1[0], g1[2]); return; }
   const sb = buf("steel");
@@ -244,8 +244,8 @@ function standUnder(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1, base, kind, u0, u1,
 /* The ways into a banked terrace, matching how its fans get in: with exit tunnels partway up, each tunnel runs on
    through the bank to a concrete tunnel mouth standing out of its foot; coming in at the back, a flight of steps climbs the bank,
    with a handrail each side. across(w, d, y, side) is a point d out from the front, w to one side of the slice. */
-function bankWay(buf, across, p, T, kind){
-  const n = p.hs.length, bk = p.front + n*T, top = p.hs[n - 1] + .2, foot = bk + 1 + (top - .2)*1.7, w = S.design.exitWidth/2;
+function bankWay(buf, across, bk, hBack, kind, lim = Infinity){ // bk, hBack: how far out the back of the stand is, and how high its back row; lim: the plot's edge
+  const top = hBack + .2, foot = Math.max(bk + .4, Math.min(bk + 1 + (top - .2)*1.7, lim)), w = S.design.exitWidth/2;
   const bankY = d => Math.max(0, top*(1 - (d - bk)/(foot - bk))), cb = buf("concrete");
   if (kind === "tunnel"){ const dp = Math.max(bk + .5, bk + (foot - bk)*(1 - 3/top)), H = 3; // a concrete tunnel mouth standing out of the bank's foot
     quad(cb, across(w + .6, dp, H, -1), across(w + .6, dp, H, 1), across(w + .6, foot, H, 1), across(w + .6, foot, H, -1));
@@ -257,4 +257,23 @@ function bankWay(buf, across, p, T, kind){
   const steps = Math.max(2, Math.round(top/.6));
   for (let q=1;q<steps;q++){ const d = lerp(foot, bk, q/steps), y = bankY(d) + .03; quad(buf("barrier"), across(w, d, y, -1), across(w, d, y, 1), across(w, d + .08, y, 1), across(w, d + .08, y, -1)); }
   for (const side of [-1, 1]) bar(buf("steel"), across(w, foot, 1, side), across(w, bk, top + 1, side), .06);
+}
+/* The end of a banked terrace: rather than stopping in a sheer wall, the earth falls away sideways from the end of
+   every step to the ground, and (where nothing stands on top) rounds off to meet the bank behind. P3(d, y, w) is the
+   point d out from the front, y up, and w past the end of the stand. */
+function bankEnd(buf, P3, p, joinBack){
+  const b = buf("bank"), n = p.hs.length, T = p.T, run = h => 1 + h*1.7, h = j => p.hs[j] + .2;
+  for (let j=0;j<n;j++){ const a = p.front + j*T, c = a + T;
+    quad(b, P3(a, h(j), 0), P3(c, h(j), 0), P3(c, 0, run(h(j))), P3(a, 0, run(h(j))));
+    if (j < n - 1) quad(b, P3(c, h(j), 0), P3(c, h(j+1), 0), P3(c, 0, run(h(j+1))), P3(c, 0, run(h(j)))); }
+  if (!joinBack) return;
+  const bk = p.front + n*T, t = h(n - 1), R = run(t), K = 4; // a quarter round between the end and the back
+  for (let k=0;k<K;k++){ const f0 = k/K*Math.PI/2, f1 = (k+1)/K*Math.PI/2; tri(b, P3(bk, t, 0), P3(bk + R*Math.cos(f0), 0, R*Math.sin(f0)), P3(bk + R*Math.cos(f1), 0, R*Math.sin(f1))); }
+}
+/* How high a banked terrace's earth is, d out from the front, at one slice (pr: its tiers, the banked one first): the
+   steps' own height over the terrace, then the bank falling away behind it. A stand built over the terrace stands on it. */
+function bankHeight(pr, d, lim = Infinity){
+  const p = pr.find(q => q && !q.ghost && q.hs.length); if (!p) return 0;
+  const n = p.hs.length, bk = p.front + n*p.T, top = p.hs[n - 1] + .2, foot = Math.max(bk + .4, Math.min(bk + 1 + p.hs[n - 1]*1.7, lim));
+  return d <= bk ? top : Math.max(0, top*(1 - (d - bk)/(foot - bk)));
 }

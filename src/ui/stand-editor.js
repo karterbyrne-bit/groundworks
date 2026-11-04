@@ -219,7 +219,7 @@ function renderEditor(){
       ${ring ? "" : roofBlock(cfg, bowl)}
       <details class="sub"><summary>Facilities, access and fire risk</summary><div class="inner">
         ${pick("Facilities", "facilities", facilitiesOf(cfg), FACILITIES)}
-        <p class="hint">Better facilities cost more to build but make for happier fans (see the Architect's notes under Results).</p>
+        <p class="hint">Better facilities cost more to build but make for happier fans.</p>
         ${accessOf().on ? (() => { const SA = standAccessOf(cfg), own = cfg.access || {}, here = LAST ? LAST.parts.filter(p => p.key === tab).reduce((a, p) => a + (p.wheel || 0), 0) : 0;
           return `<div class="row"><label>Wheelchair platforms</label><output>${here} spaces here</output></div>
             ${pair(isBowl() ? "Platforms on each side" : "Platforms in this stand", "access.count", SA.per, 0, 16, 1, "")}
@@ -392,9 +392,11 @@ const groundRoofOf = () => (S.groundRoof = Object.assign({}, GROUND_ROOF, S.grou
 function renderGroundRoof(){
   const box = $("groundRoof"), on = groundRoofOn(); box.hidden = !on; if (!on){ box.innerHTML = ""; return; }
   const gr = groundRoofOf(), p = k => "gr." + k;
-  box.innerHTML = `${pick("Outline", p("shape"), gr.shape, GROUND_ROOF_SHAPES)}${pick("Cover", p("cover"), gr.cover, GROUND_ROOF_COVER)}
+  const famous = Object.fromEntries([["", "Pick one…"], ...Object.entries(FAMOUS_ROOFS).map(([k, f]) => [k, f.label])]);
+  box.innerHTML = `${pick("Start from a famous roof", p("famous"), "", famous)}${pick("Outline", p("shape"), gr.shape, GROUND_ROOF_SHAPES)}${pick("Cover", p("cover"), gr.cover, GROUND_ROOF_COVER)}
     ${gr.cover === "closed" ? pair("Opening in the middle", p("opening"), Math.round((gr.opening||0)*100), 0, 90, 5, "%") : ""}
     ${pick("Material", p("mat"), gr.mat, ROOF_MATS)}${pick("Structure", p("support"), gr.support, GROUND_ROOF_SUPPORTS)}
+    ${gr.support !== "none" ? `<div class="row colour"><label>Steel colour</label><input type="color" data-p="gr.colour" value="${gr.colour || "#e9ecee"}" aria-label="Steel colour"></div>` : ""}
     ${pair("Reaches past the front row", p("reach"), gr.reach, -20, 40, 0.5, "m", gr.shape === "follow" ? "Negative leaves the front rows open." : "Measured halfway along the long sides. Negative leaves the front rows open.")}
     ${pair("Overhang behind the back row", p("back"), gr.back, 0, 30, 0.5, "m")}
     ${pair("Height above the tallest stand", p("lift"), gr.lift, 1.5, 40, 0.5, "m")}
@@ -405,9 +407,13 @@ $("grOn").addEventListener("change", e => { groundRoofOf().on = e.target.checked
 $("groundRoof").addEventListener("input", e => { const el = e.target, p = el.dataset.p; if (!p || el.tagName === "SELECT") return;
   const key = p.slice(3), gr = groundRoofOf();
   if (el.type === "checkbox"){ gr[key] = el.checked; changed(); return; }
+  if (el.type === "color"){ gr[key] = el.value; changed(false, true); return; }
   const v = +el.value; if (!isFinite(v)) return;
   gr[key] = key === "curve" || key === "opening" ? v/100 : v;
   $("groundRoof").querySelectorAll(`[data-p="${p}"]`).forEach(o => { if (o !== el) o.value = el.value; });
   changed(false, el.type === "range"); });
-$("groundRoof").addEventListener("change", e => { const el = e.target; if (el.tagName !== "SELECT" || !el.dataset.p) return; groundRoofOf()[el.dataset.p.slice(3)] = el.value; renderGroundRoof(); changed(); });
+$("groundRoof").addEventListener("change", e => { const el = e.target; if (el.tagName !== "SELECT" || !el.dataset.p) return;
+  const key = el.dataset.p.slice(3), f = FAMOUS_ROOFS[el.value]; if (key === "famous"){ if (!f) return; // a famous roof: its settings, and the architecture that goes with it
+    Object.assign(groundRoofOf(), {colour:""}, f.roof); S.arch = Object.assign({}, S.arch || {}, {arch:false, ramps:false, skin:"none"}, f.arch || {}); renderGroundRoof(); changed(); toast(`<b>${esc(f.label.split(":")[0])}.</b> Everything stays editable.`); return; } // (its own arch, ramps or skin, and none left over from another)
+  groundRoofOf()[key] = el.value; renderGroundRoof(); changed(); });
 
