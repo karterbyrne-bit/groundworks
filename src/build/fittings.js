@@ -248,9 +248,10 @@ function vehicleWayOut(buf, w, info, RRout, roofOn, profs, under, cum){
 /* What's behind and under a stand that has no building: a banked terrace's grassy earth bank sloping away from the
    back row to the ground, or a temporary stand's bare scaffold of steel tubes (an upright under every other row every
    2.5 m along, with rails and cross-braces along the back). */
-function standUnder(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1, base, kind, u0, u1, grow, lim0 = Infinity, lim1 = Infinity){ // lim: how far out the plot lets the bank go
-  if (kind === "bank"){ const r0 = Math.max(bk0 + .4, Math.min(bk0 + 1 + t0*1.7, lim0)), r1 = Math.max(bk1 + .4, Math.min(bk1 + 1 + t1*1.7, lim1)), g0 = V(i, r0, 0), g1 = V(j1, r1, 0);
-    quad(buf("bank"), V(i, bk0, t0 + .2), V(j1, bk1, t1 + .2), V(j1, r1, base(j1, r1)), V(i, r0, base(i, r0)));
+function standUnder(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1, base, kind, u0, u1, grow, lim0 = Infinity, lim1 = Infinity, pr0, pr1){ // lim: how far out the plot lets the bank go; pr: each slice's tiers
+  if (kind === "bank"){ const c0 = bankCrest(pr0 || [p0], lim0), c1 = bankCrest(pr1 || [p1], lim1), g0 = V(i, c0.foot, 0), g1 = V(j1, c1.foot, 0), b = buf("bank");
+    if (c0.crest > bk0 + .1 || c1.crest > bk1 + .1) quad(b, V(i, bk0, t0 + .2), V(j1, bk1, t1 + .2), V(j1, c1.crest, t1 + .2), V(i, c0.crest, t0 + .2)); // level ground on top, under the stand above and a walk behind it
+    quad(b, V(i, c0.crest, t0 + .2), V(j1, c1.crest, t1 + .2), V(j1, c1.foot, base(j1, c1.foot)), V(i, c0.foot, base(i, c0.foot)));
     grow(g0[0], g0[2]); grow(g1[0], g1[2]); return; }
   const sb = buf("steel");
   if (Math.floor(u0/2.5) !== Math.floor(u1/2.5)) for (let j=0;j<p0.hs.length;j+=2){ const d = p0.front + (j + .5)*p0.T; bar(sb, V(i, d, base(i, d)), V(i, d, p0.hs[j]), .1); }
@@ -260,8 +261,8 @@ function standUnder(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1, base, kind, u0, u1,
 /* The ways into a banked terrace, matching how its fans get in: with exit tunnels partway up, each tunnel runs on
    through the bank to a concrete tunnel mouth standing out of its foot; coming in at the back, a flight of steps climbs the bank,
    with a handrail each side. across(w, d, y, side) is a point d out from the front, w to one side of the slice. */
-function bankWay(buf, across, bk, hBack, kind, lim = Infinity){ // bk, hBack: how far out the back of the stand is, and how high its back row; lim: the plot's edge
-  const top = hBack + .2, foot = Math.max(bk + .4, Math.min(bk + 1 + (top - .2)*1.7, lim)), w = S.design.exitWidth/2;
+function bankWay(buf, across, bk, hBack, kind, lim = Infinity, pr){ // bk, hBack: how far out the back of the terrace is, and how high its back row; lim: the plot's edge; pr: the slice's tiers
+  const top = hBack + .2, c = pr ? bankCrest(pr, lim) : null, w = S.design.exitWidth/2; if (c) bk = c.crest; const foot = c ? c.foot : Math.max(bk + .4, Math.min(bk + 1 + (top - .2)*1.7, lim));
   const bankY = d => Math.max(0, top*(1 - (d - bk)/(foot - bk))), cb = buf("concrete");
   if (kind === "tunnel"){ const dp = Math.max(bk + .5, bk + (foot - bk)*(1 - 3/top)), H = 3; // a concrete tunnel mouth standing out of the bank's foot
     quad(cb, across(w + .6, dp, H, -1), across(w + .6, dp, H, 1), across(w + .6, foot, H, 1), across(w + .6, foot, H, -1));
@@ -277,19 +278,28 @@ function bankWay(buf, across, bk, hBack, kind, lim = Infinity){ // bk, hBack: ho
 /* The end of a banked terrace: rather than stopping in a sheer wall, the earth falls away sideways from the end of
    every step to the ground, and (where nothing stands on top) rounds off to meet the bank behind. P3(d, y, w) is the
    point d out from the front, y up, and w past the end of the stand. */
-function bankEnd(buf, P3, p, joinBack){
+function bankEnd(buf, P3, p, joinBack, crest){
   const b = buf("bank"), n = p.hs.length, T = p.T, run = h => 1 + h*1.7, h = j => p.hs[j] + .2;
   for (let j=0;j<n;j++){ const a = p.front + j*T, c = a + T;
     quad(b, P3(a, h(j), 0), P3(c, h(j), 0), P3(c, 0, run(h(j))), P3(a, 0, run(h(j))));
     if (j < n - 1) quad(b, P3(c, h(j), 0), P3(c, h(j+1), 0), P3(c, 0, run(h(j+1))), P3(c, 0, run(h(j)))); }
-  if (!joinBack) return;
-  const bk = p.front + n*T, t = h(n - 1), R = run(t), K = 4; // a quarter round between the end and the back
-  for (let k=0;k<K;k++){ const f0 = k/K*Math.PI/2, f1 = (k+1)/K*Math.PI/2; tri(b, P3(bk, t, 0), P3(bk + R*Math.cos(f0), 0, R*Math.sin(f0)), P3(bk + R*Math.cos(f1), 0, R*Math.sin(f1))); }
+  const bk0 = p.front + n*T, bk = Math.max(bk0, crest || 0), t = h(n - 1), R = run(t), K = 4;
+  if (bk > bk0 + .1) quad(b, P3(bk0, t, 0), P3(bk, t, 0), P3(bk, 0, R), P3(bk0, 0, R)); // the level top falls away sideways too
+  else if (!joinBack) return;
+  for (let k=0;k<K;k++){ const f0 = k/K*Math.PI/2, f1 = (k+1)/K*Math.PI/2; tri(b, P3(bk, t, 0), P3(bk + R*Math.cos(f0), 0, R*Math.sin(f0)), P3(bk + R*Math.cos(f1), 0, R*Math.sin(f1))); } // a quarter round between the end and the back
 }
 /* How high a banked terrace's earth is, d out from the front, at one slice (pr: its tiers, the banked one first): the
    steps' own height over the terrace, then the bank falling away behind it. A stand built over the terrace stands on it. */
 function bankHeight(pr, d, lim = Infinity){
-  const p = pr.find(q => q && !q.ghost && q.hs.length); if (!p) return 0;
-  const n = p.hs.length, bk = p.front + n*p.T, top = p.hs[n - 1] + .2, foot = Math.max(bk + .4, Math.min(bk + 1 + p.hs[n - 1]*1.7, lim));
-  return d <= bk ? top : Math.max(0, top*(1 - (d - bk)/(foot - bk)));
+  const c = bankCrest(pr, lim); if (!c) return 0;
+  return d <= c.crest ? c.top : Math.max(0, c.top*(1 - (d - c.crest)/(c.foot - c.crest)));
+}
+/* Where a bank's top ends and its foot is, at one slice: with a stand built on top, the earth stays level out past the
+   back of it, leaving a 3 m walk behind, before it slopes away (rather than the stand's back wall standing halfway down
+   the slope). bk: the back of the banked terrace; top: how high its earth is there. */
+function bankCrest(pr, lim = Infinity){
+  const live = pr.filter(q => q && !q.ghost && q.hs.length), p = live[0]; if (!p) return null;
+  const n = p.hs.length, bk = p.front + n*p.T, top = p.hs[n - 1] + .2;
+  const crest = Math.max(bk, Math.min(Math.max(bk, ...live.slice(1).map(q => q.back + 3)), lim - 1.5)), foot = Math.max(crest + .4, Math.min(crest + 1 + (top - .2)*1.7, lim));
+  return {bk, top, crest, foot};
 }
