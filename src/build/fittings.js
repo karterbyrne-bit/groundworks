@@ -229,6 +229,22 @@ function execBoxes(buf, V, i, j1, p0, p1, n0, n1, u0, u1){
     quad(buf("riser"), V(i, g0 + .05, f0), V(i, p0.back, p0.hs[n0 - 1]), V(i, p0.back, top0), V(i, g0 + .05, top0));
     bar(buf("steel"), V(i, g0 - .03, f0), V(i, g0 - .03, top0), .14); }
 }
+/* The emergency vehicle way carries on through the stand and out of its outside wall (or, under a bank, out of a
+   concrete portal at the bank's foot), with a road in from outside, so an ambulance can actually get in. w: the way's
+   ends along the stand (s0, s1), its middle (c), its height (top) and Q(s, d, y), a point d out from the front. */
+function vehicleWayOut(buf, w, info, RRout, roofOn, profs, under, cum){
+  const {Q, s0, s1, c, top} = w; let k = 0; while (k < cum.length - 1 && cum[k + 1] <= c) k++;
+  const x = info[k]; if (!x) return; const ra = roofOn && RRout && RRout[k], wall = ra ? ra.outer : x.back, H = Math.min(top, 4.6), cb = buf("concrete");
+  const bc = under === "bank" ? bankCrest(profs[k]) : null, foot = bc ? Math.max(wall, bc.foot) : wall; // (under a bank, out at its foot)
+  quad(buf("road"), Q(s0, wall - .3, .04), Q(s1, wall - .3, .04), Q(s1, foot + 10, .04), Q(s0, foot + 10, .04)); // the road in from outside
+  if (foot > wall + .5){ const dp = Math.max(wall, foot - 4); // a portal standing out of the bank's foot
+    quad(cb, Q(s0 - .6, dp, H + .5), Q(s1 + .6, dp, H + .5), Q(s1 + .6, foot, H + .5), Q(s0 - .6, foot, H + .5));
+    for (const e of [s0 - .6, s1 + .6]) quad(cb, Q(e, dp, 0), Q(e, foot, 0), Q(e, foot, H + .5), Q(e, dp, H + .5));
+    quad(cb, Q(s0 - .6, foot, H), Q(s1 + .6, foot, H), Q(s1 + .6, foot, H + .5), Q(s0 - .6, foot, H + .5)); }
+  quad(buf("void"), Q(s0, foot + .18, .04), Q(s1, foot + .18, .04), Q(s1, foot + .18, H), Q(s0, foot + .18, H)); // the opening (in front of any gate the wall has there)
+  for (const e of [s0, s1]) for (let y=0;y<H - .2;y+=.8) quad(buf("barrier"), Q(e, foot + .2, y), Q(e + (e === s0 ? -.3 : .3), foot + .2, y), Q(e + (e === s0 ? -.3 : .3), foot + .2, y + .4), Q(e, foot + .2, y + .4)); // hazard stripes up each side
+  const g = Q(c, foot + .22, H + .25); post(buf("emerg"), g[0], g[2], H + .1, H + .45, .7);
+}
 /* What's behind and under a stand that has no building: a banked terrace's grassy earth bank sloping away from the
    back row to the ground, or a temporary stand's bare scaffold of steel tubes (an upright under every other row every
    2.5 m along, with rails and cross-braces along the back). */
