@@ -3,12 +3,13 @@
    a point d out along slice i, dIn/dOut its inner and outer edges, Y(i)(f) the roof's height a share f of the way out,
    cum how far round the ring each slice is. Every roof but a hidden one gets slim rafters under the sheeting; deep
    trusses hang under it front to back on columns behind the stands; a deep girder runs round the top of it on great corner
-   towers, with trusses reaching in, as at San Siro; or four great corner masts hold it on cables, as at Cardiff. Returns the highest point it reaches. */
+   towers, with trusses reaching in, as at San Siro; or four great corner masts hold it on cables, as at Cardiff. room(i):
+   how far out slice i can go before the plot's edge or a road, so the towers and masts stand inside it. Returns the highest point it reaches. */
 function groundRoofStructure(R){
-  const {n, P, dIn, dOut, Y, buf, gr, cum, grow} = R, sb = buf(gr.colour ? tint("steel", gr.colour) : "steel"), kind = gr.support; // the steel in its own colour, if it has one
+  const {n, P, dIn, dOut, Y, buf, gr, cum, grow, room = () => Infinity} = R, sb = buf(gr.colour ? tint("steel", gr.colour) : "steel"), kind = gr.support; // the steel in its own colour, if it has one
   const at = (i, f, y) => { const q = P(i, lerp(dIn[i], dOut[i], f)); return [q[0], y, q[1]]; };
   const every = step => { const out = []; let next = step/2; for (let i=0;i<n;i++) if (cum[i] >= next){ out.push(i); next += step; } return out; };
-  let top = 0; const room = R.room || (() => Infinity); // how far out a slice can go before the plot's edge or a road
+  let top = 0;
   const cornerSlices = () => [[1,1],[1,-1],[-1,1],[-1,-1]].map(([sx, sz]) => { let best = 0, bd = -2; // the slice pointing most nearly at each corner
     for (let i=0;i<n;i++){ const p0 = P(i, dIn[i]), p1 = P(i, dOut[i]), dx = p1[0]-p0[0], dz = p1[1]-p0[1], l = Math.hypot(dx, dz) || 1, d = (dx*sx + dz*sz)/(l*Math.SQRT2); if (d > bd){ bd = d; best = i; } } return best; });
   if (kind !== "none") for (const i of every(kind === "trusses" ? 6 : 8)){ const a = Y(i); // rafters under the sheeting
@@ -34,6 +35,20 @@ function groundRoofStructure(R){
       for (const j of [i - 2*k, i - k, i, i + k, i + 2*k]){ const s = (j + n) % n; for (const f of [.15, .6]) bar(cb, tip, at(s, f, Y(s)(f)), .09); } // the fan, out along both sides
       const back = P(i, Math.min(d + 22, room(i) - 1)); bar(cb, [q[0], mt - 1, q[1]], [back[0], 0, back[1]], .12); } }
   return top;
+}
+/* How far below its highest the one roof comes down at each slice of its ring, so it can follow each stand's height
+   rather than stay level all the way round: it stays the same height above whichever stand is nearest (eased round the
+   corners, so it doesn't step), and comes down that much. All nothing when it's level, or closed over the floor. drop.near(x, z) is the
+   drop at the slice nearest a point, for the stands' screens and floodlights hung from it. */
+function groundRoofDrop(gr, n, P, dOut, anchors){
+  const zero = Object.assign(new Array(n).fill(0), {near:() => 0}); if (gr.height !== "stands" || gr.cover === "closed") return zero;
+  const pts = []; for (const g of anchors) for (let i=0;i<g.m;i++){ const x = g.info[i]; if (x) pts.push([g.o[i][0] + x.back*g.v[i][0], g.o[i][1] + x.back*g.v[i][1], Math.max(4, x.top)]); }
+  if (!pts.length) return zero;
+  const h = []; for (let i=0;i<n;i++){ const q = P(i, dOut[i]); let best = Infinity, y = 4; for (const p of pts){ const d = (p[0]-q[0])**2 + (p[1]-q[1])**2; if (d < best){ best = d; y = p[2]; } } h.push(y); }
+  const k = Math.max(1, Math.round(n/30)), sm = h.map((_, i) => { let t = 0; for (let j=-k;j<=k;j++) t += h[(i + j + n) % n]; return t/(2*k + 1); }), hi = Math.max(...sm);
+  const drop = sm.map(y => hi - y);
+  drop.near = (x, z) => { let best = Infinity, b = 0; for (let i=0;i<n;i++){ const q = P(i, dOut[i]), d = (q[0]-x)**2 + (q[1]-z)**2; if (d < best){ best = d; b = drop[i]; } } return b; };
+  return drop;
 }
 /* Famous roofs to start the one roof from: its own settings, plus the signature architecture that goes with it. */
 const FAMOUS_ROOFS = {
