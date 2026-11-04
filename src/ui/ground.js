@@ -58,7 +58,8 @@ $("kinds").addEventListener("click", e => {
   const b = e.target.closest("[data-kind]"); if (!b) return;
   const k = KINDS[b.dataset.kind];
   S.custom = {kind:b.dataset.kind, W:k.W, H:k.H, r:k.r, surface:k.surface, floor:k.floor};
-  S.setback = k.set; changed(true);
+  S.setback = k.set; if (b.dataset.kind === "wrestleball" && S.cornerShape !== "curved") S.cornerShape = "square"; // round a strip this small, angled corners swallow the ends
+  changed(true);
 });
 function plotShape(kind, silent){
   const had = S.plot.on; S.plot.on = false; const r = dryRun(); S.plot.on = had;
