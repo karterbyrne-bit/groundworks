@@ -98,7 +98,7 @@ function convertView(){
 /* Roof sheeting: drawn with its own texture coordinates (metres along the stand, and across the roof from front to back)
    so the ribs of the sheets run the right way on every stand. */
 let SHEETS = {};
-const ROOF_TEX = {roof:"roofPoly", roofSolid:"roofMetal", roofGreen:"roofTin", roofGlass:"roofGlass", roofConcrete:"concrete"};
+const ROOF_TEX = {roof:"roofPoly", roofSolid:"roofMetal", roofGreen:"roofTin", roofGlass:"roofGlass", roofConcrete:"concrete", roofCushion:"roofCushion"};
 function sheet(key, A, B, C, D, uA, uB, vA, vB){
   const sh = SHEETS[key] || (SHEETS[key] = {pos:[], uv:[]});
   sh.pos.push(...A, ...B, ...C, ...A, ...C, ...D); sh.uv.push(uA,vA, uB,vA, uB,vB, uA,vA, uB,vB, uA,vB);

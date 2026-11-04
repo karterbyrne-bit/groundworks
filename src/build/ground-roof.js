@@ -3,13 +3,15 @@
    a point d out along slice i, dIn/dOut its inner and outer edges, Y(i)(f) the roof's height a share f of the way out,
    cum how far round the ring each slice is. Every roof but a hidden one gets slim rafters under the sheeting; deep
    trusses hang under it front to back on columns behind the stands; a deep girder runs round the top of it on great corner
-   towers, with trusses reaching in, as at San Siro. room(i): how far out slice i can go before the plot's edge or a
-   road, so the towers stand inside it. Returns the highest point it reaches. */
+   towers, with trusses reaching in, as at San Siro; or four great corner masts hold it on cables, as at Cardiff. room(i):
+   how far out slice i can go before the plot's edge or a road, so the towers and masts stand inside it. Returns the highest point it reaches. */
 function groundRoofStructure(R){
   const {n, P, dIn, dOut, Y, buf, gr, cum, grow, room = () => Infinity} = R, sb = buf(gr.colour ? tint("steel", gr.colour) : "steel"), kind = gr.support; // the steel in its own colour, if it has one
   const at = (i, f, y) => { const q = P(i, lerp(dIn[i], dOut[i], f)); return [q[0], y, q[1]]; };
   const every = step => { const out = []; let next = step/2; for (let i=0;i<n;i++) if (cum[i] >= next){ out.push(i); next += step; } return out; };
   let top = 0;
+  const cornerSlices = () => [[1,1],[1,-1],[-1,1],[-1,-1]].map(([sx, sz]) => { let best = 0, bd = -2; // the slice pointing most nearly at each corner
+    for (let i=0;i<n;i++){ const p0 = P(i, dIn[i]), p1 = P(i, dOut[i]), dx = p1[0]-p0[0], dz = p1[1]-p0[1], l = Math.hypot(dx, dz) || 1, d = (dx*sx + dz*sz)/(l*Math.SQRT2); if (d > bd){ bd = d; best = i; } } return best; });
   if (kind !== "none") for (const i of every(kind === "trusses" ? 6 : 8)){ const a = Y(i); // rafters under the sheeting
     for (let k=0;k<4;k++) bar(sb, at(i, k/4, a(k/4) - .25), at(i, (k+1)/4, a((k+1)/4) - .25), .22); }
   if (kind === "trusses") for (const i of every(12)){ const a = Y(i), K = 6, t = f => a(f) - .3, b = f => a(f) - 1.1 - 3.4*f; // deepest at the back, where it's held
@@ -24,10 +26,14 @@ function groundRoofStructure(R){
       bar(gb, A(lo(i)), B(lo(j)), .55); bar(gb, A(hi(i)), B(hi(j)), .55); bar(gb, A(lo(i)), A(hi(i)), .3); bar(gb, i % 2 ? A(lo(i)) : A(hi(i)), i % 2 ? B(hi(j)) : B(lo(j)), .26); }
     for (const i of every(18)){ const a = Y(i), K = 6, t = f => a(f) + .35 + (hi(i) - a(1) - .35)*f; // down from the girder to the roof's inner edge
       for (let k=0;k<K;k++){ const f0 = k/K, f1 = (k+1)/K; bar(gb, at(i, f0, t(f0)), at(i, f1, t(f1)), .4); bar(gb, at(i, f1, a(f1) + .35), at(i, f1, t(f1)), .2); } }
-    const corner = [[1,1],[1,-1],[-1,1],[-1,-1]].map(([sx, sz]) => { let best = 0, bd = -2; // the slice pointing most nearly at each corner
-      for (let i=0;i<n;i++){ const p0 = P(i, dIn[i]), p1 = P(i, dOut[i]), dx = p1[0]-p0[0], dz = p1[1]-p0[1], l = Math.hypot(dx, dz) || 1, d = (dx*sx + dz*sz)/(l*Math.SQRT2); if (d > bd){ bd = d; best = i; } } return best; });
-    for (const i of corner){ const q = P(i, Math.min(dOut[i] + 5, room(i) - 4)), yT = hi(i) + 2; post(buf("concrete"), q[0], q[1], 0, yT, 7); bar(gb, at(i, 1, hi(i)), [q[0], yT - 1, q[1]], .6); grow(q[0], q[1]); top = Math.max(top, yT); }
+    for (const i of cornerSlices()){ const q = P(i, Math.min(dOut[i] + 5, room(i) - 4)), yT = hi(i) + 2; post(buf("concrete"), q[0], q[1], 0, yT, 7); bar(gb, at(i, 1, hi(i)), [q[0], yT - 1, q[1]], .6); grow(q[0], q[1]); top = Math.max(top, yT); }
     top = Math.max(top, ...Array.from({length:n}, (_, i) => hi(i))); }
+  if (kind === "cornermasts"){ // Cardiff: four great masts just outside the corners, each holding the roof up on a fan of cables, with a backstay to the ground
+    const cb = buf("cable"), k = Math.max(2, Math.round(n/14));
+    for (const i of cornerSlices()){ const d = Math.min(dOut[i] + 8, room(i) - 2), q = P(i, d), mt = Y(i)(1) + 38, tip = [q[0], mt, q[1]];
+      post(sb, q[0], q[1], 0, mt, 1.4); top = Math.max(top, mt); grow(q[0], q[1]);
+      for (const j of [i - 2*k, i - k, i, i + k, i + 2*k]){ const s = (j + n) % n; for (const f of [.15, .6]) bar(cb, tip, at(s, f, Y(s)(f)), .09); } // the fan, out along both sides
+      const back = P(i, Math.min(d + 22, room(i) - 1)); bar(cb, [q[0], mt - 1, q[1]], [back[0], 0, back[1]], .12); } }
   return top;
 }
 /* How far below its highest the one roof comes down at each slice of its ring, so it can follow each stand's height
@@ -47,10 +53,10 @@ function groundRoofDrop(gr, n, P, dOut, anchors){
 /* Famous roofs to start the one roof from: its own settings, plus the signature architecture that goes with it. */
 const FAMOUS_ROOFS = {
   wembley:{label:"Wembley: a ring under an arch", roof:{shape:"oval", cover:"ring", mat:"translucent", support:"none", reach:6, back:2, lift:6, tilt:6, curve:.2, wall:false}, arch:{arch:true}},
-  allianz:{label:"Allianz Arena: glowing cushions all round", roof:{shape:"oval", cover:"ring", mat:"translucent", support:"none", reach:4, back:1.5, lift:3, tilt:2, curve:.3, wall:true}, arch:{skin:"cushion", skinShape:"round"}},
+  allianz:{label:"Allianz Arena: glowing cushions all round", roof:{shape:"oval", cover:"ring", mat:"cushion", support:"none", reach:4, back:1.5, lift:3, tilt:2, curve:.35, wall:true}, arch:{skin:"cushion", skinShape:"round"}},
   etihad:{label:"Etihad: masts and cables", roof:{shape:"follow", cover:"ring", mat:"metal", support:"masts", reach:3, back:1.5, lift:5, tilt:4, curve:0, wall:false}},
   sansiro:{label:"San Siro: red girders on towers", roof:{shape:"follow", cover:"ring", mat:"translucent", support:"girders", colour:"#c8102e", reach:2, back:3, lift:6, tilt:0, curve:0, wall:false}, arch:{ramps:true}},
-  stadefrance:{label:"Stade de France: a floating ellipse", roof:{shape:"oval", cover:"ring", mat:"translucent", support:"columns", reach:10, back:2, lift:8, tilt:3, curve:0, wall:false}},
-  cardiff:{label:"Cardiff: a roof that closes", roof:{shape:"follow", cover:"closed", opening:.55, mat:"metal", support:"masts", reach:3, back:1.5, lift:5, tilt:3, curve:0, wall:false}},
+  stadefrance:{label:"Stade de France: a floating ellipse on needle masts", roof:{shape:"oval", cover:"ring", mat:"translucent", support:"masts", reach:12, back:2, lift:10, tilt:2, curve:0, wall:false}},
+  cardiff:{label:"Cardiff: a roof that closes, on four corner masts", roof:{shape:"follow", cover:"closed", opening:.55, mat:"metal", support:"cornermasts", reach:3, back:1.5, lift:5, tilt:3, curve:0, wall:false}},
   trussed:{label:"Old-school: deep trusses on columns", roof:{shape:"follow", cover:"ring", mat:"metal", support:"trusses", reach:2, back:1.5, lift:4, tilt:4, curve:0, wall:false}},
 };
