@@ -1102,9 +1102,9 @@ function build(){
     if (poly && !S.plot.clip && ring.o.some((_, i) => !inPoly(P(i, dOut[i]), poly))) issue("The roof over the ground runs past the plot boundary.", "site:roof", "geo",
       {fix:{label:"Cut it back to fit the plot", run:() => { S.plot.clip = true; return true; }}});
     const base = Math.max(outerTop, 4) + Math.max(1.5, gr.lift), tilt = Math.tan((gr.tilt || 0)*Math.PI/180);
-    const yIn = base + tilt*Math.max(...dOut.map((d, i) => d - dIn[i])), curve = gr.curve || 0;
+    const yIn = base + tilt*Math.max(...dOut.map((d, i) => d - dIn[i])), curve = gr.curve || 0, drop = groundRoofDrop(gr, n, P, dOut, anchors); // (drop: how far it comes down to follow a lower stand)
     const yAt = (span, f) => lerp(yIn, base, f) + curve*span*0.2*Math.sin(Math.PI*f);
-    const Y = i => f => yAt(dOut[i] - dIn[i], f), at = (i, f) => lerp(dIn[i], dOut[i], f), V3 = (i, d, y) => { const p = P(i, d); return [p[0], y, p[1]]; };
+    const Y = i => f => yAt(dOut[i] - dIn[i], f) - drop[i], at = (i, f) => lerp(dIn[i], dOut[i], f), V3 = (i, d, y) => { const p = P(i, d); return [p[0], y, p[1]]; };
     const rm = buf(ROOF_MAT_KEY[gr.mat] || "roof"), nS = curve > 0.01 ? 6 : 1, edgeH = gr.support === "none" ? 2.4 : 1.2;
     const wallKey = {translucent:"glassClad", glass:"glassClad", concrete:"concrete", green:"roofGreen"}[gr.mat] || "roofSolid";
     let top = Math.max(yIn, base);
@@ -1148,7 +1148,7 @@ function build(){
       return best; };
     for (const g of anchors) g.RR = g.info.map((x, i) => { if (!x) return null;
       const a = lastHit(inner, g.o[i], g.v[i]), b = lastHit(outer, g.o[i], g.v[i]); if (a == null || b == null || b < a + 0.5) return null;
-      return {inner:a, outer:b, y:f => yAt(b - a, f), yIn, yOut:base}; });
+      const dd = drop.near(g.o[i][0] + a*g.v[i][0], g.o[i][1] + a*g.v[i][1]); return {inner:a, outer:b, y:f => yAt(b - a, f) - dd, yIn: yIn - dd, yOut: base - dd}; });
   }
   { const seen = new Set(), uniq = issues.filter(x => !seen.has(x.key) && seen.add(x.key)); issues.length = 0; issues.push(...uniq); } // a bowl in several pieces raises each of its checks once
   let covered = 0;
