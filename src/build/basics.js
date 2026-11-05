@@ -68,9 +68,13 @@ function bowlPiece(tag, nc){
 const sideRowsOf = (tr, s) => S.bowl.varyRows && tr.sideRows && tr.sideRows[s] != null ? Math.max(0, tr.sideRows[s]) : tr.rows;
 const sideTypeOf = (tr, s) => S.bowl.varyRows && tr.sideType && TYPES[tr.sideType[s]] ? tr.sideType[s] : tr.type;
 /* A stand's tier can have a different number of rows at its right-hand end (seen from the play) from its left, getting
-   deeper or shallower steadily along the stand. u: how far along the stand this slice is, 0 to 1 (null on a closed ring). */
-const rowsAlong = (tiers, from, u) => u == null || !tiers.some((tr,k) => k >= from && tr.rowsEnd != null && tr.rowsEnd !== tr.rows) ? tiers
-  : tiers.map((tr,k) => k >= from && tr.rowsEnd != null ? Object.assign({}, tr, {rows: Math.max(1, lerp(tr.rows, tr.rowsEnd, Math.min(1, Math.max(0, u))))}) : tr);
+   deeper or shallower steadily along the stand; and it can curve down towards both ends, like Hull's West Stand upper
+   tier: deepest in the middle, easing away to fewer rows (none at all, at 100%) at each end. u: how far along the stand
+   this slice is, 0 to 1 (null on a closed ring). */
+const rowsAlong = (tiers, from, u) => u == null || !tiers.some((tr,k) => k >= from && ((tr.rowsEnd != null && tr.rowsEnd !== tr.rows) || tr.taper > 0)) ? tiers
+  : tiers.map((tr,k) => { if (k < from || !((tr.rowsEnd != null && tr.rowsEnd !== tr.rows) || tr.taper > 0)) return tr;
+      const f = Math.min(1, Math.max(0, u)), e = (1 - Math.cos(Math.PI*Math.abs(2*f - 1)))/2, r = lerp(tr.rows, tr.rowsEnd == null ? tr.rows : tr.rowsEnd, f)*(1 - (tr.taper || 0)*e);
+      return r < .5 ? Object.assign({}, tr, {rows: 1, ghost: true}) : Object.assign({}, tr, {rows: Math.max(1, r)}); }); // (where it runs out, laid out but not built, so anything above stays up)
 const withRows = (tiers, f) => tiers.map((tr,k) => Object.assign({}, tr, {rows:f(tr,k)}));
 const onSide = (tr, s) => Object.assign({}, tr, {type:sideTypeOf(tr, s), rows:sideRowsOf(tr, s)}); // a bowl tier as built on one side
 /* The bowl's tiers at one point round the ring: that side's seating and rows, a blend in a corner, or nothing where it's
