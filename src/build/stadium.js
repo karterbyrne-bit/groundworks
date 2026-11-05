@@ -727,7 +727,7 @@ function build(){
       const at = (a, f) => lerp(a.inner, a.outer, f);
       /* A see-through strip along the front lets light onto the pitch (most modern metal roofs have one); the sheets
          underneath get a grey ceiling, and steel rafters, deepening towards the back, carry the roof. */
-      const mkey = ROOF_MAT_KEY[rf.mat] || "roof", opaque = ["roofSolid", "roofGreen", "roofConcrete"].includes(mkey);
+      const mkey = tint(ROOF_MAT_KEY[rf.mat] || "roof", rf.colour), opaque = ["roofSolid", "roofGreen", "roofConcrete"].includes(ROOF_MAT_KEY[rf.mat] || "roof"); // (in its own colour, if it has one)
       const edge = gable ? 0 : Math.max(0, Math.min(.6, rf.edge != null ? rf.edge : rf.mat === "metal" ? .2 : 0));
       const cuts = [...new Set([0, 1, ...Array.from({length:nS}, (_, s) => s/nS), ...(edge > 0 ? [edge] : [])])].sort((x, y) => x - y);
       for (let i=0;i<segs;i++){
@@ -745,7 +745,7 @@ function build(){
         if (rf.support === "truss" && !closed) latticeAlong(buf("steel"), i, j1, (k, off) => { const r = k === i ? a : b; return [V(k, r.inner + off, r.y(Math.max(0, off)/(r.outer - r.inner)))]; });
         roofQuads.push([pt(i,a.inner), pt(j1,b.inner), pt(j1,b.outer), pt(i,a.outer)]);
       }
-      const ribAt = marks(12), colAt = marks(rf.colEvery || 14), mastAt = marks(32), rafterAt = mkey !== "roofConcrete" ? marks(7) : new Set();
+      const ribAt = marks(12), colAt = marks(rf.colEvery || 14), mastAt = marks(32), rafterAt = !mkey.startsWith("roofConcrete") ? marks(7) : new Set();
       for (const i of rafterAt){ const a = RR[i]; if (!a) continue; // steel rafters under the sheets, deeper towards the back
         const f0 = Math.max(.02, edge), steps = Math.max(2, nS*2);
         for (let q=0;q<steps;q++){ const fa = lerp(f0, .98, q/steps), fb = lerp(f0, .98, (q+1)/steps), da = .35 + 1.7*fa, db = .35 + 1.7*fb;
@@ -1110,7 +1110,7 @@ function build(){
     let top = Math.max(yIn, base);
     for (let i=0;i<n;i++){ const j = (i+1)%n, a = Y(i), b = Y(j);
       for (let s=0;s<nS;s++){ const f0 = s/nS, f1 = (s+1)/nS, sp = Math.max(1, dOut[i] - dIn[i]), u0 = i*3, u1 = (i + 1)*3;
-        sheet(ROOF_MAT_KEY[gr.mat] || "roof", V3(i,at(i,f0),a(f0)), V3(j,at(j,f0),b(f0)), V3(j,at(j,f1),b(f1)), V3(i,at(i,f1),a(f1)), u0, u1, f0*sp, f1*sp); }
+        sheet(tint(ROOF_MAT_KEY[gr.mat] || "roof", gr.sheet), V3(i,at(i,f0),a(f0)), V3(j,at(j,f0),b(f0)), V3(j,at(j,f1),b(f1)), V3(i,at(i,f1),a(f1)), u0, u1, f0*sp, f1*sp); }
       quad(buf("roofEdge"), V3(i,dIn[i],a(0)-edgeH), V3(j,dIn[j],b(0)-edgeH), V3(j,dIn[j],b(0)), V3(i,dIn[i],a(0)));
       const low = gr.wall ? [0, 0] : [a(1) - .8, b(1) - .8];
       quad(buf(gr.wall ? wallKey : "roofEdge"), V3(i,dOut[i],low[0]), V3(j,dOut[j],low[1]), V3(j,dOut[j],b(1)), V3(i,dOut[i],a(1)));
