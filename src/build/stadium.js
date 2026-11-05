@@ -721,7 +721,7 @@ function build(){
         const span = level ? spanRef : outer - inner, base = level ? levelBase : x.top + lift;
         if (gable){ const ridge = base + Math.tan(24*Math.PI/180)*span/2; return {inner, outer, y:f => f < .5 ? lerp(base, ridge, f*2) : lerp(ridge, base, (f-.5)*2), yIn:base, yOut:base}; }
         const yIn = base + tilt*span, amp = (rf.curve || 0)*span*0.2, rise = rf.support === "toptruss" || rf.topTruss ? trussRise(rf, closed, cum[i], lenTotal) : 0; // an arched truss lifts the roof's front edge with it
-        return {inner, outer, y:f => lerp(yIn, base, f) + amp*Math.sin(Math.PI*f) + rise*(1 - f), yIn: yIn + rise, yOut:base}; });
+        return {inner, outer, y:f => lerp(yIn, base, f) + amp*Math.sin(Math.PI*f), yIn, yOut:base, rise}; }); // (the arch rises over the roof; the roof hangs from it at its own height)
       RRout = RR;
       const nS = gable ? 2 : (rf.curve > 0.01 ? 6 : 1);
       const at = (a, f) => lerp(a.inner, a.outer, f);
@@ -755,11 +755,11 @@ function build(){
          the ends of an open stand. A roof support style of its own, or added to any roof on top of its usual support. */
       if (rf.support === "toptruss" || rf.topTruss){
         const sb = buf("steel"), fT = trussEndsOf(rf) === "arch" ? .04 : .38, D = 5.5, half = 1.7, live = []; for (let i=0;i<m;i++) if (RR[i]) live.push(i);
-        const CH = trussEndsOf(rf) === "arch" && !closed && live.length > 1 ? trussChord(pt(live[0], at(RR[live[0]], fT)), pt(live[live.length-1], at(RR[live[live.length-1]], fT)), cum[live[0]], cum[live[live.length-1]]) : null, P3 = (i, up, side) => { const a = RR[i], q = CH ? CH.at(cum[i], side*half) : pt(i, at(a, fT) + side*half); return [q[0], a.y(fT) + .3 + up, q[1]]; }; // (an arch is in the roof's own height, and straight in plan)
+        const CH = trussEndsOf(rf) === "arch" && !closed && live.length > 1 ? trussChord(pt(live[0], at(RR[live[0]], fT)), pt(live[live.length-1], at(RR[live[live.length-1]], fT)), cum[live[0]], cum[live[live.length-1]]) : null, P3 = (i, up, side) => { const a = RR[i], q = CH ? CH.at(cum[i], side*half) : pt(i, at(a, fT) + side*half); return [q[0], a.y(fT) + (a.rise || 0) + .3 + up, q[1]]; }; // (an arch rises over the roof, and is straight in plan)
         for (let n=0;n<live.length;n++){ const i = live[n], j = live[n+1] != null ? live[n+1] : (closed ? live[0] : null); if (j == null || (!closed && j !== i + 1)) continue;
           for (const sd of [-1, 1]){ bar(sb, P3(i, 0, sd), P3(j, 0, sd), .5); bar(sb, P3(i, D, sd), P3(j, D, sd), .5); // the four chords
             bar(sb, n % 2 ? P3(i, 0, sd) : P3(i, D, sd), n % 2 ? P3(j, D, sd) : P3(j, 0, sd), .3); } // diagonals down each face
-          bar(sb, P3(i, 0, -1), P3(i, D, -1), .25); bar(sb, P3(i, 0, 1), P3(i, D, 1), .25); if (CH && n % 3 === 0){ const r = pt(i, at(RR[i], fT)), h = P3(i, 0, 0); if (Math.hypot(r[0] - h[0], r[1] - h[2]) > 1.5) bar(buf("cable"), h, [r[0], RR[i].y(fT), r[1]], .08); } // verticals (and, where the stand curves away from a straight arch, hangers down to the roof's edge)
+          bar(sb, P3(i, 0, -1), P3(i, D, -1), .25); bar(sb, P3(i, 0, 1), P3(i, D, 1), .25); if (CH && n % 2 === 0){ const r = pt(i, at(RR[i], fT)), h = P3(i, 0, 0); if (Math.hypot(r[0] - h[0], r[1] - h[2], RR[i].y(fT) - h[1]) > 1.5) bar(buf("cable"), h, [r[0], RR[i].y(fT), r[1]], .08); } // verticals (and hangers from the arch down to the roof's edge)
           bar(sb, P3(i, D, -1), P3(i, D, 1), .22); bar(sb, n % 2 ? P3(i, D, -1) : P3(i, D, 1), n % 2 ? P3(j, D, 1) : P3(j, D, -1), .18); bar(sb, P3(i, 0, -1), P3(i, 0, 1), .22); } // and across
         if (!closed) for (const i of [live[0], live[live.length-1]]) if (i != null){ const s2 = 1, tg = CH ? CH.out(i === live[0]) : trussOut(k => pt(k, at(RR[k], fT)), live, i, tangent(i).map(c => c*(i === live[0] ? -1 : 1))), q = P3(i, D, 0), b0 = pt(i, at(RR[i], fT)); if (trussEndsOf(rf) === "legs") TRUSS_RUNS.push({b0, dir:[tg[0]*s2, tg[1]*s2], P:[P3(i, 0, -1), P3(i, D, -1), P3(i, 0, 1), P3(i, D, 1)]}); // straight on out (see drawTrussRuns)
           else if (trussEndsOf(rf) === "arch") TRUSS_RUNS.push({b0, dir:[tg[0]*s2, tg[1]*s2], P:[P3(i, 0, -1), P3(i, D, -1), P3(i, 0, 1), P3(i, D, 1)], arch:Object.assign([P3(i, D/2, -1), P3(i, D/2, 1)], {run:Math.min(70, q[1]/.44)})}); else post(sb, b0[0] + tg[0]*s2*2.5, b0[1] + tg[1]*s2*2.5, 0, q[1] + .5, 1.8); } // end posts (or the arch's legs) carry it to the ground
