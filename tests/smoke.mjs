@@ -18,6 +18,9 @@ const base = `http://localhost:${server.address().port}/`;
 let failures = 0;
 const check = (ok, what) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${what}`); if (!ok) failures++; };
 const browser = await chromium.launch();
+// New visitors start in Simple mode; these checks reach every control, so they run in Advanced unless a check says otherwise.
+{ const open = browser.newContext.bind(browser);
+  browser.newContext = async o => { const c = await open(o); await c.addInitScript(() => { try { if (!localStorage.getItem("groundworks-mode")) localStorage.setItem("groundworks-mode", "advanced"); } catch(e) {} }); return c; }; }
 
 // Pinned numbers: the exact capacity and number of check issues of the default design and every preset, kept in
 // tests/expected.json. Any change to the maths that moves one of them fails here, showing the old and new number.
@@ -483,6 +486,29 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
 
   await page.screenshot({ path: new URL(`../tests/screenshot-${name}.png`, import.meta.url).pathname });
   check(errors.length === 0, "no errors" + (errors.length ? `:\n        ${errors.join("\n        ")}` : ""));
+  await ctx.close();
+}
+
+// Simple mode, as a first-time visitor sees it: fewer controls, Share & save in one button, famous roofs one tap away
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.addInitScript(() => { try { if (!sessionStorage.getItem("seen")){ localStorage.setItem("groundworks-mode", "simple"); sessionStorage.setItem("seen", "1"); } } catch(e) {} });
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(120000);
+  await page.goto(base);
+  await page.waitForFunction(() => document.documentElement.classList.contains("ready"));
+  await page.click("#welcome .btn.primary").catch(() => {});
+  const shown = sel => page.evaluate(s => { const e = document.querySelector(s); return !!(e && e.offsetParent); }, sel);
+  check(await page.evaluate(() => document.body.classList.contains("simple")) && !(await shown('#panes [data-pane="details"]')), "\n  Simple mode hides the Details tab");
+  await page.click('#panes [data-pane="start"]');
+  check(await shown("#shareSaveBtn") && !(await shown("#shareBtn")), "Share, Save as image and Save this design sit behind one Share & save button");
+  await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="N"]');
+  check(!(await shown('[data-act="addBoxes"]')) && await shown('[data-act="famousRoof"]'), "a stand shows its simple controls, with the famous roofs one tap away");
+  await page.click('[data-act="famousRoof"][data-f="cardiff"]');
+  await page.waitForFunction(() => !window.__gw.busy());
+  check(await page.evaluate(() => window.__gw.state().groundRoof.on && window.__gw.state().groundRoof.support === "cornermasts"), "one tap puts Cardiff's roof over the ground");
+  await page.click("#modeAdvanced");
+  check(await shown('#panes [data-pane="details"]') && await shown('[data-act="addBoxes"]'), "Advanced brings every control back");
   await ctx.close();
 }
 
