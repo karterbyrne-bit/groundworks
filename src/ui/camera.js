@@ -298,10 +298,12 @@ function constrain(){
   for (const r of LAST_REGIONS){
     let bi = -1, bl = Infinity, bd = 0;
     for (let i=0;i<r.o.length;i+=1){ const vv = r.v[i][0]*r.v[i][0] + r.v[i][1]*r.v[i][1] || 1, d = ((c.x - r.o[i][0])*r.v[i][0] + (c.z - r.o[i][1])*r.v[i][1])/vv;
+      if (d < 0) continue; // a slice on the far side of the ground, pointing away from the camera
       const lat = Math.hypot(c.x - (r.o[i][0] + d*r.v[i][0]), c.z - (r.o[i][1] + d*r.v[i][1])); if (lat < bl){ bl = lat; bi = i; bd = d; } }
     if (bi < 0 || bl > 5) continue;
+    // anywhere over a stand, keep above its highest seats there, however low the camera has come (so zooming out or orbiting low never ends up inside it)
     const live = r.profs[bi]; for (const p of live){ const n = nRows(p); if (n < 1) continue;
-      if (bd >= p.front - .5 && bd <= p.front + n*p.T + 1){ const h = p.hs[clamp(Math.floor((bd - p.front)/p.T), 0, n-1)] + 1.4; if (c.y < h + 1.5 && c.y > h - 6) minY = Math.max(minY, h); } }
+      if (bd >= p.front - .5 && bd <= p.front + n*p.T + 1){ const h = p.hs[clamp(Math.floor((bd - p.front)/p.T), 0, n-1)] + 1.4; if (c.y < h + 1.5) minY = Math.max(minY, h); } }
   }
   if (c.y < minY) c.y = minY;
 }
