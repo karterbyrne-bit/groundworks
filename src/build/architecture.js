@@ -114,6 +114,20 @@ function rampLevels(anchors, p){
   return live.map(t => { const n = nRows(t), d = t.front + (n - .5)*t.T; return {y: t.hs[n - 1], at: [g.o[k][0] + g.v[k][0]*d, g.o[k][1] + g.v[k][1]*d]}; })
     .filter(l => l.y > 2).sort((u, w) => u.y - w.y).filter((l, j, all) => !j || l.y - all[j - 1].y > 3); // one bridge per level
 }
+/* What's behind a glass curtain wall: the concourses, a couple of metres in, with a floor slab every 5 m and columns
+   between the glass and the rooms, so it reads as a building rather than a window onto the backs of the stands. At
+   night the rooms are lit, so the wall glows warm floor by floor. */
+function glassInside(bf, P, N, n, H){
+  const In = offsetPoly(P, -2.2), floors = Math.max(1, Math.round(H/5)), fh = H/floors, pos = [];
+  for (let i=0;i<n;i++){ const j = (i+1)%n, a = In[i], b = In[j]; pos.push(a[0],0,a[1], b[0],0,b[1], b[0],H,b[1], a[0],0,a[1], b[0],H,b[1], a[0],H,a[1]); }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals();
+  const m = new THREE.MeshStandardMaterial({color: S.night ? 0x3a3126 : 0xb9bdb8, roughness:.9, side:THREE.DoubleSide, emissive: new THREE.Color(S.night ? 0xffcf8a : 0), emissiveIntensity: S.night ? .55 : 0});
+  const mesh = new THREE.Mesh(g, m); mesh.receiveShadow = true; mesh.userData.stadium = true; group.add(mesh);
+  for (let f=1; f<=floors; f++){ const y = f*fh - .5; // the slab's edge, seen through the glass
+    for (let i=0;i<n;i++){ const j = (i+1)%n, a = In[i], b = In[j], c = [lerp(a[0], P[i][0], .85), lerp(a[1], P[i][1], .85)], d = [lerp(b[0], P[j][0], .85), lerp(b[1], P[j][1], .85)];
+      quad(bf("concrete"), [a[0],y,a[1]], [b[0],y,b[1]], [d[0],y,d[1]], [c[0],y,c[1]]); quad(bf("concrete"), [c[0],y-.6,c[1]], [d[0],y-.6,d[1]], [d[0],y,d[1]], [c[0],y,c[1]]); } }
+  for (let i=0;i<n;i+=3){ const q = [lerp(In[i][0], P[i][0], .5), lerp(In[i][1], P[i][1], .5)]; post(bf("column"), q[0], q[1], 0, H, .45); } // columns every 9 m, inside the glass
+}
 function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf, ext, anchors){
   if (outline.length < 3) return 0;
   let top = 0;
@@ -143,13 +157,13 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
     const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
     const tex = skinTexture(kind), glow = S.night && (kind === "cushion" || kind === "glass" || kind === "mesh");
     const mat = new THREE.MeshStandardMaterial({map:tex, side:THREE.DoubleSide, roughness: kind === "glass" ? .15 : .7, metalness: kind === "glass" || kind === "mesh" ? .3 : .05,
-      emissive: glow ? new THREE.Color(kind === "cushion" ? S.seat : 0xffd9a0) : new THREE.Color(0), emissiveMap: glow ? tex : null, emissiveIntensity: glow ? (kind === "cushion" ? 1.1 : .5) : 0,
-      transparent: kind === "glass", opacity: kind === "glass" ? .82 : 1});
+      emissive: glow ? new THREE.Color(kind === "cushion" ? S.seat : 0xffd9a0) : new THREE.Color(0), emissiveMap: glow ? tex : null, emissiveIntensity: glow ? (kind === "cushion" ? 1.1 : kind === "glass" ? .15 : .5) : 0,
+      transparent: kind === "glass", opacity: kind === "glass" ? .6 : 1});
     const mesh = new THREE.Mesh(g, mat); mesh.castShadow = true; mesh.receiveShadow = true; mesh.userData.stadium = true; group.add(mesh);
     // coping ring on top and entrances at the foot
     const inner = offsetPoly(P, -3); for (let i=0;i<n;i++){ const j = (i+1)%n; quad(bf("roofEdge"), [P[i][0],H,P[i][1]], [P[j][0],H,P[j][1]], [inner[j][0],H+.3,inner[j][1]], [inner[i][0],H+.3,inner[i][1]]); }
     if (kind === "fins") for (let i=0;i<n;i+=1){ const p = P[i], q = [p[0]+N[i][0]*1.2, p[1]+N[i][1]*1.2]; quad(bf("steel"), [p[0],0,p[1]], [q[0],0,q[1]], [q[0],H,q[1]], [p[0],H,p[1]]); }
-    if (kind === "glass") for (let i=0;i<n;i+=2){ const p = P[i]; post(bf("column"), p[0]+N[i][0]*(bulge+.2), p[1]+N[i][1]*(bulge+.2), 0, H, .3); }
+    if (kind === "glass") glassInside(bf, P, N, n, H);
     const gates = Math.max(4, Math.round(perim/45));
     for (let g2=0; g2<gates; g2++){ const i = Math.floor(g2*n/gates), j = (i+1)%n, a = P[i], b = P[(i+2)%n], o = .15;
       quad(bf("gate"), [a[0]+N[i][0]*o,0,a[1]+N[i][1]*o], [b[0]+N[i][0]*o,0,b[1]+N[i][1]*o], [b[0]+N[i][0]*o,4.2,b[1]+N[i][1]*o], [a[0]+N[i][0]*o,4.2,a[1]+N[i][1]*o]); }

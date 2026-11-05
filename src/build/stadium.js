@@ -727,7 +727,7 @@ function build(){
       const at = (a, f) => lerp(a.inner, a.outer, f);
       /* A see-through strip along the front lets light onto the pitch (most modern metal roofs have one); the sheets
          underneath get a grey ceiling, and steel rafters, deepening towards the back, carry the roof. */
-      const mkey = ROOF_MAT_KEY[rf.mat] || "roof", opaque = ["roofSolid", "roofGreen", "roofConcrete"].includes(mkey);
+      const mkey = tint(ROOF_MAT_KEY[rf.mat] || "roof", rf.colour), opaque = ["roofSolid", "roofGreen", "roofConcrete"].includes(ROOF_MAT_KEY[rf.mat] || "roof"); // (in its own colour, if it has one)
       const edge = gable ? 0 : Math.max(0, Math.min(.6, rf.edge != null ? rf.edge : rf.mat === "metal" ? .2 : 0));
       const cuts = [...new Set([0, 1, ...Array.from({length:nS}, (_, s) => s/nS), ...(edge > 0 ? [edge] : [])])].sort((x, y) => x - y);
       for (let i=0;i<segs;i++){
@@ -745,7 +745,7 @@ function build(){
         if (rf.support === "truss" && !closed) latticeAlong(buf("steel"), i, j1, (k, off) => { const r = k === i ? a : b; return [V(k, r.inner + off, r.y(Math.max(0, off)/(r.outer - r.inner)))]; });
         roofQuads.push([pt(i,a.inner), pt(j1,b.inner), pt(j1,b.outer), pt(i,a.outer)]);
       }
-      const ribAt = marks(12), colAt = marks(rf.colEvery || 14), mastAt = marks(32), rafterAt = mkey !== "roofConcrete" ? marks(7) : new Set();
+      const ribAt = marks(12), colAt = marks(rf.colEvery || 14), mastAt = marks(32), rafterAt = !mkey.startsWith("roofConcrete") ? marks(7) : new Set();
       for (const i of rafterAt){ const a = RR[i]; if (!a) continue; // steel rafters under the sheets, deeper towards the back
         const f0 = Math.max(.02, edge), steps = Math.max(2, nS*2);
         for (let q=0;q<steps;q++){ const fa = lerp(f0, .98, q/steps), fb = lerp(f0, .98, (q+1)/steps), da = .35 + 1.7*fa, db = .35 + 1.7*fb;
@@ -755,13 +755,13 @@ function build(){
          the ends of an open stand. A roof support style of its own, or added to any roof on top of its usual support. */
       if (rf.support === "toptruss" || rf.topTruss){
         const sb = buf("steel"), fT = trussEndsOf(rf) === "arch" ? .04 : .38, D = 5.5, half = 1.7, live = []; for (let i=0;i<m;i++) if (RR[i]) live.push(i);
-        const P3 = (i, up, side) => { const a = RR[i], q = pt(i, at(a, fT) + side*half); return [q[0], a.y(fT) + .3 + up, q[1]]; }; // (an arch is in the roof's own height)
+        const CH = trussEndsOf(rf) === "arch" && !closed && live.length > 1 ? trussChord(pt(live[0], at(RR[live[0]], fT)), pt(live[live.length-1], at(RR[live[live.length-1]], fT)), cum[live[0]], cum[live[live.length-1]]) : null, P3 = (i, up, side) => { const a = RR[i], q = CH ? CH.at(cum[i], side*half) : pt(i, at(a, fT) + side*half); return [q[0], a.y(fT) + .3 + up, q[1]]; }; // (an arch is in the roof's own height, and straight in plan)
         for (let n=0;n<live.length;n++){ const i = live[n], j = live[n+1] != null ? live[n+1] : (closed ? live[0] : null); if (j == null || (!closed && j !== i + 1)) continue;
           for (const sd of [-1, 1]){ bar(sb, P3(i, 0, sd), P3(j, 0, sd), .5); bar(sb, P3(i, D, sd), P3(j, D, sd), .5); // the four chords
             bar(sb, n % 2 ? P3(i, 0, sd) : P3(i, D, sd), n % 2 ? P3(j, D, sd) : P3(j, 0, sd), .3); } // diagonals down each face
-          bar(sb, P3(i, 0, -1), P3(i, D, -1), .25); bar(sb, P3(i, 0, 1), P3(i, D, 1), .25); // verticals
+          bar(sb, P3(i, 0, -1), P3(i, D, -1), .25); bar(sb, P3(i, 0, 1), P3(i, D, 1), .25); if (CH && n % 3 === 0){ const r = pt(i, at(RR[i], fT)), h = P3(i, 0, 0); if (Math.hypot(r[0] - h[0], r[1] - h[2]) > 1.5) bar(buf("cable"), h, [r[0], RR[i].y(fT), r[1]], .08); } // verticals (and, where the stand curves away from a straight arch, hangers down to the roof's edge)
           bar(sb, P3(i, D, -1), P3(i, D, 1), .22); bar(sb, n % 2 ? P3(i, D, -1) : P3(i, D, 1), n % 2 ? P3(j, D, 1) : P3(j, D, -1), .18); bar(sb, P3(i, 0, -1), P3(i, 0, 1), .22); } // and across
-        if (!closed) for (const i of [live[0], live[live.length-1]]) if (i != null){ const s2 = 1, tg = trussOut(k => pt(k, at(RR[k], fT)), live, i, tangent(i).map(c => c*(i === live[0] ? -1 : 1))), q = P3(i, D, 0), b0 = pt(i, at(RR[i], fT)); if (trussEndsOf(rf) === "legs") TRUSS_RUNS.push({b0, dir:[tg[0]*s2, tg[1]*s2], P:[P3(i, 0, -1), P3(i, D, -1), P3(i, 0, 1), P3(i, D, 1)]}); // straight on out (see drawTrussRuns)
+        if (!closed) for (const i of [live[0], live[live.length-1]]) if (i != null){ const s2 = 1, tg = CH ? CH.out(i === live[0]) : trussOut(k => pt(k, at(RR[k], fT)), live, i, tangent(i).map(c => c*(i === live[0] ? -1 : 1))), q = P3(i, D, 0), b0 = pt(i, at(RR[i], fT)); if (trussEndsOf(rf) === "legs") TRUSS_RUNS.push({b0, dir:[tg[0]*s2, tg[1]*s2], P:[P3(i, 0, -1), P3(i, D, -1), P3(i, 0, 1), P3(i, D, 1)]}); // straight on out (see drawTrussRuns)
           else if (trussEndsOf(rf) === "arch") TRUSS_RUNS.push({b0, dir:[tg[0]*s2, tg[1]*s2], P:[P3(i, 0, -1), P3(i, D, -1), P3(i, 0, 1), P3(i, D, 1)], arch:Object.assign([P3(i, D/2, -1), P3(i, D/2, 1)], {run:Math.min(70, q[1]/.44)})}); else post(sb, b0[0] + tg[0]*s2*2.5, b0[1] + tg[1]*s2*2.5, 0, q[1] + .5, 1.8); } // end posts (or the arch's legs) carry it to the ground
         topAll = Math.max(topAll, ...live.map(i => P3(i, D, 0)[1] + .5)); if (trussEndsOf(rf) === "arch" && !closed) roofDiagrid(sb, V, RR, cum); // Stadium Australia's criss-cross of steel over the sheets
       }
@@ -1110,7 +1110,7 @@ function build(){
     let top = Math.max(yIn, base);
     for (let i=0;i<n;i++){ const j = (i+1)%n, a = Y(i), b = Y(j);
       for (let s=0;s<nS;s++){ const f0 = s/nS, f1 = (s+1)/nS, sp = Math.max(1, dOut[i] - dIn[i]), u0 = i*3, u1 = (i + 1)*3;
-        sheet(ROOF_MAT_KEY[gr.mat] || "roof", V3(i,at(i,f0),a(f0)), V3(j,at(j,f0),b(f0)), V3(j,at(j,f1),b(f1)), V3(i,at(i,f1),a(f1)), u0, u1, f0*sp, f1*sp); }
+        sheet(tint(ROOF_MAT_KEY[gr.mat] || "roof", gr.sheet), V3(i,at(i,f0),a(f0)), V3(j,at(j,f0),b(f0)), V3(j,at(j,f1),b(f1)), V3(i,at(i,f1),a(f1)), u0, u1, f0*sp, f1*sp); }
       quad(buf("roofEdge"), V3(i,dIn[i],a(0)-edgeH), V3(j,dIn[j],b(0)-edgeH), V3(j,dIn[j],b(0)), V3(i,dIn[i],a(0)));
       const low = gr.wall ? [0, 0] : [a(1) - .8, b(1) - .8];
       quad(buf(gr.wall ? wallKey : "roofEdge"), V3(i,dOut[i],low[0]), V3(j,dOut[j],low[1]), V3(j,dOut[j],b(1)), V3(i,dOut[i],a(1)));
