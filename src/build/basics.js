@@ -67,6 +67,10 @@ function bowlPiece(tag, nc){
 }
 const sideRowsOf = (tr, s) => S.bowl.varyRows && tr.sideRows && tr.sideRows[s] != null ? Math.max(0, tr.sideRows[s]) : tr.rows;
 const sideTypeOf = (tr, s) => S.bowl.varyRows && tr.sideType && TYPES[tr.sideType[s]] ? tr.sideType[s] : tr.type;
+/* A stand's tier can have a different number of rows at its right-hand end (seen from the play) from its left, getting
+   deeper or shallower steadily along the stand. u: how far along the stand this slice is, 0 to 1 (null on a closed ring). */
+const rowsAlong = (tiers, from, u) => u == null || !tiers.some((tr,k) => k >= from && tr.rowsEnd != null && tr.rowsEnd !== tr.rows) ? tiers
+  : tiers.map((tr,k) => k >= from && tr.rowsEnd != null ? Object.assign({}, tr, {rows: Math.max(1, lerp(tr.rows, tr.rowsEnd, Math.min(1, Math.max(0, u))))}) : tr);
 const withRows = (tiers, f) => tiers.map((tr,k) => Object.assign({}, tr, {rows:f(tr,k)}));
 const onSide = (tr, s) => Object.assign({}, tr, {type:sideTypeOf(tr, s), rows:sideRowsOf(tr, s)}); // a bowl tier as built on one side
 /* The bowl's tiers at one point round the ring: that side's seating and rows, a blend in a corner, or nothing where it's
@@ -108,6 +112,13 @@ function bowlRuns(nc){
 function ellipseHit(o, v, A, B){
   const a = (v[0]/A)**2 + (v[1]/B)**2, b = 2*(o[0]*v[0]/(A*A) + o[1]*v[1]/(B*B)), c = (o[0]/A)**2 + (o[1]/B)**2 - 1, disc = b*b - 4*a*c;
   return a > 0 && disc >= 0 ? (-b + Math.sqrt(disc))/(2*a) : null;
+}
+/* The same for a rectangle with softly rounded corners, half-sizes A by B (a squarish superellipse), for a roof like San
+   Siro's: how far along v from o (inside it) to its edge. */
+function rectHit(o, v, A, B){
+  const f = t => Math.abs((o[0] + v[0]*t)/A)**8 + Math.abs((o[1] + v[1]*t)/B)**8; if (f(0) >= 1) return null;
+  let lo = 0, hi = 2*Math.max(A, B) + Math.hypot(o[0], o[1]); for (let k=0;k<40;k++){ const m = (lo + hi)/2; if (f(m) < 1) lo = m; else hi = m; }
+  return lo;
 }
 /* Stands on a lower bowl: how many of the bowl's seats lie on each side (N, S, E, W), so each side's stand can count the
    bowl in front of it in the results. The corners split along the line from the bowl's front corner to its back corner,
