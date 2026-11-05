@@ -37,7 +37,6 @@ body{font-synthesis:none;background:var(--paper);color:var(--ink);font-family:va
 .hud b{font-family:var(--f-display);font-weight:800;font-size:22px;line-height:1;font-variant-numeric:tabular-nums}
 .hud span{font-size:12px;color:var(--muted)}
 .hud span .pill{margin-left:4px}
-.tip{bottom:58px !important}
 body.present .hud{display:none}
 .brand h1{font-family:var(--f-display);font-weight:800;font-size:34px;letter-spacing:.02em;text-transform:uppercase;margin:0;line-height:1}
 .brand p{margin:6px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
@@ -103,7 +102,7 @@ details.group{gap:0}
 .limits label{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:8px;font-size:12.5px}
 .limits label span:last-child{font-family:var(--f-mono);font-size:11px;color:var(--muted);width:44px}
 
-.stage{display:grid;grid-template-rows:auto minmax(0,1fr);min-width:0;min-height:0}
+.stage{display:grid;grid-template-rows:auto auto minmax(0,1fr);min-width:0;min-height:0}
 .view{position:relative;background:var(--scene);min-height:0;overflow:hidden}
 .view canvas{display:block;width:100%;height:100%;touch-action:none}
 .view.picking canvas{cursor:crosshair}
@@ -117,8 +116,9 @@ details.group{gap:0}
 .cams button,.shows button{font:inherit;font-size:12px;font-weight:500;padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
 .cams button[aria-pressed="true"],.shows button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .cams button:focus-visible,.shows button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.tip{position:absolute;left:max(12px, env(safe-area-inset-left,0px));bottom:10px;right:12px;font-family:var(--f-mono);font-size:11px;color:var(--muted);margin:0}
-.tip:not(:empty){right:auto;max-width:calc(100% - 24px);background:color-mix(in srgb, var(--panel) 82%, transparent);padding:3px 8px;border-radius:6px;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+/* the hint line sits in its own strip under the view buttons, never over the stadium */
+.tip{font-family:var(--f-mono);font-size:11px;color:var(--muted);margin:0;padding:5px max(12px, env(safe-area-inset-right,0px)) 5px max(12px, env(safe-area-inset-left,0px));background:var(--panel);border-bottom:1px solid var(--line)}
+.tip:empty{display:none}
 .tip b{color:var(--ink);font-weight:500}
 
 .readout{background:var(--panel);border-top:1px solid var(--line);padding-block:14px 16px;max-height:46vh;overflow-y:auto;
@@ -175,7 +175,7 @@ table.tiers .lo{color:var(--bad, #c0392b);font-weight:500}
 @media (max-width:860px){
   html,body{height:100%;overflow:hidden}
   .app{grid-template-columns:1fr;grid-template-rows:46svh minmax(0,1fr);height:100svh}
-  .stage{order:-1;grid-template-rows:auto minmax(0,1fr)}
+  .stage{order:-1;grid-template-rows:auto auto minmax(0,1fr)}
   .panel{border-right:0;border-top:1px solid var(--line)}
   .topbar{padding:8px max(16px, env(safe-area-inset-right,0px)) 4px max(16px, env(safe-area-inset-left,0px))}
   .topbar h1{font-size:20px}
@@ -191,7 +191,7 @@ table.tiers .lo{color:var(--bad, #c0392b);font-weight:500}
   .cams button,.shows button{flex:none;padding:5px 9px}
   .more,.bookmarks{top:8px}
   .tip{display:none}
-  .tip.msg{display:block;top:8px;bottom:auto !important;left:8px;right:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:11.5px;color:var(--ink)}
+  .tip.msg{display:block;font-size:11.5px;color:var(--ink)}
   .hud{bottom:8px;padding:5px 9px}
   .hud b{font-size:18px}
   .cap .big{font-size:44px}
@@ -385,7 +385,9 @@ kbd{font-family:var(--f-mono);font-size:11px;padding:1px 6px;border:1px solid va
 .reach{display:flex;flex-direction:column;gap:6px;padding:8px 0 2px;border-top:1px dashed var(--line)}
 .siderows select{width:100%;min-width:0;box-sizing:border-box;font-size:11.5px;padding:4px 2px}
 /* Simple and advanced: the switch at the top right, and what Simple leaves out. */
-.modes{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin-left:auto;margin-right:8px}
+.modes{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin-left:auto;margin-right:8px;flex:none}
+.modes button{white-space:nowrap}
+.topbar h1{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .modes button{font:inherit;font-size:12px;padding:5px 9px;border:0;background:var(--panel);color:var(--muted);cursor:pointer}
 .modes button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
 body.simple .adv{display:none !important}
@@ -397,4 +399,4 @@ body.simple .simple-only{display:block}
 .ssmenu button{font:inherit;font-size:13px;text-align:left;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);cursor:pointer}
 .ssmenu button:hover{border-color:var(--accent)}
 .famous .chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
-@media (max-width:420px){ .topbar h1{font-size:17px} .modes{margin-right:6px} .modes button{font-size:11px;padding:4px 6px} .toolbar .btn.icon{padding-inline:6px} }
+@media (max-width:480px){ .topbar h1{font-size:17px} .modes{margin-right:6px} .modes button{font-size:11px;padding:4px 6px} .toolbar .btn.icon{padding-inline:6px} }
