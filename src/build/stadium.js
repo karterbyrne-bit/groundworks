@@ -838,7 +838,7 @@ function build(){
       topAll = Math.max(topAll, yT + 1.5);
     }
     // façade extras: stair towers, entrance gates and window mullions on the back wall
-    const backAt = i => info[i] ? info[i].back + (roofOn ? 1.5 : 0) : null;
+    const backAt = i => info[i] ? info[i].back + (roofOn ? 1.5 : 0) : null; if (st.sel && !DRY) outlineStand(buf, m, info, pt, closed); // the stand being edited, picked out
     if (fac.clock === "wall" && info[midI] && !DRY){ // a stand clock high on the back wall, facing the street
       const R3 = roofOn && RRout ? RRout[midI] : null, d = (R3 ? R3.outer : info[midI].back) + .4, top = R3 ? R3.y(1) : info[midI].top, r = Math.max(1.8, Math.min(4, top*0.12));
       if (top > 2*r + 4) addClock(pt(midI, d), top - r - 1.5, pt(midI, d + 60), r); }
