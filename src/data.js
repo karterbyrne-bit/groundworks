@@ -10,7 +10,7 @@ const SPORTS = {
 const CONVERT = {on:false, to:"athletics", how:"slide", pull:true, show:"base"};
 const CONVERT_TO = {football:"Football", rugby:"Rugby", athletics:"Athletics", wrestleball:"Wrestleball"};
 const KINDS = {
-  wrestleball:{label:"Wrestleball", W:16.5,H:4.5,r:0,surface:"grass",set:2.5,floor:0,zones:[4,8.5,4],outdoor:true,note:"An outdoor sport on grass: 16.5 × 4.5 m, with two 4 m end zones either side of an 8.5 m central playing area."},
+  wrestleball:{label:"Wrestleball", W:16.5,H:4.5,r:0,surface:"grass",set:5,floor:0,zones:[4,8.5,4],outdoor:true,note:"An outdoor sport on grass: 16.5 × 4.5 m, with two 4 m end zones either side of an 8.5 m central playing area, and 5 m of grass round it for safety."},
   plain:{label:"Plain floor", W:100,H:64,r:0,surface:"grass",set:4,floor:0,note:"Any floor up to 400 × 300 m. Set the exact size below."}
 };
 const TYPES = {
@@ -293,7 +293,7 @@ const PRESETS = {
     stands:{N:mk("urban",[t("seated",12,26), t("seated",12,30,true,{over:1,gap:3}), t("seated",2,32,true,{over:1,gap:3})]),S:mk("compact",[t("seated",11,24)]),E:mk("extended",[t("terrace",12,18,false),t("seated",10,24,true,{over:2,gap:3.6})]),W:mk("unfinished")},
     corners:{NE:corner("blend","upper"),SE:corner("open"),SW:corner("open"),NW:corner("open")},
     plot:{on:true,pts:[[-62,-60],[100,-60],[62,50],[-62,50]],clip:true},seat:"#5aa6d6",lights:true}),
-  wrestle:Pz({sport:"custom",custom:{kind:"wrestleball",W:16.5,H:4.5,r:0,surface:"grass",floor:0},layout:"stands",cornerShape:"angled",setback:2.5,corner:6,
+  wrestle:Pz({sport:"custom",custom:{kind:"wrestleball",W:16.5,H:4.5,r:0,surface:"grass",floor:0},layout:"stands",cornerShape:"angled",setback:5,corner:6,
     stands:{N:mk("modern",[t("seated",12,24)]),S:mk("regular",[t("bench",9,24)],{shape:"none"}),E:mk("kop",[t("rail",8,30,true)],{shape:"none"}),W:mk("kop",[t("rail",8,30,true)],{shape:"none"})},
     corners:{NE:corner("blend"),SE:corner("open"),SW:corner("open"),NW:corner("open")},seat:"#2f6b3d",lights:true,boards:false,focusIn:2.5}),
   /* The lower tier wraps an athletics track; a deep upper tier floats behind it on a true oval. */
