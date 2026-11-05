@@ -68,7 +68,7 @@ function tierBlocks(arr, above, base, bySide, ends){
     const isT = tr.type === "terrace", nm = tierName(k, arr.length, above), stacked = k > 0 || above;
     const pre = (base ? base + "." : "") + "tiers." + k + ".";
     const depth = tr.rows * S.types[tr.type].row;
-    return `<div class="tier" data-k="${k}"><div class="tier-h"><span>${nm ? nm + " tier" : "Tier"}</span><button class="mini" data-act="removeTier" data-k="${k}" aria-label="Remove this tier">Remove</button></div>
+    return `<div class="tier" data-k="${k}"><div class="tier-h"><span>${nm ? nm + " tier" : "Tier"}</span><span>${arr.length > 1 ? `<button class="mini adv" data-act="moveTier" data-k="${k}" data-to="${k + 1}"${k === arr.length - 1 ? " disabled" : ""} aria-label="Move this tier up the stand" title="Move up">↑</button> <button class="mini adv" data-act="moveTier" data-k="${k}" data-to="${k - 1}"${k === 0 ? " disabled" : ""} aria-label="Move this tier down the stand" title="Move down">↓</button> ` : ""}<button class="mini" data-act="removeTier" data-k="${k}" aria-label="Remove this tier">Remove</button></span></div>
       ${bySide ? "" : `<div class="row"><label>Type</label><select data-p="${pre}type" aria-label="Seating type">${Object.entries(TYPES).map(([v,o]) => `<option value="${v}"${v===tr.type?" selected":""}>${o.label}</option>`).join("")}</select></div>`}
       ${bySide ? sideRowsBox(tr, pre) : pair(isT ? "Steps" : "Rows", pre + "rows", tr.rows, 1, 90, 1, "", `${depth.toFixed(1)} m deep`)}
       ${!base && !bySide && (SIDES.includes(tab) || /^R\d/.test(tab)) ? pair("Rows at the right-hand end", pre + "rowsEnd", tr.rowsEnd == null ? tr.rows : tr.rowsEnd, 1, 90, 1, "", "Seen from the pitch. Make it more or fewer than Rows and the tier gets deeper or shallower along the stand.") : ""}
@@ -368,6 +368,8 @@ $("editor").addEventListener("click", e => {
   if (act === "addTier"){ if (arr.length >= MAX_TIERS) return say(`<b>${MAX_TIERS} tiers is as high as a stand goes.</b>`);
     const k = arr.length; arr.push(t("seated", [18,14,12][k] || 10, Math.min(34, 22 + 4*k), true, k ? {over: k > 1 ? -2 : 3, gap:3.6} : {})); }
   if (act === "removeTier"){ arr.splice(+b.dataset.k, 1); if (!arr.length && (isBowl() || (isHybrid() && tab === "B"))) arr.push(t("seated",16,22)); }
+  if (act === "moveTier"){ const k = +b.dataset.k, to = +b.dataset.to; if (to < 0 || to >= arr.length) return; // swap it with its neighbour: each keeps its own settings
+    [arr[k], arr[to]] = [arr[to], arr[k]]; }
   if (act === "addBoxes"){ if (arr.length >= MAX_TIERS) return say(`<b>${MAX_TIERS} tiers is as high as a stand goes.</b> Remove one first.`);
     const at = Math.min(1, arr.length); arr.splice(at, 0, t("exec", 4, 22, true, at || isHybrid() ? {over:2, gap:3.6} : {})); }
   if (act === "toggleRoof"){ cfg.roof = cfg.roof.shape === "none" ? STYLES[cfg.style].roof() : Object.assign({}, cfg.roof, {shape:"none"}); if (cfg.roof.shape === "none" && STYLES[cfg.style].roof().shape === "none" && b.textContent.includes("+")) cfg.roof = R("slope"); }
