@@ -101,6 +101,7 @@ function roofBlock(cfg, bowl){
     ${rf.support !== "toptruss" ? check("A big steel truss along the top of the roof (like Old Trafford's)", "roof.topTruss", !!rf.topTruss) : ""}
     ${rf.support === "toptruss" || rf.topTruss ? pick("The truss comes down", "roof.trussEnds", trussEndsOf(rf), TRUSS_ENDS) : ""}
     ${check("Level roofline (one straight height along the stand)", "roof.level", rf.level !== false)}
+    ${bowl ? "" : check("Glass screens at the open ends (so the roof doesn't look as if it's floating)", "roof.endScreens", rf.endScreens !== false)}
     ${check("Line up every roof in the ground at the same height", "roofAlign", !!S.roofAlign)}
     ${pair(rf.level !== false ? "Height above the tallest row" : "Height above the top row", "roof.lift", rf.lift, 1.5, 40, 0.5, "m")}
     ${rf.shape !== "gable" ? pair("Tilt up towards the play", "roof.tilt", rf.tilt, -15, 25, 1, "°") + pair("Curve", "roof.curve", Math.round((rf.curve||0)*100), 0, 100, 5, "%") : ""}

@@ -745,7 +745,7 @@ function build(){
         if (rf.support === "truss" && !closed) latticeAlong(buf("steel"), i, j1, (k, off) => { const r = k === i ? a : b; return [V(k, r.inner + off, r.y(Math.max(0, off)/(r.outer - r.inner)))]; });
         roofQuads.push([pt(i,a.inner), pt(j1,b.inner), pt(j1,b.outer), pt(i,a.outer)]);
       }
-      const ribAt = marks(12), colAt = marks(rf.colEvery || 14), mastAt = marks(32), rafterAt = !mkey.startsWith("roofConcrete") ? marks(7) : new Set(); if (!closed) roofEndScreens(RR, info, V, buf);
+      const ribAt = marks(12), colAt = marks(rf.colEvery || 14), mastAt = marks(32), rafterAt = !mkey.startsWith("roofConcrete") ? marks(7) : new Set(); if (!closed && rf.endScreens !== false) roofEndScreens(RR, info, V, buf);
       for (const i of rafterAt){ const a = RR[i]; if (!a) continue; // steel rafters under the sheets, deeper towards the back
         const f0 = Math.max(.02, edge), steps = Math.max(2, nS*2);
         for (let q=0;q<steps;q++){ const fa = lerp(f0, .98, q/steps), fb = lerp(f0, .98, (q+1)/steps), da = .35 + 1.7*fa, db = .35 + 1.7*fb;
