@@ -311,3 +311,12 @@ function bankCrest(pr, lim = Infinity){
   const crest = Math.max(bk, Math.min(Math.max(bk, ...live.slice(1).map(q => q.back + 3)), lim - 1.5)), foot = Math.max(crest + .4, Math.min(crest + 1 + (top - .2)*1.7, lim));
   return {bk, top, crest, foot};
 }
+/* A stand's roof is never left floating at an open end: a glazed end screen closes the gap between the stand's end
+   (its seats, stepping up to the back row) and the underside of the roof, as real stands have. */
+function roofEndScreens(RR, info, V, buf){
+  const live = []; for (let i=0;i<RR.length;i++) if (RR[i] && info[i]) live.push(i); if (!live.length) return;
+  const g = buf("glassClad"), K = 8;
+  for (const i of new Set([live[0], live[live.length-1]])){ const a = RR[i], x = info[i], d0 = Math.max(a.inner, x.front), sp = a.outer - d0; if (sp < 1) continue;
+    const y = d => a.y((d - a.inner)/Math.max(1e-6, a.outer - a.inner)), h = d => Math.min(y(d) - .2, heightAt(x.prof, d));
+    for (let k=0;k<K;k++){ const da = d0 + sp*k/K, db = d0 + sp*(k+1)/K; quad(g, V(i,da,h(da)), V(i,db,h(db)), V(i,db,y(db) - .2), V(i,da,y(da) - .2)); } }
+}

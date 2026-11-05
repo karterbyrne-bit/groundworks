@@ -745,7 +745,7 @@ function build(){
         if (rf.support === "truss" && !closed) latticeAlong(buf("steel"), i, j1, (k, off) => { const r = k === i ? a : b; return [V(k, r.inner + off, r.y(Math.max(0, off)/(r.outer - r.inner)))]; });
         roofQuads.push([pt(i,a.inner), pt(j1,b.inner), pt(j1,b.outer), pt(i,a.outer)]);
       }
-      const ribAt = marks(12), colAt = marks(rf.colEvery || 14), mastAt = marks(32), rafterAt = !mkey.startsWith("roofConcrete") ? marks(7) : new Set();
+      const ribAt = marks(12), colAt = marks(rf.colEvery || 14), mastAt = marks(32), rafterAt = !mkey.startsWith("roofConcrete") ? marks(7) : new Set(); if (!closed) roofEndScreens(RR, info, V, buf);
       for (const i of rafterAt){ const a = RR[i]; if (!a) continue; // steel rafters under the sheets, deeper towards the back
         const f0 = Math.max(.02, edge), steps = Math.max(2, nS*2);
         for (let q=0;q<steps;q++){ const fa = lerp(f0, .98, q/steps), fb = lerp(f0, .98, (q+1)/steps), da = .35 + 1.7*fa, db = .35 + 1.7*fb;
@@ -1124,7 +1124,7 @@ function build(){
       top = Math.max(top, a(0), a(1), a(.5) + (gr.support === "ribs" ? 4 : gr.support === "truss" ? 3.2 : .5));
       if (gr.support === "ribs" && ribAt.has(i)) for (let s=0;s<nS;s++){ const f0 = s/nS, f1 = (s+1)/nS;
         quad(buf("steel"), V3(i,at(i,f0),a(f0)), V3(i,at(i,f1),a(f1)), V3(i,at(i,f1),a(f1) + .4 + 3.6*f1), V3(i,at(i,f0),a(f0) + .4 + 3.6*f0)); }
-      if (gr.support === "columns" && colAt.has(i)){ const d = dOut[i] - .5, q = P(i, d); post(buf("column"), q[0], q[1], 0, a((d - dIn[i])/(dOut[i] - dIn[i])), .6); }
+      if ((gr.support === "columns" || (["none", "ribs", "truss"].includes(gr.support) && !gr.wall)) && colAt.has(i)){ const d = dOut[i] - .5, q = P(i, d); post(buf("column"), q[0], q[1], 0, a((d - dIn[i])/(dOut[i] - dIn[i])), .6); } // (a roof with no legs of its own stands on columns round the outside, unless walled down to the ground)
       if (gr.support === "masts" && mastAt.has(i)){ const q = P(i, dOut[i] + 4), mt = a(1) + 22, p0 = P((i-1+n)%n, dOut[i]), p1 = P((i+1)%n, dOut[i]);
         const tl = Math.hypot(p1[0]-p0[0], p1[1]-p0[1]) || 1, tg = [(p1[0]-p0[0])/tl, (p1[1]-p0[1])/tl];
         post(buf("steel"), q[0], q[1], 0, mt, .9);
