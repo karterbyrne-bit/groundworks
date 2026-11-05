@@ -163,6 +163,7 @@ function showPane(name, keepScroll){
   document.querySelectorAll("#panes [data-pane]").forEach(b => { b.setAttribute("aria-selected", String(b.dataset.pane === name)); b.tabIndex = b.dataset.pane === name ? 0 : -1; });
   document.querySelectorAll("#panebody > [data-pane]").forEach(el => el.classList.toggle("on", el.dataset.pane === name));
   if (!keepScroll) $("panebody").scrollTop = 0;
+  M.picked.visible = name === "stands"; redraw(); // the stand being edited is only outlined while its controls are showing
   try { localStorage.setItem("groundworks-pane", name); } catch(e) {}
 }
 document.getElementById("panes").addEventListener("click", e => { const b = e.target.closest("[data-pane]"); if (b) showPane(b.dataset.pane); });

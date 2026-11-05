@@ -245,6 +245,14 @@ function vehicleWayOut(buf, w, info, RRout, roofOn, profs, under, cum){
   for (const e of [s0, s1]) for (let y=0;y<H - .2;y+=.8) quad(buf("barrier"), Q(e, foot + .2, y), Q(e + (e === s0 ? -.3 : .3), foot + .2, y), Q(e + (e === s0 ? -.3 : .3), foot + .2, y + .4), Q(e, foot + .2, y + .4)); // hazard stripes up each side
   const g = Q(c, foot + .22, H + .25); post(buf("emerg"), g[0], g[2], H + .1, H + .45, .7);
 }
+/* The stand being edited, picked out in bright amber: a line round its front, its back and its ends, just above the
+   seats, so on a small screen you can see at a glance which stand the controls are changing. */
+function outlineStand(buf, m, info, pt, closed){
+  const b = buf("picked"), P = (i, d, y) => { const q = pt(i, d); return [q[0], y, q[1]]; }, live = []; for (let i=0;i<m;i++) if (info[i]) live.push(i); if (!live.length) return;
+  for (let n=0;n<live.length;n++){ const i = live[n], j = live[n+1] != null ? live[n+1] : (closed ? live[0] : null); if (j == null || (!closed && j !== i + 1)) continue;
+    const a = info[i], c = info[j]; bar(b, P(i, a.front - .3, 1.4), P(j, c.front - .3, 1.4), .55); bar(b, P(i, a.back + .3, a.top + 1.2), P(j, c.back + .3, c.top + 1.2), .55); }
+  if (!closed) for (const i of [live[0], live[live.length - 1]]){ const a = info[i]; bar(b, P(i, a.front - .3, 1.4), P(i, a.back + .3, a.top + 1.2), .55); }
+}
 /* What's behind and under a stand that has no building: a banked terrace's grassy earth bank sloping away from the
    back row to the ground, or a temporary stand's bare scaffold of steel tubes (an upright under every other row every
    2.5 m along, with rails and cross-braces along the back). */
