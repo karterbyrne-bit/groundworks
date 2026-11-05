@@ -311,3 +311,23 @@ function bankCrest(pr, lim = Infinity){
   const crest = Math.max(bk, Math.min(Math.max(bk, ...live.slice(1).map(q => q.back + 3)), lim - 1.5)), foot = Math.max(crest + .4, Math.min(crest + 1 + (top - .2)*1.7, lim));
   return {bk, top, crest, foot};
 }
+/* A stand's roof is never left floating at an open end: a glazed end screen closes the gap between the end of the
+   stand's top tier (its seats, stepping up to the back row) and the underside of the roof, as real stands have. It never
+   comes down below that top tier, so it doesn't cut across the seats of a tier below, or of a bowl carrying on round the corner. */
+function roofEndScreens(RR, info, V, buf, key){
+  const live = []; for (let i=0;i<RR.length;i++) if (RR[i] && info[i]) live.push(i); if (!live.length) return;
+  const g = buf("glassClad"), K = 8;
+  for (const [e, i] of [[0, live[0]], [1, live[live.length-1]]]){ if (e === 1 && live.length === 1) break; if (standJoinedAt(key, e)) continue; // where it joins its neighbour, the seats carry on: no screen
+    const a = RR[i], x = info[i], tiers = (x.prof || []).filter(p => !p.ghost && nRows(p) >= 1); if (!tiers.length) continue;
+    const tt = tiers[tiers.length-1], d0 = Math.max(a.inner, tt.front), sp = a.outer - d0; if (sp < 1) continue;
+    const y = d => a.y((d - a.inner)/Math.max(1e-6, a.outer - a.inner)), seat = d => heightAt([tt], Math.min(d, tt.front + nRows(tt)*tt.T - 1e-3));
+    const h = d => Math.min(y(d) - .2, seat(d));
+    for (let k=0;k<K;k++){ const da = d0 + sp*k/K, db = d0 + sp*(k+1)/K; quad(g, V(i,da,h(da)), V(i,db,h(db)), V(i,db,y(db) - .2), V(i,da,y(da) - .2)); } }
+}
+/* Whether a side stand's end (0 at the start of its run, 1 at the end) joins up with the next stand: it wraps round the
+   corner into it, the next one wraps round to meet it, or a corner stand fills the corner between them. */
+function standJoinedAt(key, e){
+  const ck = SIDE_ENDS[key] && SIDE_ENDS[key][e], c = ck && CORNERS.find(q => q.key === ck); if (!c) return false;
+  const has = k => S.stands[k] && S.stands[k].tiers && S.stands[k].tiers.length, A = S.stands[c.a], B = S.stands[c.b], cm = S.corners && S.corners[ck];
+  return (cm && cm.mode === "stand") || (has(c.a) && (A.wrap1 || 0) > 0) || (has(c.b) && (B.wrap0 || 0) > 0);
+}
