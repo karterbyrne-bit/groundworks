@@ -399,22 +399,22 @@
   </aside>
 
   <main class="stage">
+      <div class="viewbar">
+    <div class="shows" role="group" aria-label="Night match and flyover">
+      <button id="nightBtn" aria-pressed="false">🌙 Night match</button>
+      <button data-fly="play">🎬 Kick-off flyover</button>
+    </div>
+    <div class="cams" role="group" aria-label="Camera">
+      <button data-cam="aerial" aria-pressed="true">Aerial</button>
+      <button data-cam="plan" aria-pressed="false">Plan</button>
+      <button data-cam="pitch" aria-pressed="false">Pitchside</button>
+      <button data-cam="seat" aria-pressed="false">From a seat</button>
+      <button id="seeBtn" aria-pressed="false">See inside</button>
+      <button id="moreBtn" aria-expanded="false" aria-controls="moreViews">More views</button>
+    </div>
+    </div>
     <div class="view" id="view">
       <p class="stadium-title" id="stadiumTitle" hidden></p>
-      <div class="viewbar">
-      <div class="shows" role="group" aria-label="Night match and flyover">
-        <button id="nightBtn" aria-pressed="false">🌙 Night match</button>
-        <button data-fly="play">🎬 Kick-off flyover</button>
-      </div>
-      <div class="cams" role="group" aria-label="Camera">
-        <button data-cam="aerial" aria-pressed="true">Aerial</button>
-        <button data-cam="plan" aria-pressed="false">Plan</button>
-        <button data-cam="pitch" aria-pressed="false">Pitchside</button>
-        <button data-cam="seat" aria-pressed="false">From a seat</button>
-        <button id="seeBtn" aria-pressed="false">See inside</button>
-        <button id="moreBtn" aria-expanded="false" aria-controls="moreViews">More views</button>
-      </div>
-      </div>
       <div class="more" id="moreViews" hidden>
         <button data-cam="side" aria-pressed="false">Side elevation</button>
         <button data-cam="exterior" aria-pressed="false">Outside the stand</button>
