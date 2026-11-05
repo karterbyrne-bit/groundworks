@@ -187,6 +187,7 @@ table.tiers .lo{color:var(--bad, #c0392b);font-weight:500}
   .cams{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;scrollbar-width:none}
   .cams::-webkit-scrollbar{display:none}
   .shows{align-self:flex-start;flex-wrap:nowrap}
+  .viewbar > .shows,.viewbar > .cams{flex:none}
   .cams button,.shows button{flex:none;padding:5px 9px}
   .more,.bookmarks{top:8px}
   .tip{display:none}
