@@ -17,6 +17,7 @@
   <aside class="panel" aria-label="Stadium settings">
     <div class="topbar">
       <h1>Groundworks</h1>
+      <div class="modes" role="group" aria-label="How many options to show"><button id="modeSimple" aria-pressed="true">Simple</button><button id="modeAdvanced" aria-pressed="false">Advanced</button></div>
       <div class="toolbar" role="toolbar" aria-label="Edit history">
         <button class="btn small icon" id="undoBtn" disabled title="Undo (Ctrl+Z)" aria-label="Undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
         <button class="btn small icon" id="redoBtn" disabled title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
@@ -37,6 +38,8 @@
     <div class="quick" data-pane="start">
       <button class="btn hero" id="randomBtn"><span class="dice" aria-hidden="true">🎲</span><span>Surprise me<small>a random stadium to play with</small></span></button>
       <button class="btn hero" id="shareBtn"><span class="dice" aria-hidden="true">🔗</span><span>Share this design<small>copies a link anyone can open</small></span></button>
+      <div class="sharesave simple-only"><button class="btn hero" id="shareSaveBtn" aria-expanded="false" aria-controls="shareSaveMenu"><span class="dice" aria-hidden="true">📤</span><span>Share &amp; save<small>a link, a picture or a saved copy</small></span></button>
+        <div class="ssmenu" id="shareSaveMenu" hidden><button data-ss="link">🔗 Copy a link anyone can open</button><button data-ss="image">🖼️ Save as image</button><button data-ss="save">💾 Save this design</button></div></div>
       <button class="btn hero" id="imageBtn" data-saveimage><span class="dice" aria-hidden="true">🖼️</span><span>Save as image<small>a picture of this view to share</small></span></button>
     </div>
 

@@ -83,13 +83,16 @@ function tierBlocks(arr, above, base, bySide, ends){
   }).join("");
 }
 const groundRoofOn = () => !!(S.groundRoof && S.groundRoof.on);
+/* The famous roofs, one tap each: they bring in the one roof over the whole ground, set up like the real thing. */
+const famousRow = () => `<div class="row famous"><label>Famous roofs</label><span class="chips">${["sansiro", "allianz", "stadefrance", "cardiff"].map(k => `<button class="btn small" data-act="famousRoof" data-f="${k}">${esc(FAMOUS_ROOFS[k].label.split(":")[0])}</button>`).join("")}</span></div>`;
 function roofBlock(cfg, bowl){
-  if (groundRoofOn()) return `<details class="sub" open><summary>Roof</summary><div class="inner"><p class="hint">One roof covers the whole ground, so this stand's own roof is set aside.
-    Change it under <b>One roof over the whole ground</b> below, or switch that off to give each stand its own roof again.</p></div></details>`;
-  const rf = cfg.roof, shapes = Object.assign({}, ROOF_SHAPES); if (!bowl) delete shapes.closed;
-  const on = rf.shape !== "none";
-  return `<details class="sub" open><summary>Roof</summary><div class="inner">
-    ${pick("Shape", "roof.shape", rf.shape, shapes)}
+  const shapes = Object.assign({}, ROOF_SHAPES, {ground:"One roof over the whole ground"}); if (!bowl) delete shapes.closed;
+  if (groundRoofOn()){ const gr = groundRoofOf(); return `<details class="sub roof" open><summary>Roof</summary><div class="inner">${pick("Shape", "roof.shape", "ground", shapes)}${famousRow()}
+    ${colourPick("Roof colour", "gr.sheet", gr.sheet, "#e9ecee")}<p class="hint">One roof covers the whole ground, so this stand's own roof is set aside.
+    Change it under <b>One roof over the whole ground</b> below, or switch that off to give each stand its own roof again.</p></div></details>`; }
+  const rf = cfg.roof, on = rf.shape !== "none";
+  return `<details class="sub roof" open><summary>Roof</summary><div class="inner">
+    ${pick("Shape", "roof.shape", rf.shape, shapes)}${famousRow()}${on ? colourPick("Roof colour", "roof.colour", rf.colour, "#c9ced1") : ""}
     ${on ? `${pick("Material", "roof.mat", rf.mat, ROOF_MATS)}${pick("Structure", "roof.support", rf.support, ROOF_SUPPORTS)}
     ${bowl ? "" : pair("Roof starts along the stand", "roof.coverFrom", Math.round((rf.coverFrom || 0)*100), 0, 90, 5, "%") + pair("Roof ends along the stand", "roof.coverTo", Math.round((rf.coverTo == null ? 1 : rf.coverTo)*100), 10, 100, 5, "%", "Measured from the left-hand end, looking at the stand from the pitch. Cover just the middle, or stop short of one end.")}
     ${rf.support === "columns" ? pick("Pillars stand", "roof.colAt", rf.colAt || "front", PILLAR_SPOTS) + pair("Space between pillars", "roof.colEvery", rf.colEvery || 14, 6, 40, 1, "m", "Outside the stand, they hold the roof up from behind and block nobody's view.") : ""}
@@ -244,7 +247,7 @@ function renderEditor(){
         ${pick("Stand clock", "facade.clock", fac.clock || "", {"":"None", roof:"On the roof, facing the pitch", wall:"On the back wall, facing the street"})}
         <button class="btn link" data-act="seeOutside">See it from the street</button></div></details>`}`;
   }
-  refreshOutputs(); renderSummary(); renderGroundRoof();
+  refreshOutputs(); renderSummary(); renderGroundRoof(); markEditor();
 }
 function renderSummary(){
   const el = $("standSummary"); if (!el || !LAST) return;
@@ -313,7 +316,7 @@ $("editor").addEventListener("input", e => {
     if (p.endsWith(".auto") || p === "roof.topTruss") renderEditor(); // the truss brings its own options
     changed(); return;
   }
-  if (el.type === "color"){ setPath(targetObj(), p, el.value); changed(false, true); return; }
+  if (el.type === "color"){ if (p.startsWith("gr.")) groundRoofOf()[p.slice(3)] = el.value; else setPath(targetObj(), p, el.value); changed(false, true); return; }
   if (el.type === "text"){ const had = !!getPath(targetObj(), p); setPath(targetObj(), p, el.value.replace(/[<>"'`\\]/g, "").slice(0, 30)); if (had !== !!el.value) renderEditorKeepFocus(el); changed(false, true); return; }
   const v = +el.value; if (!isFinite(v)) return;
   setPath(targetObj(), p, p.includes(".sideRows.") ? clamp(Math.round(v), 0, 120) : el.type === "number" && p.endsWith("rows") ? Math.max(1, Math.round(v)) : v);
@@ -340,6 +343,9 @@ $("editor").addEventListener("change", e => {
     tr.sideType = Object.assign({}, tr.sideType, {[side]: el.value});
     tr.sideRows = Object.assign({}, tr.sideRows, {[side]: Math.max(1, Math.round(rows*S.types[from].row/S.types[el.value].row))});
     renderEditor(); changed(); return; }
+  if (el.dataset.p === "roof.shape" && (el.value === "ground" || groundRoofOn())){ // the one roof over the whole ground, picked like any other roof shape (or left for this stand's own)
+    groundRoofOf().on = el.value === "ground"; $("grOn").checked = groundRoofOf().on; if (el.value !== "ground") cfgForTab().roof = Object.assign({}, cfgForTab().roof, {shape: el.value});
+    renderGroundRoof(); renderEditor(); changed(); return; }
   if (el.tagName === "SELECT" && el.dataset.p){ setPath(targetObj(), el.dataset.p, el.value); renderEditor(); changed(); }
 });
 $("editor").addEventListener("click", e => {
@@ -364,7 +370,9 @@ $("editor").addEventListener("click", e => {
   if (act === "addBoxes"){ if (arr.length >= MAX_TIERS) return say(`<b>${MAX_TIERS} tiers is as high as a stand goes.</b> Remove one first.`);
     const at = Math.min(1, arr.length); arr.splice(at, 0, t("exec", 4, 22, true, at || isHybrid() ? {over:2, gap:3.6} : {})); }
   if (act === "toggleRoof"){ cfg.roof = cfg.roof.shape === "none" ? STYLES[cfg.style].roof() : Object.assign({}, cfg.roof, {shape:"none"}); if (cfg.roof.shape === "none" && STYLES[cfg.style].roof().shape === "none" && b.textContent.includes("+")) cfg.roof = R("slope"); }
-  if (act === "clearColour"){ const parts = b.dataset.cp.split("."), tr = parts.slice(0, -1).reduce((o, k) => o[k], b.dataset.cp.startsWith("cc.") ? {cc:{tiers:S.cornerCustom}} : targetObj()); delete tr[parts[parts.length-1]]; }
+  if (act === "famousRoof") return applyFamousRoof(b.dataset.f);
+  if (act === "clearColour" && b.dataset.cp.startsWith("gr.")) delete groundRoofOf()[b.dataset.cp.slice(3)];
+  else if (act === "clearColour"){ const parts = b.dataset.cp.split("."), tr = parts.slice(0, -1).reduce((o, k) => o[k], b.dataset.cp.startsWith("cc.") ? {cc:{tiers:S.cornerCustom}} : targetObj()); delete tr[parts[parts.length-1]]; }
   if (act === "bowlShape"){ const [label, gone] = BOWL_SHAPES[b.dataset.shape]; S.bowl.removed = {}; for (const k of gone) S.bowl.removed[k] = true;
     flash(`<b>${label}.</b> Tap the plan to fine-tune it.`, UNDO); }
   if (act === "mirror"){ const m2 = clone(cfg); [m2.run0, m2.run1, m2.wrap0, m2.wrap1] = [cfg.run1, cfg.run0, cfg.wrap1, cfg.wrap0]; // the opposite stand runs the other way round
@@ -404,6 +412,10 @@ function renderGroundRoof(){
     ${pair("Tilt up towards the play", p("tilt"), gr.tilt, -15, 25, 1, "°")}${pair("Curve", p("curve"), Math.round((gr.curve||0)*100), 0, 100, 5, "%")}
     ${check("Close in the outside, down to the ground", p("wall"), gr.wall)}`;
 }
+/* A famous roof: its settings, and the architecture that goes with it (its own arch, ramps or skin, and none left over from another). */
+function applyFamousRoof(k){ const f = FAMOUS_ROOFS[k]; if (!f) return;
+  Object.assign(groundRoofOf(), {colour:"", sheet:"", height:"level"}, f.roof, {on:true}); $("grOn").checked = true; S.arch = Object.assign({}, S.arch || {}, {arch:false, ramps:false, skin:"none"}, f.arch || {});
+  renderGroundRoof(); renderEditor(); changed(); toast(`<b>${esc(f.label.split(":")[0])}.</b> Everything stays editable.`); }
 $("grOn").addEventListener("change", e => { groundRoofOf().on = e.target.checked; renderGroundRoof(); renderEditor(); changed(); });
 $("groundRoof").addEventListener("input", e => { const el = e.target, p = el.dataset.p; if (!p || el.tagName === "SELECT") return;
   const key = p.slice(3), gr = groundRoofOf();
@@ -414,7 +426,6 @@ $("groundRoof").addEventListener("input", e => { const el = e.target, p = el.dat
   $("groundRoof").querySelectorAll(`[data-p="${p}"]`).forEach(o => { if (o !== el) o.value = el.value; });
   changed(false, el.type === "range"); });
 $("groundRoof").addEventListener("change", e => { const el = e.target; if (el.tagName !== "SELECT" || !el.dataset.p) return;
-  const key = el.dataset.p.slice(3), f = FAMOUS_ROOFS[el.value]; if (key === "famous"){ if (!f) return; // a famous roof: its settings, and the architecture that goes with it
-    Object.assign(groundRoofOf(), {colour:"", height:"level"}, f.roof); S.arch = Object.assign({}, S.arch || {}, {arch:false, ramps:false, skin:"none"}, f.arch || {}); renderGroundRoof(); changed(); toast(`<b>${esc(f.label.split(":")[0])}.</b> Everything stays editable.`); return; } // (its own arch, ramps or skin, and none left over from another)
+  const key = el.dataset.p.slice(3); if (key === "famous"){ applyFamousRoof(el.value); return; }
   groundRoofOf()[key] = el.value; renderGroundRoof(); changed(); });
 

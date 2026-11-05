@@ -105,10 +105,10 @@ function sheet(key, A, B, C, D, uA, uB, vA, vB){
 }
 function drawSheets(){
   for (const key in SHEETS){ const sh = SHEETS[key]; if (!sh.pos.length) continue;
-    const k2 = textured(key, ROOF_TEX[key]), base = M[key], mat = M[k2];
+    const k2 = textured(key, ROOF_TEX[key] || ROOF_TEX[key.split("_")[0]]), base = M[key], mat = M[k2];
     if (mat.opacity !== base.opacity || mat.transparent !== base.transparent || mat.depthWrite !== base.depthWrite){ // keep see-through roofs in step
       mat.opacity = base.opacity; mat.transparent = base.transparent; mat.depthWrite = base.depthWrite; mat.needsUpdate = true; }
     const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(sh.pos, 3)); geo.setAttribute("uv", new THREE.Float32BufferAttribute(sh.uv, 2)); geo.computeVertexNormals();
-    const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = !["roof", "roofGlass"].includes(key); mesh.receiveShadow = true; mesh.userData.stadium = true; group.add(mesh); }
+    const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = !["roof", "roofGlass"].includes(key.split("_")[0]); mesh.receiveShadow = true; mesh.userData.stadium = true; group.add(mesh); }
   SHEETS = {};
 }
