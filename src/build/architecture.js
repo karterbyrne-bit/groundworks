@@ -38,14 +38,25 @@ function skinTexture(kind){
     const gr = g.createRadialGradient(128,128,10,128,128,150); gr.addColorStop(0,"#ffffff"); gr.addColorStop(1,"#c8d0d4");
     g.fillStyle = gr; g.beginPath(); g.moveTo(128,6); g.lineTo(250,128); g.lineTo(128,250); g.lineTo(6,128); g.closePath(); g.fill();
     g.strokeStyle = "#8d979c"; g.lineWidth = 5; g.stroke(); }
-  else if (kind === "fins"){ g.fillStyle = "#3a4247"; g.fillRect(0,0,256,256); g.fillStyle = "#e3e6e7"; for (let i=0;i<4;i++) g.fillRect(i*64+8, 0, 30, 256); }
-  else if (kind === "mesh"){ g.fillStyle = "#8f979b"; g.fillRect(0,0,256,256); g.fillStyle = "#3a4045"; for (let y=8;y<256;y+=16) for (let x=(y/16%2)*8+8;x<256;x+=16){ g.beginPath(); g.arc(x,y,4.2,0,7); g.fill(); } }
-  else if (kind === "brick"){ g.fillStyle = "#8b4636"; g.fillRect(0,0,256,256); g.strokeStyle = "#6e3226"; g.lineWidth = 2;
-    for (let y=0;y<256;y+=16){ g.beginPath(); g.moveTo(0,y); g.lineTo(256,y); g.stroke(); for (let x=((y/16)%2)*16;x<256;x+=32){ g.beginPath(); g.moveTo(x,y); g.lineTo(x,y+16); g.stroke(); } }
-    g.fillStyle = "#2a2522"; g.beginPath(); g.moveTo(88,240); g.lineTo(88,120); g.arc(128,120,40,Math.PI,0); g.lineTo(168,240); g.closePath(); g.fill();
-    g.fillStyle = "#d9cfc0"; g.fillRect(0,0,256,10); }
-  else { g.fillStyle = "#7fa9bf"; g.fillRect(0,0,256,256); g.fillStyle = "rgba(255,255,255,.35)"; g.fillRect(0,0,256,40); g.fillStyle = "#2f3a40"; g.fillRect(0,0,6,256); g.fillRect(0,0,256,6); g.fillRect(0,128,256,4); }
-  const t = canvasTex(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.keep = true; return (skinTex[kind] = t);
+  // the others are drawn at 512 px, a tile covering 6 m (9 m for brick) each way
+  else if (kind === "fins"){ c.width = c.height = 512; // dark glazing behind the steel fins (which are real, see below), with a floor slab every 3 m
+    const gr = g.createLinearGradient(0,0,0,256); gr.addColorStop(0,"#5d6a72"); gr.addColorStop(1,"#38424a"); g.fillStyle = gr; g.fillRect(0,0,512,256); g.fillRect(0,256,512,256);
+    g.fillStyle = gr; g.save(); g.translate(0,256); g.fillRect(0,0,512,256); g.restore(); g.fillStyle = "#9aa3a8"; g.fillRect(0,0,512,14); g.fillRect(0,256,512,14);
+    g.fillStyle = "rgba(255,255,255,.08)"; for (let x=0;x<512;x+=64) g.fillRect(x,0,3,512); }
+  else if (kind === "mesh"){ c.width = c.height = 512; g.fillStyle = "#b3babe"; g.fillRect(0,0,512,512); g.fillStyle = "#2c3236"; // perforations that swell and shrink in a slow wave, on 3 m panels
+    for (let y=6;y<512;y+=12) for (let x=(y/12%2)*6+6;x<512;x+=12){ const r = 2.4 + .9*Math.sin(x/512*Math.PI*2)*Math.cos(y/512*Math.PI*2); g.beginPath(); g.arc(x,y,r,0,7); g.fill(); }
+    g.fillStyle = "#6d767b"; for (const q of [0, 256]){ g.fillRect(q,0,4,512); g.fillRect(0,q,512,4); } }
+  else if (kind === "brick"){ c.width = c.height = 512; g.fillStyle = "#874232"; g.fillRect(0,0,512,512);
+    for (let y=0;y<512;y+=16) for (let x=((y/16)%2)*16 - 16;x<512;x+=32){ const v = (Math.sin(x*12.9898 + y*78.233)*43758.5453) % 1; g.fillStyle = `hsl(12,${42 + 10*v}%,${32 + 7*v}%)`; g.fillRect(x+1, y+1, 30, 14); } // each brick its own shade, in pale mortar
+    g.fillStyle = "#e3d9c6"; g.beginPath(); g.moveTo(166,470); g.lineTo(166,230); g.arc(256,230,90,Math.PI,0); g.lineTo(346,470); g.closePath(); g.fill(); // a stone arch round a recessed window
+    g.fillStyle = "#1f2226"; g.beginPath(); g.moveTo(186,470); g.lineTo(186,230); g.arc(256,230,70,Math.PI,0); g.lineTo(326,470); g.closePath(); g.fill();
+    const gl = g.createLinearGradient(0,170,0,470); gl.addColorStop(0,"#556a78"); gl.addColorStop(1,"#1d2328"); g.fillStyle = gl; g.beginPath(); g.moveTo(198,462); g.lineTo(198,232); g.arc(256,232,58,Math.PI,0); g.lineTo(314,462); g.closePath(); g.fill();
+    g.fillStyle = "#1f2226"; g.fillRect(253,170,6,292); g.fillRect(198,300,116,6); g.fillStyle = "#efe6d4"; g.fillRect(240,128,32,34); g.fillRect(150,470,212,16); // glazing bars, keystone and sill
+    g.fillStyle = "#e3d9c6"; g.fillRect(0,0,512,22); g.fillStyle = "rgba(0,0,0,.35)"; g.fillRect(0,22,512,6); } // the stone band along each floor
+  else { c.width = c.height = 512; for (const q of [0, 256]){ const gr = g.createLinearGradient(0,q,0,q+256); gr.addColorStop(0,"#d3e4ec"); gr.addColorStop(.6,"#8fb0c1"); gr.addColorStop(1,"#5f7f90"); g.fillStyle = gr; g.fillRect(0,q,512,256); // glass: the sky reflected, darker lower down each floor
+      g.fillStyle = "#56656d"; g.fillRect(0,q+236,512,20); g.fillStyle = "rgba(255,255,255,.3)"; g.fillRect(0,q+236,512,2); } // and a slim band at each floor slab
+    g.fillStyle = "#cfd8dc"; for (let x=0;x<512;x+=128) g.fillRect(x,0,5,512); g.fillStyle = "rgba(207,216,220,.6)"; for (let x=64;x<512;x+=128) g.fillRect(x,0,2,512); }
+  const t = canvasTex(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); t.keep = true; return (skinTex[kind] = t); // (sharp even when seen at a slant)
 }
 /* Where the arch (or arches) goes: each span with its line across the ground, its lean and rise, the centre line C(u) from
    one foot (u = 0) to the other (u = 1), and its thickness. Shared by the drawing and the check on obstructed views. */
@@ -162,7 +173,9 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
     const mesh = new THREE.Mesh(g, mat); mesh.castShadow = true; mesh.receiveShadow = true; mesh.userData.stadium = true; group.add(mesh);
     // coping ring on top and entrances at the foot
     const inner = offsetPoly(P, -3); for (let i=0;i<n;i++){ const j = (i+1)%n; quad(bf("roofEdge"), [P[i][0],H,P[i][1]], [P[j][0],H,P[j][1]], [inner[j][0],H+.3,inner[j][1]], [inner[i][0],H+.3,inner[i][1]]); }
-    if (kind === "fins") for (let i=0;i<n;i+=1){ const p = P[i], q = [p[0]+N[i][0]*1.2, p[1]+N[i][1]*1.2]; quad(bf("steel"), [p[0],0,p[1]], [q[0],0,q[1]], [q[0],H,q[1]], [p[0],H,p[1]]); }
+    if (kind === "fins") for (let i=0;i<n;i+=1) for (const f of [0]){ const j = (i+1)%n, p = lerp2(P[i], P[j], f), m = [lerp(N[i][0], N[j][0], f), lerp(N[i][1], N[j][1], f)], t = [-m[1]*.3, m[0]*.3]; // a real steel fin every 3 m, 1.4 m deep and 60 cm thick
+      const o = [p[0]+m[0]*1.4, p[1]+m[1]*1.4], fin = (a, b) => quad(bf("steel"), [a[0],0,a[1]], [b[0],0,b[1]], [b[0],H,b[1]], [a[0],H,a[1]]);
+      fin([p[0]-t[0],p[1]-t[1]], [o[0]-t[0],o[1]-t[1]]); fin([p[0]+t[0],p[1]+t[1]], [o[0]+t[0],o[1]+t[1]]); fin([o[0]-t[0],o[1]-t[1]], [o[0]+t[0],o[1]+t[1]]); }
     if (kind === "glass") glassInside(bf, P, N, n, H);
     const gates = Math.max(4, Math.round(perim/45));
     for (let g2=0; g2<gates; g2++){ const i = Math.floor(g2*n/gates), j = (i+1)%n, a = P[i], b = P[(i+2)%n], o = .15;
