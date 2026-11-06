@@ -234,7 +234,7 @@ function renderEditor(){
             ${pair("Length of each", "access.length", SA.length, 4, 30, 1, "m", `${Math.floor(SA.length/1.6)} spaces each, with a companion seat beside every one.`)}`; })() : ""}
         ${pick("Fire risk", "fire", cfg.fire || "auto", FIRE_RISKS)}
         <p class="hint">Sets how quickly this stand has to clear in an emergency: ${S.limits.evacLow} minutes for low risk, ${S.limits.evacMedium} for medium, ${S.limits.evacHigh} for high. Worked out from its style, this one counts as <b>${fireRiskOf(cfg)}</b>.</p></div></details>
-      ${ring ? "" : `<details class="sub" open><summary>Outside walls</summary><div class="inner">
+      ${ring ? "" : S.arch && S.arch.skin && S.arch.skin !== "none" ? `<p class="hint">This stand's outside is covered by the skin round the whole ground. Change it under <b>Look → Architecture → Outside of the ground</b>.</p>` : `<details class="sub" open><summary>Outside walls</summary><div class="inner">
         ${pick("Look", "facade.look", FACADE_LOOKS[fac.look] ? fac.look : sty.look || "plain", FACADE_LOOKS)}
         ${colourPick("Wall colour", "facade.colour", fac.colour, "#" + (sty.clad || 0x888888).toString(16).padStart(6, "0"))}
         ${colourPick("Accent colour", "facade.accent", fac.accent, "#d9d2c2")}
