@@ -29,7 +29,7 @@ function pylon(bf, x, z, h){ // classic tapering lattice floodlight tower
   const step = 5; for (let y=0;y<h-0.1;y+=step){ const y2 = Math.min(h, y+step);
     for (let k=0;k<4;k++){ const k2 = (k+1)%4; bar(b, at(k,y2), at(k2,y2), .18); bar(b, at(k,y), at(k2,y2), .14); bar(b, at(k2,y), at(k,y2), .14); } }
 }
-const SKINS = {none:"No outer skin", cushion:"Glowing cushions", fins:"Vertical fins", mesh:"Perforated metal", brick:"Brick with arches", glass:"Glass curtain wall"};
+const SKINS = {none:"Each stand has its own walls", cushion:"One skin all round: glowing cushions", fins:"One skin all round: vertical fins", mesh:"One skin all round: perforated metal", brick:"One skin all round: brick with arches", glass:"One skin all round: glass curtain wall"}; // (each stand's own walls are set in the stand editor)
 const skinTex = {};
 function skinTexture(kind){
   if (skinTex[kind]) return skinTex[kind];

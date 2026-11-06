@@ -82,7 +82,7 @@ function syncUI(){
     const roomX = D ? D.set + (D.F.W - FP.W)/2 - 1 : 99, roomZ = D ? D.set + (D.F.H - FP.H)/2 - 1 : 99, tight = BS.end > roomX + .01 || BS.side > roomZ + .01;
     $("bdNote").hidden = !tight; $("bdNote").textContent = tight ? `The stands are close, so the boards stop a metre short of them (${Math.max(0, Math.min(BS.end, roomX)).toFixed(1)} m behind the goals, ${Math.max(0, Math.min(BS.side, roomZ)).toFixed(1)} m from the touchlines).` : ""; }
   const AR = Object.assign({skin:"none", skinShape:"round"}, S.arch || {});
-  $("skin").value = AR.skin; document.querySelector(`input[name=skinShape][value=${AR.skinShape}]`).checked = true; $("skinShapeRow").hidden = AR.skin === "none";
+  $("skin").value = AR.skin;
   for (const k of ["arch","ramps","towers","plaza"]) $("a-"+k).checked = !!AR[k];
   $("archAt").value = ["main", "diagonal", "cross"].includes(AR.archAt) ? AR.archAt : "main"; $("archAtRow").hidden = !AR.arch;
   $("statues").value = String(Math.max(0, Math.min(4, S.statues | 0)));

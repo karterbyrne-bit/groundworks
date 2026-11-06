@@ -301,8 +301,7 @@ bindRadio("outerShape", v => { outerOf().shape = v; changed(); });
 bindRadio("outerFit", v => { outerOf().fit = v; changed(); });
 bindRange("outerSize", v => outerOf().size = v);
 $("skin").innerHTML = Object.entries(SKINS).map(([k,v]) => `<option value="${k}">${v}</option>`).join("");
-$("skin").addEventListener("change", e => { archOf().skin = e.target.value; changed(); });
-bindRadio("skinShape", v => { archOf().skinShape = v; changed(); });
+$("skin").addEventListener("change", e => { archOf().skin = e.target.value; renderEditor(); changed(); }); // (a skin covers the stands' own walls, so the stand editor hides them)
 for (const k of ["arch","ramps","towers","plaza"]) $("a-"+k).addEventListener("change", e => { archOf()[k] = e.target.checked; changed(); });
 $("archAt").addEventListener("change", e => { archOf().archAt = e.target.value; changed(); });
 $("statues").addEventListener("change", e => { S.statues = Math.max(0, Math.min(4, +e.target.value || 0)); changed(); });
