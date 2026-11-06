@@ -153,8 +153,10 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
     const kind = A.skin, bulge = kind === "cushion" ? H*0.06 : kind === "glass" ? H*0.03 : 0, panel = kind === "cushion" ? 8 : kind === "brick" ? 9 : 6;
     const rowsV = kind === "cushion" ? Math.max(2, Math.round(H/7)) : kind === "brick" ? Math.max(1, Math.round(H/9)) : Math.max(1, Math.round(H/6));
     /* The skin's top follows the stands behind it (each slice as high as the nearest stand's roof, eased round so it
-       sweeps rather than steps), and a smooth, rounded skin also curves in at the top to meet the roofs. hh[i]: its height at P[i]. */
-    const hh = skinTops(P, anchors, H), R = A.skinShape === "round" && !(S.groundRoof && S.groundRoof.on) ? Math.min(7, H*.12) : 0; // (under the one roof, it stays upright to meet it)
+       sweeps rather than steps), and a smooth, rounded skin also curves in at the top to meet the roofs. Glowing cushions
+       stay one even ring all round, like the Allianz, with just a gentle roll in at the top. hh[i]: its height at P[i]. */
+    const ring = kind === "cushion", hh = ring ? P.map(() => H) : skinTops(P, anchors, H);
+    const R = A.skinShape === "round" && !(S.groundRoof && S.groundRoof.on) ? (ring ? Math.min(3, H*.05) : Math.min(7, H*.12)) : 0; // (under the one roof, it stays upright to meet it)
     const levels = [0, 0.15, 0.5, 0.85, 1, ...(R ? [1.05, 1.1, 1.15] : [])], off = f => bulge*Math.sin(Math.PI*Math.min(1, f*1.05)), ang = f => Math.min(1, (f - 1)/.15)*Math.PI/2;
     // smooth normals for the bulge, so it shades as one curved face rather than four flat bands (facing the way the
     // triangles do, which is inwards: it's two-sided, and seen from outside it's lit as facing out)
