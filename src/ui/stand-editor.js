@@ -214,7 +214,8 @@ function renderEditor(){
         ${above ? "" : check("Same distance from the play as the other stands", "distSame", cfg.dist == null)}
         ${above || cfg.dist == null ? "" : pair("Distance from the play", "dist", cfg.dist, Math.max(1, hardStop()), 80, 0.5, "m")}
         <p class="hint">${above ? "How far round into each corner this stand's tiers carry on over the bowl." : "How far this stand runs past the pitch, or wraps round into the corner, at each end. Two stands that wrap in meet up."}</p>
-        ${[0, 1].map(e => endControls(cfg, tab, e)).join("")}</div></details>` : ""}
+        ${[0, 1].map(e => endControls(cfg, tab, e)).join("")}
+        ${above ? check("Square off the ends (rows run straight to the end, rather than fanning round the corner)", "squareEnds", !!cfg.squareEnds) : ""}</div></details>` : ""}
       ${isRing() ? `<details class="sub" open><summary>Place in the ring</summary><div class="inner">
         <div class="row"><label for="ringName">Name</label><input type="text" id="ringName" data-p="name" maxlength="30" value="${esc(cfg.name || "")}" aria-label="Stand name"></div>
         ${pair("Share of the way round", "share", cfg.share || 1, 0.2, 4, 0.1, "×", "Bigger stands take more of the ring; take all its tiers away to leave a gap.")}</div></details>` : ""}
