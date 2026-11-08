@@ -194,3 +194,21 @@ function roofDiagrid(sb, V, RR, cum){
   for (let k=0;k+1<pick.length;k++){ const i = pick[k], j = pick[k+1]; if (j - i !== live.indexOf(j) - live.indexOf(i)) continue; // not across a gap in the roof
     bar(sb, at(i, 0), at(j, 1), .45); bar(sb, at(i, 1), at(j, 0), .45); bar(sb, at(i, .5), at(j, .5), .3); }
 }
+/* A stand on top of the bowl, squared off: where its slices fan round into a corner, they're replaced by slices that carry
+   straight on in the stand's own direction, out to about as far as the fan reached, so its ends are square to it. Each new
+   slice stands on the bowl's seats as they are at the end of the straight part. */
+function squareEnds(geo){
+  const {o, v, tag} = geo, n = o.length; if (n < 3) return geo;
+  const unit = q => { const l = Math.hypot(q[0], q[1]) || 1; return [q[0]/l, q[1]/l]; }, m = Math.floor(n/2), vm = unit(v[m]), tg = [-vm[1], vm[0]];
+  const straight = i => { const u = unit(v[i]); return u[0]*vm[0] + u[1]*vm[1] > .999; };
+  let a = m, b = m; while (a > 0 && straight(a - 1)) a--; while (b < n - 1 && straight(b + 1)) b++;
+  const along = (i, k) => { const p = [o[i][0] + v[i][0]*20, o[i][1] + v[i][1]*20], q = [o[k][0] + v[k][0]*20, o[k][1] + v[k][1]*20]; return (p[0] - q[0])*tg[0] + (p[1] - q[1])*tg[1]; }; // how far along the stand, 20 m back
+  const step = n > 1 ? Math.max(1, Math.abs(along(m + 1 < n ? m + 1 : m - 1, m))) : 3, O = [], V = [], T = [];
+  const run = (k, sgn, far) => { const out = []; for (let d = step; d <= far + 1e-6; d += step) out.push([o[k][0] + tg[0]*d*sgn, o[k][1] + tg[1]*d*sgn]); return out; };
+  const farA = a > 0 ? Math.max(...Array.from({length:a}, (_, i) => -along(i, a))) : 0, farB = b < n - 1 ? Math.max(...Array.from({length:n - 1 - b}, (_, i) => along(b + 1 + i, b))) : 0;
+  const sA = Math.sign(along(m, a)) || 1;
+  for (const p of run(a, -sA, farA).reverse()){ O.push(p); V.push(v[a]); T.push(tag[a]); }
+  for (let i=a;i<=b;i++){ O.push(o[i]); V.push(v[i]); T.push(tag[i]); }
+  for (const p of run(b, sA, farB)){ O.push(p); V.push(v[b]); T.push(tag[b]); }
+  return {o:O, v:V, closed:false, tag:T, frac:O.map((_, i) => i/Math.max(1, O.length - 1))};
+}
