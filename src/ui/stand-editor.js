@@ -73,7 +73,7 @@ function tierBlocks(arr, above, base, bySide, ends){
       ${bySide ? sideRowsBox(tr, pre) : pair(isT ? "Steps" : "Rows", pre + "rows", tr.rows, 1, 90, 1, "", `${depth.toFixed(1)} m deep`)}
       ${!base && !bySide && (SIDES.includes(tab) || /^R\d/.test(tab)) ? pair("Rows at the right-hand end", pre + "rowsEnd", tr.rowsEnd == null ? tr.rows : tr.rowsEnd, 1, 90, 1, "", "Seen from the pitch. Make it more or fewer than Rows and the tier gets deeper or shallower along the stand.") : ""}
       ${tab === "B" && !base ? pair("Slopes down towards the corners", pre + "taper", Math.round((tr.taper || 0)*100), 0, 80, 5, "%", "Like the Emirates' upper tier: deepest at the middle of each side, with fewer rows towards the corners.")
-        : !base && !bySide && (SIDES.includes(tab) || /^R\d/.test(tab)) ? pair("Curves down towards the ends", pre + "taper", Math.round((tr.taper || 0)*100), 0, 100, 5, "%", "Like Hull's West Stand upper tier: deepest in the middle, curving down to fewer rows at each end (none at 100%).") : ""}
+        : !base && !bySide && (SIDES.includes(tab) || /^R\d/.test(tab)) ? pair("Curves down towards the ends", pre + "taper", Math.round((tr.taper || 0)*100), 0, 100, 5, "%", "Like the upper tiers at the Emirates, Benfica or the Vélodrome: deepest in the middle, curving down to fewer rows at each end (none at 100%). The roof and the back of the stand sweep down with it.") : ""}
       <div class="row"><label class="toggle"><input type="checkbox" data-p="${pre}auto"${tr.auto ? " checked" : ""}> Auto steepness</label><output id="o-rk-${k}"></output>
         ${tr.auto ? "" : `<input type="range" data-p="${pre}rake" min="8" max="60" step="1" value="${tr.rake}" aria-label="Steepness in degrees">`}</div>
       ${stacked ? `${pair("Projects forward over the tier below", pre + "over", tr.over || 0, -15, 40, 0.5, "m", "Negative sets it back instead.")}
@@ -324,6 +324,7 @@ $("editor").addEventListener("input", e => {
   const v = +el.value; if (!isFinite(v)) return;
   setPath(targetObj(), p, p.includes(".sideRows.") ? clamp(Math.round(v), 0, 120) : el.type === "number" && p.endsWith("rows") ? Math.max(1, Math.round(v)) : v);
   $("editor").querySelectorAll(`[data-p="${p}"]`).forEach(o => { if (o !== el) o.value = el.value; });
+  if (p.endsWith(".taper") && v > 0 && tab !== "B"){ const rf = targetObj().roof; if (rf && rf.level !== false){ rf.level = false; const cb = $("editor").querySelector('[data-p="roof.level"]'); if (cb) cb.checked = false; } } // a stand's tier curving down takes its roof (and back) down with it
   if (p.endsWith(".rows")){ const tr = p.split(".").slice(-2)[0], tier = targetObj().tiers[+tr]; const note = el.closest(".pair").querySelector(".note"); if (note) note.textContent = (tier.rows*S.types[tier.type].row).toFixed(1) + " m deep"; }
   refreshOutputs(); changed(false, el.type === "range");
 });

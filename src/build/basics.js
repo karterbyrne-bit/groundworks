@@ -68,8 +68,8 @@ function bowlPiece(tag, nc){
 const sideRowsOf = (tr, s) => S.bowl.varyRows && tr.sideRows && tr.sideRows[s] != null ? Math.max(0, tr.sideRows[s]) : tr.rows;
 const sideTypeOf = (tr, s) => S.bowl.varyRows && tr.sideType && TYPES[tr.sideType[s]] ? tr.sideType[s] : tr.type;
 /* A stand's tier can have a different number of rows at its right-hand end (seen from the play) from its left, getting
-   deeper or shallower steadily along the stand; and it can curve down towards both ends, like Hull's West Stand upper
-   tier: deepest in the middle, easing away to fewer rows (none at all, at 100%) at each end. u: how far along the stand
+   deeper or shallower steadily along the stand; and it can curve down towards both ends, like the upper
+   tiers at the Emirates or Benfica: deepest in the middle, easing away to fewer rows (none at all, at 100%) at each end. u: how far along the stand
    this slice is, 0 to 1 (null on a closed ring). */
 const rowsAlong = (tiers, from, u) => u == null || !tiers.some((tr,k) => k >= from && ((tr.rowsEnd != null && tr.rowsEnd !== tr.rows) || tr.taper > 0)) ? tiers
   : tiers.map((tr,k) => { if (k < from || !((tr.rowsEnd != null && tr.rowsEnd !== tr.rows) || tr.taper > 0)) return tr;
