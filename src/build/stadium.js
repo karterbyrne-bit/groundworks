@@ -154,7 +154,7 @@ function build(){
         profs.forEach((pr, i) => { const pc = pcs[i], p = pr[k]; if (!pc || pc.corner || !live(p)) return; L[pc.key] = Math.max(L[pc.key] == null ? -Infinity : L[pc.key], p.hF); R[pc.key] = Math.max(R[pc.key] || 0, p.rows); });
         const split = pc => L[pc.before] != null && L[pc.after] != null && Math.abs(L[pc.before] - L[pc.after]) > STEP;
         const owner = pc => split(pc) ? [pc.f < 0.5 ? pc.before : pc.after] : [pc.before, pc.after];
-        const target = pc => { const a = L[pc.before], b = L[pc.after]; return a == null ? b : b == null ? a : split(pc) ? (pc.f < 0.5 ? a : b) : lerp(a, b, ease(pc.f)); };
+        const target = pc => { if (st.key !== "B") return null; const a = L[pc.before], b = L[pc.after];return a == null ? b : b == null ? a : split(pc) ? (pc.f < 0.5 ? a : b) : lerp(a, b, ease(pc.f)); }; // (a stand on top of the bowl just follows the bowl round its corners, so two stands that wrap round to meet do so at the same height)
         for (let pass=0;pass<4;pass++){
           const up = {};
           profs.forEach((pr, i) => { const pc = pcs[i], p = pr[k]; if (!pc || !pc.corner || !live(p)) return;
