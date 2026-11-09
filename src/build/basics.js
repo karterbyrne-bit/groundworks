@@ -215,3 +215,20 @@ function squareEnds(geo, front, side){ // side: which side of the ground it's on
   for (const p of run(b, sA, Math.min(farB, lim))){ O.push(p); V.push(vm); T.push(tag[b]); }
   return {o:O, v:V, closed:false, tag:T, frac:O.map((_, i) => i/Math.max(1, O.length - 1))};
 }
+/* Roofs of stands that wrap round and meet in a corner meet flush: each such run of joined stands (on the sides, each with
+   a roof of its own and the corner between them closed by the meeting) takes the height the tallest of them needs.
+   joinedRoofGroups(): those runs, as lists of sides, or null if there are none; joinedRoofTops(need): each side's shared height. */
+var ROOF_NEED = {};
+function joinedRoofGroups(){
+  const lay = layoutOf(); if ((lay !== "stands" && lay !== "hybrid") || (S.groundRoof && S.groundRoof.on)) return null;
+  const roofed = s => S.stands[s] && S.stands[s].tiers.length && S.stands[s].roof && S.stands[s].roof.shape !== "none" && S.stands[s].roof.level !== false;
+  const up = {}, find = s => up[s] === s ? s : (up[s] = find(up[s])); for (const s of SIDES) up[s] = s; let any = false;
+  for (const c of CORNERS) if (roofed(c.a) && roofed(c.b) && cornerPlan(c).meet){ up[find(c.a)] = find(c.b); any = true; }
+  if (!any) return null; const g = {}; for (const s of SIDES) if (roofed(s)) (g[find(s)] = g[find(s)] || []).push(s);
+  return Object.values(g).filter(x => x.length > 1);
+}
+function joinedRoofTops(need){
+  const out = {}, groups = joinedRoofGroups() || [];
+  for (const g of groups){ const top = Math.max(...g.map(s => need[s] || 0)); for (const s of g) out[s] = top; }
+  return out;
+}
