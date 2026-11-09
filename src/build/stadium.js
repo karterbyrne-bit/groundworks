@@ -99,7 +99,7 @@ function build(){
     const {o, v, closed} = st.geo, m = o.length;
     if (m < 2) return null;
     const cfg = st.cfg, sty = STYLES[cfg.style] || STYLES.modern, rf = Object.assign(R("none"), cfg.roof || {});
-    const fac = cfg.facade || sty.facade || {}, look = FACADE_LOOKS[fac.look] ? fac.look : sty.look || "plain";
+    const fac = skinnedFacade(cfg.facade || sty.facade || {}), look = FACADE_LOOKS[fac.look] ? fac.look : sty.look || "plain"; // (under a skin round the ground, a stand's own walls are plain: see skinnedFacade)
     const setAt = i => st.setFor ? st.setFor(i) : st.set;
     const pt = (i,d) => [o[i][0] + d*v[i][0], o[i][1] + d*v[i][1]];
     const V = (i,d,y) => { const p = pt(i,d); return [p[0], y, p[1]]; };

@@ -152,7 +152,8 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
   let top = 0;
   const H = Math.max(8, outerTop), inPlot = (p) => !poly || inPoly(p, poly);
   let P = hull2(outline);
-  P = A.skinShape === "round" ? chaikin(offsetPoly(P, poly ? 1 : 5), 4) : offsetPoly(P, poly ? 0.6 : 1.5);
+  const hull = P; // rounding the corners cuts across them a little, so grow the skin out until every part of every stand is inside it
+  for (let grow = 0; grow < 20; grow += 2){ P = A.skinShape === "round" ? chaikin(offsetPoly(hull, (poly ? 1 : 5) + grow), 4) : offsetPoly(hull, (poly ? 0.6 : 1.5) + grow); if (outline.every(q => inPoly(q, P))) break; }
   if (poly) P = P.map(p => inPlot(p) ? p : lerp2(p, [0,0], 0.04));
   P = resample(P, 3); const N = normals(P), n = P.length;
   const cum = [0]; for (let i=1;i<=n;i++) cum.push(cum[i-1] + Math.hypot(P[i%n][0]-P[i-1][0], P[i%n][1]-P[i-1][1]));
