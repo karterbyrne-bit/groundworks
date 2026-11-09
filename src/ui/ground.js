@@ -1,33 +1,5 @@
 /* ================= seating sizes and rules ================= */
-function renderTypeSizes(){
-  $("typeSizes").innerHTML = Object.entries(TYPE_FIELDS).map(([ty, fields]) => `<details><summary>${TYPES[ty].label}<small id="ts-${ty}"></small></summary><div class="inner">
-    ${fields.map(([f,label,unit,min,max,step]) => `<div class="row"><label for="sz-${ty}-${f}">${label}</label><output id="o-sz-${ty}-${f}"></output>
-      <input type="range" id="sz-${ty}-${f}" data-ty="${ty}" data-f="${f}" min="${min}" max="${max}" step="${step}" value="${S.types[ty][f]}"></div>`).join("")}
-  </div></details>`).join("");
-}
-$("typeSizes").addEventListener("input", e => { const el = e.target; if (!el.dataset.ty) return; S.types[el.dataset.ty][el.dataset.f] = +el.value; changed(false, true); });
 function syncSizes(){
-  const L = S.limits;
-  for (const [ty, fields] of Object.entries(TYPE_FIELDS)){
-    const z = S.types[ty];
-    for (const [f,,unit] of fields){
-      const o = $(`o-sz-${ty}-${f}`), inp = $(`sz-${ty}-${f}`); if (!o) continue; if (document.activeElement !== inp) inp.value = z[f];
-      let over = false;
-      if (TYPES[ty].seat && f === "row") over = z.row < L.minRow - 1e-9;
-      if (TYPES[ty].seat && f === "width") over = z.width < L.minWidth - 1e-9;
-      if (ty === "terrace" && f === "density") over = z.density > L.maxDensity + 1e-9;
-      o.textContent = (f === "density" ? z[f].toFixed(1) : z[f].toFixed(2)) + (unit ? " " + unit : "") + (over ? " · breaks rule" : "");
-      o.classList.toggle("over", over);
-    }
-    $("ts-"+ty).textContent = ty === "terrace" ? `${z.row.toFixed(2)} m · ${z.density.toFixed(1)}/m²` : `${z.row.toFixed(2)} × ${z.width.toFixed(2)} m`;
-  }
-  const g = S.design;
-  const so = (id, txt, over) => { $(id).value = g[id]; $("o-"+id).textContent = txt; $("o-"+id).classList.toggle("over", !!over); };
-  so("gangEvery", g.gangEvery + " seats" + (g.gangEvery > L.maxBetween ? " · breaks rule" : ""), g.gangEvery > L.maxBetween);
-  const ge = g.gangEnd != null ? g.gangEnd : Math.min(14, Math.floor(g.gangEvery/2)), oe = L.maxOneEnd == null ? 14 : L.maxOneEnd;
-  so("gangEnd", ge + " seats" + (ge > oe ? " · breaks rule" : ""), ge > oe); $("gangEnd").value = ge;
-  so("gangWidth", g.gangWidth.toFixed(2) + " m" + (g.gangWidth < L.minGang - 1e-9 ? " · breaks rule" : ""), g.gangWidth < L.minGang - 1e-9);
-  so("exitEvery", g.exitEvery + " m");
   { const AC = accessOf(), VH = vehicleOf(), opts = tdSides(), need = LAST ? wheelchairNeed(LAST.total) : 0, have = LAST ? LAST.wheelchair || 0 : 0;
     $("acOn").checked = AC.on; $("acRows").hidden = !AC.on; $("acAt").value = AC.at; $("acArrange").value = AC.arrange || "spread";
     $("acPer").value = AC.per; $("o-acPer").textContent = AC.per; $("acLength").value = AC.length; $("o-acLength").textContent = `${AC.length} m (${Math.floor(AC.length/1.6)} spaces)`;
@@ -36,19 +8,12 @@ function syncSizes(){
     $("vhAt").innerHTML = opts.map(([k, n]) => `<option value="${k}"${k === VH.at ? " selected" : ""}>${esc(n)}</option>`).join("");
     $("vhPos").value = VH.pos; $("o-vhPos").textContent = VH.pos ? `${Math.abs(VH.pos)} m ${VH.pos < 0 ? "left" : "right"}` : "middle";
     $("vhWidth").value = VH.width; $("o-vhWidth").textContent = VH.width + " m"; }
-  $("pitchGates").checked = g.pitchGates !== false; $("emergEvery").value = g.emergEvery || 0; $("o-emergEvery").textContent = g.emergEvery > 0 ? g.emergEvery + " m" : "none";
-  so("exitWidth", g.exitWidth.toFixed(1) + " m");
-  const gap = g.barrierEvery * S.types.terrace.row, gOver = gap > L.barrierGap + 1e-9;
-  so("barrierEvery", `${g.barrierEvery} steps (${gap.toFixed(1)} m)` + (gOver ? " · breaks rule" : ""), gOver);
 }
-for (const id of ["gangEvery","gangEnd","gangWidth","barrierEvery","exitEvery","exitWidth"]) $(id).addEventListener("input", e => { S.design[id] = +e.target.value; changed(false, true); });
-$("limits").innerHTML = LIMIT_FIELDS.map(([k,label,unit,step]) => `<label for="lim-${k}"><span>${label}</span><input type="number" id="lim-${k}" data-lim="${k}" step="${step}"><span>${unit}</span></label>`).join("");
-$("limits").addEventListener("input", e => { const el = e.target; if (!el.dataset.lim || el.value === "" || isNaN(+el.value) || (+el.value <= 0 && el.dataset.lim !== "minC")) return;
-  S.limits[el.dataset.lim] = +el.value; S.standard = "custom"; changed(false, true); });
 $("standard").addEventListener("change", e => { S.standard = e.target.value; if (STANDARDS[S.standard]) S.limits = Object.assign({}, STANDARDS[S.standard]); changed(); });
 function syncLimits(){
+  { const sel = $("standard"), own = sel.querySelector('[value="custom"]'); // only listed while a design is already on loosened rules (a one-tap fix, or an older design)
+    if (S.standard === "custom" && !own) sel.add(new Option("This design's own rules", "custom")); else if (S.standard !== "custom" && own) own.remove(); }
   $("standard").value = S.standard;
-  for (const [k] of LIMIT_FIELDS){ const el = $("lim-"+k); if (document.activeElement !== el) el.value = S.limits[k]; }
   $("limitsSummary").textContent = (S.standard === "custom" ? "custom" : S.standard === "minimum" ? "UK minimum" : "UK recommended");
 }
 
@@ -251,8 +216,6 @@ bindRange("acPer", v => acSet("per", v)); bindRange("acLength", v => acSet("leng
 $("vhOn").addEventListener("change", e => { vhSet("on", e.target.checked); changed(); });
 $("vhAt").addEventListener("change", e => { vhSet("at", e.target.value); changed(); });
 bindRange("vhPos", v => vhSet("pos", v)); bindRange("vhWidth", v => vhSet("width", v));
-$("pitchGates").addEventListener("change", e => { S.design.pitchGates = e.target.checked; changed(); });
-bindRange("emergEvery", v => S.design.emergEvery = v);
 const clock = h => { const hh = Math.floor(h), mm = Math.round((h - hh)*60); return `${((hh + 11) % 12) + 1}:${String(mm).padStart(2, "0")} ${hh < 12 ? "am" : "pm"}`; };
 $("hour").addEventListener("input", e => { S.hour = +e.target.value; $("o-hour").textContent = clock(S.hour); applyMood(); invalidate(); save(true); });
 /* Names typed by people end up in the page and in share links, so anything that looks like markup is stripped. */
@@ -307,7 +270,7 @@ $("archAt").addEventListener("change", e => { archOf().archAt = e.target.value; 
 $("statues").addEventListener("change", e => { S.statues = Math.max(0, Math.min(4, +e.target.value || 0)); changed(); });
 function openState(st, sideTab, tweak){
   S = upgradeCorners(st); quiet = true; if (tweak) tweak(); tab = isHybrid() ? "B" : (sideTab || "N");
-  setSeatColours(); renderTypeSizes(); renderEditor(); renderViews(); changed(true); noteSwappedSport();
+  setSeatColours(); renderEditor(); renderViews(); changed(true); noteSwappedSport();
 }
 document.querySelectorAll("#presets button").forEach(b => b.addEventListener("click", () => {
   const P = clone(PRESETS[b.dataset.p]); openState(P, b.dataset.p === "monument" ? "E" : "N");

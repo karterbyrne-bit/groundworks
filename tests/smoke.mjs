@@ -84,7 +84,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   // the layout: six section tabs that fit without scrolling, folded groups of controls, Night match and the flyover in reach
   check(await page.locator("#panes [data-pane]").count() === 6 && await page.$eval("#panes", n => n.scrollWidth <= n.clientWidth + 1), "the six section tabs fit without scrolling");
   check(await page.$$eval('details[data-keep^="look-"]', ds => ds.map(d => d.open).join()) === "true,false,false,false,false", "only the first group of the Look tab starts open");
-  check(await page.$$eval('details[data-keep^="rules-"], #groundMore', ds => ds.length === 4 && ds.every(d => !d.open)), "the rules and the Ground tab's Advanced section start shut");
+  check(await page.$$eval('details[data-keep^="rules-"], #groundMore', ds => ds.length === 3 && ds.every(d => !d.open)), "the rules and the Ground tab's Advanced section start shut");
   check(await page.locator("#nightBtn").isVisible() && await page.locator('.shows [data-fly="play"]').isVisible(), "Night match and Kick-off flyover sit over the 3D view");
   await page.click("#nightBtn"); await page.waitForTimeout(300); const nightOn = await page.evaluate(() => window.__gw.state().night);
   await page.click("#nightBtn"); await page.waitForTimeout(300);
@@ -349,16 +349,15 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(Math.abs(fl[0] - fl[1]) < .01 && fl[0] > 20 && fl[2] === 16.5 && fl[3] > 0 && errors.length === 0, "a wrestleball pitch can sit in a round field, with the bowl following it");
   await page.selectOption("#fieldShape", "pitch");
 
-  // players' tunnel, dugouts in each style, and emergency exits
+  // players' tunnel, dugouts in each style
   await page.click('#panes [data-pane="start"]'); await page.click('[data-p="bowl"]'); await page.waitForTimeout(300); await page.click('#panes [data-pane="look"]');
   const noTunnel = await cap(); await page.check("#tnOn"); await page.waitForTimeout(300);
   check((await cap()) < noTunnel && errors.length === 0, "a players' tunnel takes out the front rows where it comes through");
   await page.check("#dgOn"); await page.waitForTimeout(300);
   for (const style of ["sunk", "seats", "bubble"]){ await page.selectOption("#dgStyle", style); await page.waitForTimeout(300); }
   check(errors.length === 0 && (await page.evaluate(() => window.__gw.state().dugouts.style)) === "bubble", "dugouts can be perspex, sunk into the stand or padded seats");
-  await page.click('#panes [data-pane="details"]'); const em0 = await page.evaluate(() => window.__gw.last().slowestEm);
-  await page.evaluate(() => { const el = document.getElementById("emergEvery"); el.value = "20"; el.dispatchEvent(new Event("input", {bubbles:true})); }); await page.waitForTimeout(300);
-  check((await page.evaluate(() => window.__gw.last().slowestEm)) < em0, "emergency exits at the back of the tiers speed up an evacuation");
+  await page.click('#panes [data-pane="details"]');
+  check((await page.$$eval('[data-pane="details"] input[type="range"], [data-pane="details"] input[type="number"]', els => els.map(e => e.id).filter(id => !/^(ac|vh)/.test(id)))).length === 0, "the Details tab has no seat-size, gangway or rule numbers to edit, only access and which guidance to check against");
   // wheelchair spaces meet the guidance when switched on; emergency vehicles get a way onto the pitch
   const beforeAccess = await cap(); await page.check("#acOn"); await page.waitForTimeout(400);
   const acc = await page.evaluate(() => { const D = window.__gw.last(); return {wc:D.wheelchair, short:D.issues.some(i => i.key === "access:spaces")}; });
