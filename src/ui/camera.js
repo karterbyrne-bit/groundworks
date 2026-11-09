@@ -373,7 +373,7 @@ function record(coalesce){
 }
 function restore(i){
   if (i < 0 || i >= hist.length) return;
-  hIdx = i; restoring = true; quiet = true; S = JSON.parse(hist[i]); setSeatColours(); renderTypeSizes(); renderEditor(); renderViews(); changed(false, true); restoring = false; syncHistBtns();
+  hIdx = i; restoring = true; quiet = true; S = JSON.parse(hist[i]); setSeatColours(); renderEditor(); renderViews(); changed(false, true); restoring = false; syncHistBtns();
 }
 function syncHistBtns(){ document.getElementById("undoBtn").disabled = hIdx <= 0; document.getElementById("redoBtn").disabled = hIdx >= hist.length - 1; }
 document.getElementById("undoBtn").addEventListener("click", () => restore(hIdx - 1));
