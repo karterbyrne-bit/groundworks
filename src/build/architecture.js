@@ -161,9 +161,9 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
   if (A.skin && A.skin !== "none"){
     const kind = A.skin, bulge = kind === "cushion" ? H*0.06 : kind === "glass" ? H*0.03 : 0, panel = kind === "cushion" ? 8 : kind === "brick" ? 9 : 6;
     const rowsV = kind === "cushion" ? Math.max(2, Math.round(H/7)) : kind === "brick" ? Math.max(1, Math.round(H/9)) : Math.max(1, Math.round(H/6));
-    /* Fins, perforated metal and brick stand a storey up on columns, over a glazed concourse set back behind them with the
-       ways in; the cushions and the glass come down to the ground. y0: where the skin starts. */
-    const lifted = ["fins", "mesh", "brick"].includes(kind) && H > 14, y0 = lifted ? Math.min(6, H*.22) : 0, Y = f => y0 + (H - y0)*f;
+    /* Fins and perforated metal stand a storey up on columns, over a glazed concourse set back behind them with the ways
+       in; the cushions, the glass and the brick come down to the ground. y0: where the skin starts. */
+    const lifted = ["fins", "mesh"].includes(kind) && H > 14, y0 = lifted ? Math.min(6, H*.22) : 0, Y = f => y0 + (H - y0)*f;
     const levels = [0, 0.15, 0.5, 0.85, 1], off = f => bulge*Math.sin(Math.PI*Math.min(1, f*1.05));
     // smooth normals for the bulge, so it shades as one curved face rather than four flat bands (facing the way the
     // triangles do, which is inwards: it's two-sided, and seen from outside it's lit as facing out)
