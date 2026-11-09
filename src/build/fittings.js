@@ -331,3 +331,29 @@ function standJoinedAt(key, e){
   const has = k => S.stands[k] && S.stands[k].tiers && S.stands[k].tiers.length, A = S.stands[c.a], B = S.stands[c.b], cm = S.corners && S.corners[ck];
   return (cm && cm.mode === "stand") || (has(c.a) && (A.wrap1 || 0) > 0) || (has(c.b) && (B.wrap0 || 0) > 0);
 }
+/* A grand main entrance in the middle of a stand's back wall: a forecourt with a row of flags, steps up to a
+   double-height glass reception with the club's name over it and a deep canopy in the club colour over the doors, and a
+   ticket office and a club shop either side. at(d, w, y): a point d out from the wall, w along it, y up. */
+function mainEntrance(buf, at, wallKey, grow, name){
+  const box = (key, d0, d1, w0, w1, y0, y1) => { const q = (d, w, y) => at(d, w, y);
+    quad(buf(key), q(d1,w0,y0), q(d1,w1,y0), q(d1,w1,y1), q(d1,w0,y1)); quad(buf(key), q(d0,w0,y1), q(d1,w0,y1), q(d1,w1,y1), q(d0,w1,y1));
+    for (const w of [w0, w1]) quad(buf(key), q(d0,w,y0), q(d1,w,y0), q(d1,w,y1), q(d0,w,y1)); };
+  const sign = (text, colour, d, w0, w1, y0, y1) => { const m = signMaterial(String(text).slice(0, 30).toUpperCase(), colour); m.emissiveIntensity = S.night ? .9 : .35;
+    const h = y1 - y0, wd = Math.min(w1 - w0, h*m.aspect), wc = (w0 + w1)/2, A = at(d, wc + wd/2, y0), B = at(d, wc - wd/2, y0), C = at(d, wc - wd/2, y1), D = at(d, wc + wd/2, y1);
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute([...A, ...B, ...C, ...A, ...C, ...D], 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute([0,0, 1,0, 1,1, 0,0, 1,1, 0,1], 2)); g.computeVertexNormals();
+    const me = new THREE.Mesh(g, m); me.userData.stadium = true; group.add(me); };
+  const club = tint("roofSolid", S.seat), F = .9;                                                    // the reception's floor, up its steps
+  quad(buf("aisle"), at(0,-18,.04), at(0,18,.04), at(24,18,.04), at(24,-18,.04));                    // the forecourt
+  for (let k=0;k<3;k++) box("concrete", 0, 8 + (3 - k)*.8, -8 - (3 - k)*.8, 8 + (3 - k)*.8, 0, F*(k + 1)/3); // three steps up
+  box("glassClad", 0, 7, -7, 7, F, F + 8.5); box("roofSolid", 0, 7.4, -7.4, 7.4, F + 8.5, F + 9.1);   // the glass reception, under a slim roof
+  for (let w = -7; w <= 7.01; w += 2.33) box("frame", 6.9, 7.05, w - .08, w + .08, F, F + 8.5);      // its mullions
+  box("frame", 6.9, 7.05, -7, 7, F + 4.1, F + 4.3); box("gate", 7, 7.06, -2.6, 2.6, F, F + 3.2);     // a transom, and the doors
+  box(club, 7, 11, -5, 5, F + 3.8, F + 4.2); box("soffit", 7, 11, -5, 5, F + 3.75, F + 3.8);        // the canopy, in the club colour
+  sign(name, "#ffffff", 7.45, -9, 9, F + 9.3, F + 12);                                                // the club's name over it
+  for (const sd of [-1, 1]){ const w0 = sd > 0 ? 8.5 : -16, w1 = sd > 0 ? 16 : -8.5;                 // the ticket office and the club shop
+    box(wallKey, 0, 4.5, w0, w1, 0, 4.4); box("glassClad", 4.5, 4.55, w0 + .6, w1 - .6, .3, 2.9); box(club, 4.5, 4.62, w0, w1, 3.2, 4);
+    sign(sd > 0 ? "CLUB SHOP" : "TICKETS", "#ffffff", 4.68, w0 + .5, w1 - .5, 3.25, 3.95); }
+  for (let k=0;k<5;k++){ const w = -12 + k*6, p = at(21, w, 0); post(buf("steel"), p[0], p[2], 0, 11, .16); // a row of flags
+    quad(buf(club), at(21, w, 10.8), at(21, w + 2.4, 10.8), at(21, w + 2.4, 9.2), at(21, w, 9.2)); }
+  for (const [d, w] of [[24, -18], [24, 18]]){ const p = at(d, w, 0); grow(p[0], p[2]); }
+}
