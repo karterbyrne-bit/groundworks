@@ -128,6 +128,14 @@ function rampLevels(anchors, p){
 /* What's behind a glass curtain wall: the concourses, a couple of metres in, with a floor slab every 5 m and columns
    between the glass and the rooms, so it reads as a building rather than a window onto the backs of the stands. At
    night the rooms are lit, so the wall glows warm floor by floor. */
+/* Under a skin lifted onto columns: a column every 9 m or so on its line, a ceiling from its foot back to a glazed concourse
+   wall 3.5 m inside, and that glass, lit warm at night. P: the skin's line, G: the glazing's, y0: the underside's height. */
+function skinUnderside(bf, P, G, n, y0){
+  for (let i=0;i<n;i++){ const j = (i+1)%n;
+    quad(bf("soffit"), [P[i][0],y0,P[i][1]], [P[j][0],y0,P[j][1]], [G[j][0],y0,G[j][1]], [G[i][0],y0,G[i][1]]);
+    quad(bf("glassClad"), [G[i][0],0,G[i][1]], [G[j][0],0,G[j][1]], [G[j][0],y0,G[j][1]], [G[i][0],y0,G[i][1]]);
+    if (i % 3 === 0) post(bf("column"), P[i][0], P[i][1], 0, y0, .8); }
+}
 function glassInside(bf, P, N, n, H){
   const In = offsetPoly(P, -2.2), floors = Math.max(1, Math.round(H/5)), fh = H/floors, pos = [];
   for (let i=0;i<n;i++){ const j = (i+1)%n, a = In[i], b = In[j]; pos.push(a[0],0,a[1], b[0],0,b[1], b[0],H,b[1], a[0],0,a[1], b[0],H,b[1], a[0],H,a[1]); }
@@ -153,6 +161,9 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
   if (A.skin && A.skin !== "none"){
     const kind = A.skin, bulge = kind === "cushion" ? H*0.06 : kind === "glass" ? H*0.03 : 0, panel = kind === "cushion" ? 8 : kind === "brick" ? 9 : 6;
     const rowsV = kind === "cushion" ? Math.max(2, Math.round(H/7)) : kind === "brick" ? Math.max(1, Math.round(H/9)) : Math.max(1, Math.round(H/6));
+    /* Fins and perforated metal stand a storey up on columns, over a glazed concourse set back behind them with the ways
+       in; the cushions, the glass and the brick come down to the ground. y0: where the skin starts. */
+    const lifted = ["fins", "mesh"].includes(kind) && H > 14, y0 = lifted ? Math.min(6, H*.22) : 0, Y = f => y0 + (H - y0)*f;
     const levels = [0, 0.15, 0.5, 0.85, 1], off = f => bulge*Math.sin(Math.PI*Math.min(1, f*1.05));
     // smooth normals for the bulge, so it shades as one curved face rather than four flat bands (facing the way the
     // triangles do, which is inwards: it's two-sided, and seen from outside it's lit as facing out)
@@ -160,8 +171,8 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
     const pos = [], uv = [], nor = [];
     for (let i=0;i<n;i++){ const j = (i+1)%n, u0 = cum[i]/panel, u1 = cum[i+1]/panel;
       for (let k=0;k<levels.length-1;k++){ const f0 = levels[k], f1 = levels[k+1];
-        const A0 = [P[i][0] + N[i][0]*off(f0), H*f0, P[i][1] + N[i][1]*off(f0)], B0 = [P[j][0] + N[j][0]*off(f0), H*f0, P[j][1] + N[j][1]*off(f0)];
-        const A1 = [P[i][0] + N[i][0]*off(f1), H*f1, P[i][1] + N[i][1]*off(f1)], B1 = [P[j][0] + N[j][0]*off(f1), H*f1, P[j][1] + N[j][1]*off(f1)];
+        const A0 = [P[i][0] + N[i][0]*off(f0), Y(f0), P[i][1] + N[i][1]*off(f0)], B0 = [P[j][0] + N[j][0]*off(f0), Y(f0), P[j][1] + N[j][1]*off(f0)];
+        const A1 = [P[i][0] + N[i][0]*off(f1), Y(f1), P[i][1] + N[i][1]*off(f1)], B1 = [P[j][0] + N[j][0]*off(f1), Y(f1), P[j][1] + N[j][1]*off(f1)];
         pos.push(...A0, ...B0, ...B1, ...A0, ...B1, ...A1);
         uv.push(u0, f0*rowsV, u1, f0*rowsV, u1, f1*rowsV, u0, f0*rowsV, u1, f1*rowsV, u0, f1*rowsV);
         nor.push(...nrm(i, f0), ...nrm(j, f0), ...nrm(j, f1), ...nrm(i, f0), ...nrm(j, f1), ...nrm(i, f1)); } }
@@ -174,11 +185,12 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
     // coping ring on top and entrances at the foot
     const inner = offsetPoly(P, -3); for (let i=0;i<n;i++){ const j = (i+1)%n; quad(bf("roofEdge"), [P[i][0],H,P[i][1]], [P[j][0],H,P[j][1]], [inner[j][0],H+.3,inner[j][1]], [inner[i][0],H+.3,inner[i][1]]); }
     if (kind === "fins") for (let i=0;i<n;i+=1) for (const f of [0]){ const j = (i+1)%n, p = lerp2(P[i], P[j], f), m = [lerp(N[i][0], N[j][0], f), lerp(N[i][1], N[j][1], f)], t = [-m[1]*.3, m[0]*.3]; // a real steel fin every 3 m, 1.4 m deep and 60 cm thick
-      const o = [p[0]+m[0]*1.4, p[1]+m[1]*1.4], fin = (a, b) => quad(bf("steel"), [a[0],0,a[1]], [b[0],0,b[1]], [b[0],H,b[1]], [a[0],H,a[1]]);
+      const o = [p[0]+m[0]*1.4, p[1]+m[1]*1.4], fin = (a, b) => quad(bf("steel"), [a[0],y0,a[1]], [b[0],y0,b[1]], [b[0],H,b[1]], [a[0],H,a[1]]);
       fin([p[0]-t[0],p[1]-t[1]], [o[0]-t[0],o[1]-t[1]]); fin([p[0]+t[0],p[1]+t[1]], [o[0]+t[0],o[1]+t[1]]); fin([o[0]-t[0],o[1]-t[1]], [o[0]+t[0],o[1]+t[1]]); }
     if (kind === "glass") glassInside(bf, P, N, n, H);
-    const gates = Math.max(4, Math.round(perim/45));
-    for (let g2=0; g2<gates; g2++){ const i = Math.floor(g2*n/gates), j = (i+1)%n, a = P[i], b = P[(i+2)%n], o = .15;
+    const gates = Math.max(4, Math.round(perim/45)), G = lifted ? offsetPoly(P, -3.5) : P; // (under a lifted skin, the ways in are in the glazing behind the columns)
+    if (lifted) skinUnderside(bf, P, G, n, y0);
+    for (let g2=0; g2<gates; g2++){ const i = Math.floor(g2*n/gates), j = (i+1)%n, a = G[i], b = G[(i+2)%n], o = .15;
       quad(bf("gate"), [a[0]+N[i][0]*o,0,a[1]+N[i][1]*o], [b[0]+N[i][0]*o,0,b[1]+N[i][1]*o], [b[0]+N[i][0]*o,4.2,b[1]+N[i][1]*o], [a[0]+N[i][0]*o,4.2,a[1]+N[i][1]*o]); }
     top = Math.max(top, H + .3);
   }
