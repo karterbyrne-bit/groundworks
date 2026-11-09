@@ -1,7 +1,7 @@
 let PRE = false;
 function build(){
-  let alignTop = null, roofNeedMax = 0;
-  if (S.roofAlign && !PRE){ PRE = true; const d0 = DRY; DRY = true; try { alignTop = build().roofNeedMax; } finally { DRY = d0; PRE = false; } }
+  let alignTop = null, roofNeedMax = 0, joinTop = null; if (!PRE) ROOF_NEED = {}; // (joinTop: the roof heights of stands that wrap round and meet, so their roofs meet flush)
+  if ((S.roofAlign || joinedRoofGroups()) && !PRE){ PRE = true; ROOF_NEED = {}; const d0 = DRY; DRY = true; try { const r = build().roofNeedMax; if (S.roofAlign) alignTop = r; else joinTop = joinedRoofTops(ROOF_NEED); } finally { DRY = d0; PRE = false; } }
   const F = field(), L = S.limits, lay = layoutOf(), shape = F.pitch ? "curved" : S.cornerShape || "curved", groundRoof = !!(S.groundRoof && S.groundRoof.on);
   focusY = F.focusY || 0;
   focusIn = S.focusIn != null ? Math.max(0, Math.min(S.focusIn, maxFocusIn(F))) : defaultFocusIn(F);
@@ -715,8 +715,8 @@ function build(){
       const level = rf.level !== false, lift = Math.max(1.5, rf.lift);
       const spanOf = x => { const outer = x.back + 1.5; return outer - Math.min(outer - 2, x.front - rf.reach); };
       const live = info.filter(Boolean), needTop = Math.max(...live.map(x => x.top)) + lift, spanRef = Math.max(...live.map(spanOf));
-      roofNeedMax = Math.max(roofNeedMax, needTop);
-      const levelBase = alignTop != null ? Math.max(alignTop, needTop) : needTop;
+      roofNeedMax = Math.max(roofNeedMax, needTop); ROOF_NEED[st.key] = Math.max(ROOF_NEED[st.key] || 0, needTop);
+      const levelBase = alignTop != null ? Math.max(alignTop, needTop) : joinTop && joinTop[st.key] != null ? Math.max(joinTop[st.key], needTop) : needTop;
       const RR = info.map((x, i) => { if (!x || !roofCovers(rf, cum[i], lenTotal, closed)) return null; const outer = x.back + 1.5, inner = Math.min(outer - 2, x.front - rf.reach);
         const span = level ? spanRef : outer - inner, base = level ? levelBase : x.top + lift;
         if (gable){ const ridge = base + Math.tan(24*Math.PI/180)*span/2; return {inner, outer, y:f => f < .5 ? lerp(base, ridge, f*2) : lerp(ridge, base, (f-.5)*2), yIn:base, yOut:base}; }
