@@ -215,3 +215,17 @@ function squareEnds(geo, front, side){ // side: which side of the ground it's on
   for (const p of run(b, sA, Math.min(farB, lim))){ O.push(p); V.push(vm); T.push(tag[b]); }
   return {o:O, v:V, closed:false, tag:T, frac:O.map((_, i) => i/Math.max(1, O.length - 1))};
 }
+/* Two stands on top of the bowl that wrap round to meet in a corner, over bowl sides with different rows, meet at different
+   heights. Rather than butting together with a step in mid-air, each stops a slice short and is finished like an open end
+   (its stepped end wall, rail and façade), leaving a stair gap between them, as separate stands would. meet: whether each
+   end meets the next stand. Returns the stand's slices, with step[e] set where it was cut back. */
+function stepEnds(geo, side, meet){
+  const out = Object.assign({}, geo, {step:[false, false]}); if (!S.bowl.varyRows) return out;
+  for (const e of [0, 1]){ if (!meet[e] || out.o.length < 6) continue;
+    const c = CORNERS.find(q => q.key === SIDE_ENDS[side][e]), other = c && (c.a === side ? c.b : c.a); if (!other) continue;
+    if (!S.bowl.tiers.some(tr => sideRowsOf(tr, side) !== sideRowsOf(tr, other) || sideTypeOf(tr, side) !== sideTypeOf(tr, other))) continue; // the same both sides: they meet level, so stay joined
+    const keep = (a, i) => e ? i < a.length - 1 : i > 0;
+    for (const k of ["o", "v", "tag", "frac"]) if (out[k]) out[k] = out[k].filter((_, i) => keep(out[k], i));
+    out.step[e] = true; }
+  return out;
+}
