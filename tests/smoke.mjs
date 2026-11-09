@@ -84,7 +84,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   // the layout: six section tabs that fit without scrolling, folded groups of controls, Night match and the flyover in reach
   check(await page.locator("#panes [data-pane]").count() === 6 && await page.$eval("#panes", n => n.scrollWidth <= n.clientWidth + 1), "the six section tabs fit without scrolling");
   check(await page.$$eval('details[data-keep^="look-"]', ds => ds.map(d => d.open).join()) === "true,false,false,false,false", "only the first group of the Look tab starts open");
-  check(await page.$$eval('details[data-keep^="rules-"], #groundMore', ds => ds.length === 4 && ds.every(d => !d.open)), "the rules and the Ground tab's Advanced section start shut");
+  check(await page.$$eval('details[data-keep^="rules-"], #groundMore', ds => ds.length === 3 && ds.every(d => !d.open)), "the rules and the Ground tab's Advanced section start shut");
   check(await page.locator("#nightBtn").isVisible() && await page.locator('.shows [data-fly="play"]').isVisible(), "Night match and Kick-off flyover sit over the 3D view");
   await page.click("#nightBtn"); await page.waitForTimeout(300); const nightOn = await page.evaluate(() => window.__gw.state().night);
   await page.click("#nightBtn"); await page.waitForTimeout(300);
