@@ -161,7 +161,7 @@ function changed(moveCam, coalesce){
   requestAnimationFrame(() => { pending = false; build(); if (wire) applyWire(); syncUI(); renderSummary(); if (recam){ recam = false; if (camMode !== "seat") goCam(camMode); } });
 }
 
-showPane(pane, true); applyTheme(); renderTypeSizes(); fixTab(); if (isHybrid()) tab = "B"; renderEditor(); renderViews(); renderSaves(); syncUI(); build(); record(); resize(); setLook(false); goCam("aerial", true); setTip();
+showPane(pane, true); applyTheme(); fixTab(); if (isHybrid()) tab = "B"; renderEditor(); renderViews(); renderSaves(); syncUI(); build(); record(); resize(); setLook(false); goCam("aerial", true); setTip();
 wake();
 /* Hand over from the loading screen once the first frame is drawn, then greet first-time visitors. */
 requestAnimationFrame(() => requestAnimationFrame(async () => {

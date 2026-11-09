@@ -20,26 +20,10 @@ const TYPES = {
   bench:{label:"Bench / bleachers", short:"bench", eye:1.2, seat:true},
   terrace:{label:"Terrace (standing)", short:"standing", eye:1.6, seat:false}
 };
-const TYPE_FIELDS = {
-  seated:[["row","Row depth","m",0.6,1.0,0.01],["width","Seat width","m",0.4,0.6,0.01]],
-  exec:[["row","Row depth","m",0.8,1.4,0.01],["width","Seat width","m",0.45,0.8,0.01]],
-  rail:[["row","Row depth","m",0.6,1.0,0.01],["width","Space per person","m",0.4,0.6,0.01]],
-  bench:[["row","Row depth","m",0.55,0.9,0.01],["width","Space per person","m",0.38,0.55,0.01]],
-  terrace:[["row","Step depth","m",0.28,0.55,0.01],["density","People per m²","",2,7,0.1]]
-};
 const STANDARDS = {
   recommended:{seatRake:34,terraceRake:25,minRow:0.8,minWidth:0.5,maxBetween:28,maxOneEnd:14,maxTravel:30,minGang:1.1,maxDensity:4.7,barrierGap:5,minC:90,maxView:190,flow:66,maxEvac:8,evacLow:8,evacMedium:6,evacHigh:2.5},
   minimum:{seatRake:34,terraceRake:25,minRow:0.7,minWidth:0.46,maxBetween:28,maxOneEnd:14,maxTravel:30,minGang:1.1,maxDensity:4.7,barrierGap:5,minC:60,maxView:190,flow:66,maxEvac:8,evacLow:8,evacMedium:6,evacHigh:2.5}
 };
-const LIMIT_FIELDS = [
-  ["seatRake","Max steepness, seats","°",1],["terraceRake","Max steepness, terraces","°",1],
-  ["minRow","Min seated row depth","m",0.01],["minWidth","Min seat width","m",0.01],
-  ["maxBetween","Max seats between gangways","",1],["maxOneEnd","Max seats in a row with a gangway at one end only","",1],["maxTravel","Max walk from a seat to its way in or out","m",1],["minGang","Min gangway width","m",0.05],
-  ["maxDensity","Max standing density","/m²",0.1],["barrierGap","Max gap between barriers","m",0.1],
-  ["minC","Min sightline (C-value)","mm",5],["maxView","Max viewing distance","m",5],
-  ["flow","Exit flow rate","/m/min",1],["maxEvac","Max time to empty a stand (normal)","min",0.5],
-  ["evacLow","Emergency evacuation, low fire risk","min",0.5],["evacMedium","Emergency evacuation, medium fire risk","min",0.5],["evacHigh","Emergency evacuation, high fire risk","min",0.5]
-];
 /* How easily a stand would burn, which sets how fast it has to clear in an emergency. The Green Guide treats this
    separately from the normal emptying time: from 8 minutes for a low-risk stand (concrete and steel, little to burn)
    down to 2.5 minutes for a high-risk one (timber, or lots of combustible material). */

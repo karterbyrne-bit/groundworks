@@ -136,7 +136,7 @@ function flash(msg, action){ toast(msg, action === undefined && /Undo/.test(msg)
 function runFix(is){
   if (!is || !is.fix) return;
   const label = is.fix.label, ok = is.fix.run();
-  renderTypeSizes(); renderEditor(); changed();
+  renderEditor(); changed();
   flash(ok ? `<b>Fixed:</b> ${esc(label.charAt(0).toLowerCase() + label.slice(1))}.` : `<b>That one needs a bigger change</b> than I can make safely. Use Show me to go to its settings.`, ok ? UNDO : null);
 }
 function fixAll(){
@@ -148,7 +148,7 @@ function fixAll(){
     const is = list[0]; done.add(is.key + "|" + is.fix.label);
     if (is.fix.run()) fixed++; // each fix already works through every way of clearing its check, in the preferred order
   }
-  renderTypeSizes(); renderEditor(); changed();
+  renderEditor(); changed();
   const left = dryIssues().filter(i => i.cat !== "geo").length;
   const ruled = S.standard === "custom" && (S.limits.seatRake > rk0.seatRake || S.limits.terraceRake > rk0.terraceRake);
   flash(`<b>Fixed ${fixed} ${fixed === 1 ? "thing" : "things"}.</b>` + (ruled ? ` Your rules now allow ${[S.limits.seatRake > rk0.seatRake ? S.limits.seatRake + "° seating" : "", S.limits.terraceRake > rk0.terraceRake ? S.limits.terraceRake + "° terraces" : ""].filter(Boolean).join(" and ")}.` : "") + (left ? ` ${left} still ${left === 1 ? "needs" : "need"} a decision from you.` : ""), fixed ? UNDO : null);
