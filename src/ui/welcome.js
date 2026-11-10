@@ -153,12 +153,18 @@ function keepPitchClear(){
       if (nx*(a[0]+b[0]) + nz*(a[1]+b[1]) < 0){ nx = -nx; nz = -nz; } // push away from the middle
       const step = bd + 1; for (const q of [a, b]){ q[0] = Math.round(q[0] + nx*step); q[1] = Math.round(q[1] + nz*step); } } }
 }
+/* While a finger (or the mouse button) is down on a slider or a handle, rebuilds are quick drafts (see DRAFT); lifting it
+   builds the full stadium straight away. */
+let fingerDown = false, wantDraft = false, drafted = false;
+addEventListener("pointerdown", () => { fingerDown = true; }, true);
+for (const ev of ["pointerup", "pointercancel", "blur"]) addEventListener(ev, e => { if (ev === "blur" && e.target !== window) return; fingerDown = false; if (drafted) changed(false, true); }, true); // (blur: only the whole window losing focus, not a button)
 function changed(moveCam, coalesce){
   if (moveCam) recam = true;
   keepPitchClear(); followSnappedRoads(); // roads that run along the plot's edge move with it
   syncUI(); renderTabs(); save(coalesce);
+  wantDraft = pending ? wantDraft && !!coalesce && fingerDown : !!coalesce && fingerDown;
   if (pending) return; pending = true;
-  requestAnimationFrame(() => { pending = false; build(); if (wire) applyWire(); syncUI(); renderSummary(); if (recam){ recam = false; if (camMode !== "seat") goCam(camMode); } });
+  requestAnimationFrame(() => { pending = false; DRAFT = wantDraft; try { build(); } finally { drafted = DRAFT; DRAFT = false; } if (wire) applyWire(); syncUI(); renderSummary(); if (recam){ recam = false; if (camMode !== "seat") goCam(camMode); } });
 }
 
 showPane(pane, true); applyTheme(); fixTab(); if (isHybrid()) tab = "B"; renderEditor(); renderViews(); renderSaves(); syncUI(); build(); record(); resize(); setLook(false); goCam("aerial", true); setTip();
@@ -173,4 +179,4 @@ requestAnimationFrame(() => requestAnimationFrame(async () => {
 }));
 window.addEventListener("hashchange", openFromLink);
 /* read-only hook for automated checks */
-window.__gw = {state:() => JSON.parse(JSON.stringify(S)), last:() => LAST, seat:(x, y, z, standing) => seatView({x, y, z}, standing, true), busy:() => pending, boards:() => { let n = 0; group.traverse(o => { if (o.userData.ads) n++; }); return n > 0; }, crowd:() => { if (!CROWD) return null; const a = CROWD.bodies.instanceMatrix.array; let up = 0; for (let i=0;i<CROWD.n;i++) if (a[i*16+13] > CROWD.base[0][i*16+13] + 0.05) up++; return {n:CROWD.n, standing:up}; }, memory:() => Object.assign({materials:Object.keys(M).length, programs:renderer.info.programs.length}, renderer.info.memory), regions:() => LAST_REGIONS, obsShown:() => { let n = 0; group.traverse(o => { if (o.material === M.obsSlight || o.material === M.obsBad) n++; }); return n; }, settle:settleNow, ao:() => AO && {on:!AO.off, frames:AO.frames, ms:AO.ms}, look:(p, t, stand) => { anim = null; if (stand){ picking = false; setLook(true); } moveCam(new THREE.Vector3(...p), new THREE.Vector3(...t), true); invalidate(); }};
+window.__gw = {state:() => JSON.parse(JSON.stringify(S)), last:() => LAST, seat:(x, y, z, standing) => seatView({x, y, z}, standing, true), busy:() => pending || drafted, boards:() => { let n = 0; group.traverse(o => { if (o.userData.ads) n++; }); return n > 0; }, crowd:() => { if (!CROWD) return null; const a = CROWD.bodies.instanceMatrix.array; let up = 0; for (let i=0;i<CROWD.n;i++) if (a[i*16+13] > CROWD.base[0][i*16+13] + 0.05) up++; return {n:CROWD.n, standing:up}; }, memory:() => Object.assign({materials:Object.keys(M).length, programs:renderer.info.programs.length}, renderer.info.memory), regions:() => LAST_REGIONS, obsShown:() => { let n = 0; group.traverse(o => { if (o.material === M.obsSlight || o.material === M.obsBad) n++; }); return n; }, settle:settleNow, ao:() => AO && {on:!AO.off, frames:AO.frames, ms:AO.ms}, look:(p, t, stand) => { anim = null; if (stand){ picking = false; setLook(true); } moveCam(new THREE.Vector3(...p), new THREE.Vector3(...t), true); invalidate(); }};

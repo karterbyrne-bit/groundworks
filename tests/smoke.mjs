@@ -358,6 +358,16 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(errors.length === 0 && (await page.evaluate(() => window.__gw.state().dugouts.style)) === "bubble", "dugouts can be perspex, sunk into the stand or padded seats");
   await page.click('#panes [data-pane="details"]');
   check((await page.$$eval('[data-pane="details"] input[type="range"], [data-pane="details"] input[type="number"]', els => els.map(e => e.id).filter(id => !/^(ac|vh)/.test(id)))).length === 0, "the Details tab has no seat-size, gangway or rule numbers to edit, only access and which guidance to check against");
+  // a quick draft while a slider is dragged: the crowd is left out until the finger lifts, and the numbers never change
+  { await page.click('#panes [data-pane="ground"]'); await page.evaluate(() => { document.getElementById("groundMore").open = true; document.getElementById("setback").scrollIntoView({block:"center"}); }); await page.waitForTimeout(300);
+    const sb = await page.locator("#setback").boundingBox(), y = sb.y + sb.height/2, set0 = await page.evaluate(() => window.__gw.state().setback), cap0 = await cap();
+    await page.mouse.move(sb.x + sb.width*0.5, y); await page.mouse.down(); await page.mouse.move(sb.x + sb.width*0.6, y); await page.waitForTimeout(600);
+    const during = await page.evaluate(() => ({crowd: !!window.__gw.crowd(), moved: window.__gw.state().setback}));
+    await page.mouse.up(); await page.waitForFunction(() => !window.__gw.busy()); await page.waitForTimeout(300);
+    const capDrag = await cap(), after = await page.evaluate(() => !!window.__gw.crowd());
+    await page.evaluate(v => { const el = document.getElementById("setback"); el.value = v; el.dispatchEvent(new Event("input", {bubbles:true})); }, set0); await page.waitForTimeout(400);
+    check(during.moved !== set0 && !during.crowd && after && capDrag !== cap0 && (await cap()) === cap0 && errors.length === 0, "dragging a slider draws a quick draft without the crowd, and the full stadium comes back when it's let go");
+    await page.click('#panes [data-pane="details"]'); }
   // wheelchair spaces meet the guidance when switched on; emergency vehicles get a way onto the pitch
   const beforeAccess = await cap(); await page.check("#acOn"); await page.waitForTimeout(400);
   const acc = await page.evaluate(() => { const D = window.__gw.last(); return {wc:D.wheelchair, short:D.issues.some(i => i.key === "access:spaces")}; });

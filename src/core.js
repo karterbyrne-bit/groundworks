@@ -506,7 +506,12 @@ function drawKind(ctx, F, Wt, Ht, lw, shaped){
   rr(ctx,W,H,F.r); ctx.stroke(); line(0,-H/2,0,H/2);
   ctx.beginPath(); ctx.arc(0,0,Math.min(W,H)*0.15,0,Math.PI*2); ctx.stroke();
 }
+/* (The picture is kept between rebuilds and only redrawn when the playing area itself changes, so reshaping a stand
+   doesn't repaint the pitch every time.) */
+let FLOOR_TEX = null;
 function floorTexture(F, set, sp){
+  const key = JSON.stringify([F, set, sp || S.sport]); if (FLOOR_TEX && FLOOR_TEX.key === key) return FLOOR_TEX;
+  if (FLOOR_TEX) FLOOR_TEX.tex.dispose();
   const Wt = F.W + 2*set, Ht = F.H + 2*set;
   const k = Math.min(48, 2048/Math.max(Wt,Ht));
   const c = document.createElement("canvas"); c.width = Math.max(2,Math.round(Wt*k)); c.height = Math.max(2,Math.round(Ht*k));
@@ -544,8 +549,8 @@ function floorTexture(F, set, sp){
       drawFootball(ctx);
     }
   }
-  const tex = canvasTex(c); tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-  return {tex, Wt, Ht};
+  const tex = canvasTex(c); tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); tex.keep = true;
+  return FLOOR_TEX = {key, tex, Wt, Ht};
 }
 function addProps(g, F, buf, sp){
   sp = sp || S.sport;
