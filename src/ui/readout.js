@@ -14,13 +14,17 @@ function mergeParts(parts){
 }
 /* Stands on a lower bowl: each side's stand counts the part of the bowl in front of it (with the bowl's tiers listed in
    its table at that side's share), instead of the lower bowl showing as a stand of its own. */
-function foldBowlIntoSides(merged, sides){
+/* (kinds: each side's bowl places by kind of seating. A bowl whose sides differ lists, under each side, the seating that side
+   really has, with its own count, not a share of every kind in the bowl.) */
+function foldBowlIntoSides(merged, sides, kinds){
   const bowl = merged.find(p => p.key === "B"); if (!sides || !bowl) return merged;
   const out = merged.filter(p => p !== bowl), total = Object.values(sides).reduce((a, b) => a + b, 0) || 1;
-  for (const [k, n] of Object.entries(sides)){ if (!(n > 0)) continue; const share = n/total; let st = out.find(p => p.key === k);
+  const ofKind = {}; for (const t of bowl.tiers || []) ofKind[t.type] = (ofKind[t.type] || 0) + t.seats;
+  for (const [k, n] of Object.entries(sides)){ if (!(n > 0)) continue; const share = n/total, mine = kinds && kinds[k]; let st = out.find(p => p.key === k);
     if (!st){ st = {label: SIDE_NAMES[k], key: k, seats: 0, kinds: "", tiers: []}; out.push(st); }
     st.seats += Math.round(n); st.bowlSeats = Math.round(n);
-    st.tiers = [...(bowl.tiers || []).map(t => Object.assign({}, t, {name: "Lower bowl: " + t.name.charAt(0).toLowerCase() + t.name.slice(1), seats: Math.round(t.seats*share)})), ...st.tiers]; }
+    const rows = (bowl.tiers || []).map(t => Object.assign({}, t, {name: "Lower bowl: " + t.name.charAt(0).toLowerCase() + t.name.slice(1), seats: Math.round(mine ? (mine[t.type] || 0)*t.seats/(ofKind[t.type] || 1) : t.seats*share)}));
+    st.tiers = [...rows.filter(t => !mine || t.seats > 0), ...st.tiers]; }
   return out;
 }
 function tierTable(tiers, total){
@@ -89,7 +93,7 @@ function renderStats(){
     `<label class="toggle small"><input type="checkbox" id="trimToggle"${S.trim ? " checked" : ""}> Mark problem tiers in red in the 3D view</label>
      <label class="toggle small"><input type="checkbox" id="obsToggle"${S.showObstructed ? " checked" : ""}> Show obstructed views (amber: part of the pitch is hidden, red: a lot of it)</label>
      <p class="disclaimer">Groundworks is a creative sandbox. Passing these checks doesn't mean a design is safe, legal or buildable; real stadiums need professional design and approval.</p>`;
-  const merged = foldBowlIntoSides(mergeParts(D.parts), D.bowlSides);
+  const merged = foldBowlIntoSides(mergeParts(D.parts), D.bowlSides, D.bowlKinds);
   const max = Math.max(1, ...merged.map(p => p.seats));
   document.getElementById("standSeats").innerHTML = merged.length ? `<h3 class="bd-h">Places by stand</h3>` + merged.map(p =>
     `<div class="bd"><div class="bd-row"><span>${esc(p.label)}</span><span>${fmt(p.seats)}</span>${p.bowlSeats ? `<small>including ${fmt(p.bowlSeats)} in the lower bowl in front</small>` : ""}<i><b style="width:${(100*p.seats/max).toFixed(1)}%"></b></i></div></div>`).join("") : "";

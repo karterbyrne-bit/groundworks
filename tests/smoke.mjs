@@ -492,6 +492,13 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(await page.locator("#help").evaluate(d => d.open), "? opens help");
   await page.keyboard.press("Escape");
 
+  // a bowl with different seating on each side: each side's results list the seating that side really has
+  await page.click('#panes [data-pane="start"]'); await page.click('[data-p="ot"]'); await page.waitForTimeout(400);
+  await page.click('#panes [data-pane="stands"]'); await page.click('#tabs [data-tab="B"]'); await page.waitForTimeout(300);
+  await page.check('input[data-p="bowlVary"]'); await page.waitForTimeout(300);
+  await page.selectOption('select[data-p="tiers.0.sideType.E"]', "terrace"); await page.waitForFunction(() => !window.__gw.busy()); await page.waitForTimeout(400);
+  { const k = await page.evaluate(() => { const D = window.__gw.last(), q = D.bowlKinds, sum = o => Object.values(o).reduce((a, b) => a + b, 0); return {east: (q.E.terrace || 0)/sum(q.E), main: (q.N.terrace || 0)/sum(q.N), adds: Math.abs(sum(q.N) - D.bowlSides.N) < 1}; });
+    check(k.east > 0.8 && k.main < 0.1 && k.adds && errors.length === 0, `with terracing on the east side of the bowl only, it's counted under the east end and not the main stand (${Math.round(k.east*100)}% and ${Math.round(k.main*100)}%)`); }
   await page.screenshot({ path: new URL(`../tests/screenshot-${name}.png`, import.meta.url).pathname });
   check(errors.length === 0, "no errors" + (errors.length ? `:\n        ${errors.join("\n        ")}` : ""));
   await ctx.close();
