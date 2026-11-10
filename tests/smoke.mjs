@@ -30,7 +30,8 @@ const updating = process.argv.includes("--update-expected");
 const quick = process.argv.includes("--quick");
 {
   console.log("\npinned capacities");
-  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  // a small window: this step only reads numbers, and drawing each design at full size took most of its time
+  const ctx = await browser.newContext({ viewport: { width: 420, height: 480 } });
   const page = await ctx.newPage();
   page.setDefaultTimeout(120000);
   await page.goto(base, { timeout: 120000 });
