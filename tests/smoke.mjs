@@ -479,16 +479,14 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(!(await bad.evaluate(() => window.__gw.state().seat.includes("<"))), "a tampered link is refused");
   await bad.close();
 
-  // a damaged design code is refused with a message, and the current design is left alone
+  // a damaged share link is refused with a message, and the current design is left alone
   const keep = await page.evaluate(() => JSON.stringify(window.__gw.state()));
-  await page.click('#panes [data-pane="start"]');
-  await page.evaluate(() => { const d = document.getElementById("codeBox").closest("details"); if (d) d.open = true; });
-  const halfDesign = await page.evaluate(() => { const st = window.__gw.state(); delete st.stands.N.tiers; st.bowl.tiers = [{type:"seated"}]; return btoa(unescape(encodeURIComponent(JSON.stringify(st)))); }); // as the app makes one
-  for (const [code, what] of [[halfDesign, "half a design"], [halfDesign.slice(0, halfDesign.length >> 1), "a code cut off part way"]]){
-    await page.fill("#codeBox", code); await page.click("#importBtn"); await page.waitForTimeout(300);
-    check((await page.evaluate(() => JSON.stringify(window.__gw.state()))) === keep && /look right/.test(await page.locator(".toast").last().textContent()), `${what} is refused with a message`);
+  const halfDesign = await page.evaluate(() => { const st = window.__gw.state(); delete st.stands.N.tiers; st.bowl.tiers = [{type:"seated"}]; return JSON.stringify(st); });
+  const asLink = Buffer.from(halfDesign).toString("base64url");
+  for (const [code, what] of [[asLink, "half a design"], [asLink.slice(0, asLink.length >> 1), "a link cut off part way"]]){
+    await page.evaluate(c => { location.hash = "#d=j" + c; }, code); await page.waitForTimeout(500);
+    check((await page.evaluate(() => JSON.stringify(window.__gw.state()))) === keep && /didn't contain a design/.test(await page.locator(".toast").last().textContent()), `${what} is refused with a message`);
   }
-  await page.fill("#codeBox", ""); await page.evaluate(() => document.activeElement.blur());
 
   await page.keyboard.press("?");
   check(await page.locator("#help").evaluate(d => d.open), "? opens help");

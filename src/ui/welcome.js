@@ -164,7 +164,7 @@ function changed(moveCam, coalesce){
   syncUI(); renderTabs(); save(coalesce);
   wantDraft = pending ? wantDraft && !!coalesce && fingerDown : !!coalesce && fingerDown;
   if (pending) return; pending = true;
-  requestAnimationFrame(() => { pending = false; DRAFT = wantDraft; try { build(); } finally { drafted = DRAFT; DRAFT = false; } if (wire) applyWire(); syncUI(); renderSummary(); if (recam){ recam = false; if (camMode !== "seat") goCam(camMode); } });
+  requestAnimationFrame(() => { pending = false; DRAFT = wantDraft; try { build(); } finally { drafted = DRAFT; DRAFT = false; } syncUI(); renderSummary(); if (recam){ recam = false; if (camMode !== "seat") goCam(camMode); } });
 }
 
 showPane(pane, true); applyTheme(); fixTab(); if (isHybrid()) tab = "B"; renderEditor(); renderViews(); renderSaves(); syncUI(); build(); record(); resize(); setLook(false); goCam("aerial", true); setTip();

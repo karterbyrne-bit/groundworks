@@ -44,15 +44,6 @@ $("cmpBtn").addEventListener("click", () => {
     ["Slowest to empty", x => x.slowest ? x.slowest.toFixed(1) + " min" : "n/a"], ["Restricted-view seats", x => fmt(x.restricted)], ["Checks raised", x => x.issues.length]];
   $("cmpOut").innerHTML = `<table><thead><tr><th></th><th>${esc(A.name)}</th><th>${esc(B.name)}</th></tr></thead><tbody>${rows.map(([k,f]) => `<tr><th>${k}</th><td>${f(a)}</td><td>${f(b)}</td></tr>`).join("")}</tbody></table>`;
 });
-$("exportBtn").addEventListener("click", () => {
-  const code = btoa(unescape(encodeURIComponent(JSON.stringify(S)))); $("codeBox").value = code; $("codeBox").select();
-  try { navigator.clipboard.writeText(code).then(() => flash("<b>Design code copied.</b> Paste it anywhere to keep it."), () => flash("<b>Design code is in the box.</b> Copy it from there.")); } catch(e) { flash("<b>Design code is in the box.</b> Copy it from there."); }
-});
-$("importBtn").addEventListener("click", () => {
-  try { const st = JSON.parse(decodeURIComponent(escape(atob(($("codeBox").value || "").trim())))); if (!soundState(st)) throw 0;
-    openState(st); flash("<b>Design loaded.</b>", UNDO); }
-  catch(e) { flash("<b>That code doesn't look right.</b> It may have been cut short. Paste the whole design code, exactly as copied. Your current design hasn't changed."); }
-});
 
 /* ================= share links, random stadiums ================= */
 /* A shared design must look like one of ours. Text containing markup characters is refused outright, since parts of
@@ -69,7 +60,7 @@ function safeState(st){
     else if (v && typeof v === "object") for (const k in v){ if (/[<>"'`]/.test(k)) { ok = false; return; } walk(v[k], depth + 1); } })(st, 0);
   return ok;
 }
-/* A design code or link can arrive damaged: cut off when it was pasted, or edited by hand. Before opening one, fill in
+/* A shared link can arrive damaged: cut off when it was pasted, or edited by hand. Before opening one, fill in
    anything a newer version added, check every stand has proper tiers, then try building it out of sight. If any of that
    fails it's refused, rather than half-loading and freezing the 3D view. */
 function soundState(st){
@@ -104,7 +95,7 @@ $("shareBtn").addEventListener("click", async () => {
   const url = location.href.split("#")[0] + "#d=" + await shareCode();
   if (navigator.share && matchMedia("(pointer:coarse)").matches){ try { await navigator.share({title: sponsorsOf().title || "My Groundworks stadium", text:`${sponsorsOf().title || "My stadium"} holds ${fmt(LAST.total)}. Have a look:`, url}); return; } catch(e) { if (e && e.name === "AbortError") return; } }
   try { await navigator.clipboard.writeText(url); toast(`<b>Link copied.</b> Anyone who opens it gets this exact stadium.`); }
-  catch(e) { $("codeBox").value = url; showPane("start"); $("codeBox").closest("details").open = true; toast("<b>Copy the link from the box</b> under Share as a design code."); }
+  catch(e) { prompt("Copy this link to share your stadium:", url); } // (the browser wouldn't copy it for us)
 });
 /* Save as image: a clean picture of the 3D view (none of the buttons over it), at least 1600 pixels wide and drawn at the
    best settings, big soft shadows and ambient occlusion, even on a phone, with a caption bar along the bottom. */
