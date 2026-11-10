@@ -114,18 +114,47 @@ function handleHit(e){ if (look || picking) return null; setNdc(e); const hs = g
 const clamp = (x,a,b) => Math.max(a, Math.min(b, x));
 const r05 = x => Math.round(x*2)/2;
 /* ================= kick-off flyover =================
-   A 15-second swoop: from high outside the ground, round and in over the roof, then down to the touchline for kick-off,
-   where it hands over to the Pitchside view. A tap or a key stops it where it is. Where the browser can record the view
+   Fifteen seconds in four shots: arriving at street level outside the main stand and rising over its roof; sweeping round
+   the top of the stands, looking down into the bowl; diving in through the open sky over the pitch and skimming low along
+   the touchline; then settling pitchside for kick-off, where the ground's name and capacity come up, the crowd does a
+   Mexican wave and (at a night match) the fireworks go off, and it hands over to the Pitchside view. The buttons and the
+   capacity counter are hidden while it plays. A tap or a key stops it where it is. Where the browser can record the view
    it can be saved as a short video to share. With reduced motion asked for, it's a slow fade between four views. */
 let fly = null, touring = null;
 const ease = f => f < .5 ? 2*f*f : 1 - Math.pow(-2*f + 2, 2)/2;
-function flyPose(k){
-  const D = LAST, R = Math.max(D.ext[0], D.ext[1]), H = Math.max(D.maxH, 12);
-  if (k < .78){ const f = ease(k/.78), th = Math.PI/2 + .15 - (1 - f)*Math.PI*1.3, r = lerp(R*2.6, R*.7, f), y = lerp(R*1.2, H + 16, Math.pow(f, .8));
-    return {p:new THREE.Vector3(Math.cos(th)*r, y, Math.sin(th)*r), t:new THREE.Vector3(0, lerp(12, 4, f), 0)}; }
-  const a = flyPose(.7799), end = camTarget("pitch"), f = ease((k - .78)/.22); // the last stretch: over the roof and down to the touchline
-  return {p:a.p.lerp(end.p, f), t:a.t.lerp(end.t.clone().add(end.t.clone().sub(end.p).multiplyScalar(60)), f)};
+function flyKeys(){ // [when (0 to 1), where the camera is, what it looks at]
+  const D = LAST, ex = D.ext[0], ez = D.ext[1], R = Math.max(ex, ez), H = Math.max(D.maxH, 12), fw = D.F.W/2, fh = D.F.H/2, rr = R*1.08, top = H + 15, out = Math.max(45, H*1.5);
+  const end = camTarget("pitch"), ahead = end.t.clone().sub(end.p).normalize().multiplyScalar(60).add(end.p), at = (a, y) => [Math.cos(a)*rr, y, Math.sin(a)*rr];
+  return [
+    [0, [-ex*.6, 2.2, -(ez + out)], [0, H*.45, -ez]],            // the street outside the main stand, far enough back to take it all in
+    [.11, [-ex*.3, H*.45, -(ez + out*.9)], [0, H*.45, -ez*.8]],
+    [.21, [ex*.15, top + 8, -(ez + out*.4)], [0, 4, 0]],         // up and over its roof
+    [.33, at(-.45, top + 2), [0, 3, 0]],                         // round the top of the stands
+    [.45, at(.8, top), [0, 3, 0]],
+    [.56, at(2.0, top - 3), [0, 3, 0]],
+    [.63, [-fw*1.05, H + 7, fh*1.25], [0, 2, -fh*.4]],           // in over the roof's front edge
+    [.71, [-fw*.85, Math.max(9, H*.3), fh*.7], [fw*.1, 4, -fh]], // down through the open sky over the pitch
+    [.80, [-fw*.95, 4.5, fh*.1], [fw*.3, 7, -fh*1.8]],           // low along the touchline, past the crowd
+    [.90, [-fw*.55, 2.6, fh*.75], [fw*.05, H*.3, -ez]],
+    [1, end.p.toArray(), ahead.toArray()]];                      // pitchside, for kick-off
 }
+function flyPose(k){
+  k = k*.5 + k*k*(3 - 2*k)*.5; // eases away at the start and settles at the end
+  const K = fly && fly.keys || flyKeys(), n = K.length; let i = 0; while (i < n - 2 && k > K[i+1][0]) i++;
+  const f = Math.min(1, Math.max(0, (k - K[i][0])/(K[i+1][0] - K[i][0])));
+  const cr = (j, f) => { const a = K[Math.max(0, i-1)][j], b = K[i][j], c = K[i+1][j], d = K[Math.min(n-1, i+2)][j]; // a smooth curve through the points
+    return new THREE.Vector3(...[0, 1, 2].map(q => .5*(2*b[q] + (c[q] - a[q])*f + (2*a[q] - 5*b[q] + 4*c[q] - d[q])*f*f + (3*b[q] - 3*c[q] + d[q] - a[q])*f*f*f))); };
+  const p = cr(1, f); p.y = Math.max(1.6, p.y); return {p, t:cr(2, f)};
+}
+/* The title over the last shot, and the finish. */
+function flyTitle(on){ const el = document.getElementById("flyTitle"), name = sponsorsOf().title || "";
+  if (on && LAST) el.innerHTML = (name ? `<b>${esc(name)}</b>` : "") + `<span>${fmt(LAST.total)}${name ? "" : " places"}</span>`;
+  el.classList.toggle("on", !!on); }
+function flyDone(f, finale){ document.body.classList.remove("flying"); clearTimeout(flyDone.t); if (f && f.rec) f.rec.stop();
+  if (!finale){ flyTitle(false); return; }
+  flyDone.t = setTimeout(() => flyTitle(false), 4500);
+  if (S.crowd !== false){ const t0 = performance.now(); TICKERS.add(now => waveTick(now - t0)); }
+  if (S.night) startFireworks(); wake(); }
 const canRecord = !!(window.MediaRecorder && HTMLCanvasElement.prototype.captureStream);
 function recordView(){
   const types = ["video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"], type = types.find(t => MediaRecorder.isTypeSupported(t));
@@ -143,7 +172,7 @@ function kickoff(record){
   picking = false; view.classList.remove("picking"); setLook(false); controls.autoRotate = false; anim = null;
   const rec = record && canRecord ? recordView() : null;
   if (reduce) return fadeTour(rec);
-  fly = {start: performance.now(), dur: 15000, rec}; wake();
+  fly = {start: performance.now(), dur: 15000, rec, keys: flyKeys()}; document.body.classList.add("flying"); flyTitle(false); wake();
 }
 /* With reduced motion: four views, faded through black, about four seconds each. */
 function fadeTour(rec){
@@ -154,7 +183,7 @@ function fadeTour(rec){
   next();
 }
 function stopFlying(){
-  if (fly){ const f = fly; fly = null; controls.update(); if (f.rec) f.rec.stop(); invalidate(); }
+  if (fly){ const f = fly; fly = null; controls.update(); flyDone(f, false); invalidate(); }
   if (touring){ clearTimeout(touring.t); if (touring.rec) touring.rec.stop(); touring = null; document.getElementById("veil").classList.remove("on"); }
 }
 addEventListener("pointerdown", e => { if ((fly || touring) && !e.target.closest("[data-fly]")) stopFlying(); }, true);
@@ -318,7 +347,8 @@ function wake(){ idle = 0; if (!awake){ awake = true; requestAnimationFrame(loop
 function loop(now){
   if (fly){ const k = Math.min(1, (now - fly.start)/fly.dur), q = flyPose(k); // the kick-off flyover: the camera is flown, not orbited
     camera.position.copy(q.p); controls.target.copy(q.t); camera.lookAt(q.t); renderer.render(scene, camera); idle = 0;
-    if (k >= 1){ const f = fly; fly = null; goCam("pitch", true); if (f.rec) f.rec.stop(); }
+    if (k > .86 && !fly.titled){ fly.titled = true; flyTitle(true); }
+    if (k >= 1){ const f = fly; fly = null; goCam("pitch", true); flyDone(f, true); }
     requestAnimationFrame(loop); return; }
   if (anim){ const k = Math.min(1, (now - anim.start)/850), e = 1 - Math.pow(1-k, 3);
     camera.position.lerpVectors(anim.p0, anim.p, e); controls.target.lerpVectors(anim.t0, anim.t, e);
