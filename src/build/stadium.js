@@ -373,7 +373,7 @@ function build(){
           issue(text, key, "view", Object.assign({fix:all[0] || null, alts:all.slice(1)}, where)); } }
       // creative geometry notes for stacked tiers
       if (best.stacked && !best.lowerGhost && best.over > 0.5){
-        const head = best.hF - 1.5 - best.lowerBackH;
+        const head = best.hF - 1.5 + (best.hB - best.hF)*Math.min(1, best.over/Math.max(.1, best.back - best.front)) - best.lowerBackH; // (the underside climbs with the tier, so there's more room over the back row the further it overhangs)
         if (head < 2.2) issue(`${name} overhangs the tier below with only ${head.toFixed(1)} m of headroom over its back row.`, `head:${st.name}:${kk}`, "geo",
           Object.assign({fix: ref ? {label:"Raise it to give 2.4 m", run:() => { ref.gap = (ref.gap == null ? 3 : ref.gap) + (2.4 - head); return true; }} : null}, where));
         if (best.over > 12) issue(`${name} projects ${best.over.toFixed(0)} m over the tier below: a very long cantilever. Fine for a sandbox, ambitious in real life.`, `cant:${st.name}:${kk}`, "geo", Object.assign({fix:null}, where));
@@ -500,16 +500,16 @@ function build(){
           }
           const bk0 = p0.front + mr*T, bk1 = p1.front + mr*T, t0 = p0.hs[mr-1], t1 = p1.hs[mr-1];
           if (p0.stacked){
-            quad(buf("soffit"), V(i,p0.front,y00), V(j1,p1.front,y10), V(j1,bk1,t1-1.5), V(i,bk0,t0-1.5));
+            quad(buf("tierUnder"), V(i,p0.front,y00), V(j1,p1.front,y10), V(j1,bk1,t1-1.5), V(i,bk0,t0-1.5));
             // a tier set back behind the one below (as on an oval outline) gets a concourse deck across the gap
             if (!p0.lowerGhost && !p1.lowerGhost && p0.front > p0.lowerBack + 0.5 && p1.front > p1.lowerBack + 0.5){
               const yd0 = p0.lowerBackH + 1.2, yd1 = p1.lowerBackH + 1.2;
               quad(buf("concrete"), V(i,p0.lowerBack,yd0), V(j1,p1.lowerBack,yd1), V(j1,p1.front,yd1), V(i,p0.front,yd0));
               if (y00 > yd0 + .05 || y10 > yd1 + .05) quad(buf(wallKey), V(i,p0.front,yd0), V(j1,p1.front,yd1), V(j1,p1.front,Math.max(yd1, y10)), V(i,p0.front,Math.max(yd0, y00)));
             }
-            if (p0.over > 0.3 && !p0.lowerGhost) roofQuads.push([pt(i,p0.front), pt(j1,p1.front), pt(j1,Math.min(p1.lowerBack, bk1)), pt(i,Math.min(p0.lowerBack, bk0))]);
+            if (p0.over > 0.3 && !p0.lowerGhost) roofQuads.push([pt(i,p0.front), pt(j1,p1.front), pt(j1,Math.min(p1.lowerBack, bk1)), pt(i,Math.min(p0.lowerBack, bk0))]); if (p0.over > 0.3 && p1.over > 0.3 && !p0.lowerGhost && !p1.lowerGhost) overhangBackWall(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1); // (and a shaded concourse wall behind the back row it covers)
           }
-          if (sty.under && !(sty.under === "bank" && p0.stacked)) standUnder(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1, base, sty.under, cum[i], closed && j1 === 0 ? lenTotal : cum[j1], grow, (poly || obstacles.length ? roomAt(o[i], v[i], 0) - .5 : Infinity), (poly || obstacles.length ? roomAt(o[j1], v[j1], 0) - .5 : Infinity), profs[i], profs[j1]); else { const b0 = sty.under === "bank" ? Math.max(base(i,bk0), bankHeight(profs[i], bk0, (poly || obstacles.length ? roomAt(o[i], v[i], 0) - .5 : Infinity))) : base(i,bk0), b1 = sty.under === "bank" ? Math.max(base(j1,bk1), bankHeight(profs[j1], bk1, (poly || obstacles.length ? roomAt(o[j1], v[j1], 0) - .5 : Infinity))) : base(j1,bk1); quad(buf(wallKey), V(i,bk0,b0), V(j1,bk1,b1), V(j1,bk1,t1+1.2), V(i,bk0,t0+1.2)); } // a stand above a bank stands on the earth
+          if (sty.under && !(sty.under === "bank" && p0.stacked)) standUnder(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1, base, sty.under, cum[i], closed && j1 === 0 ? lenTotal : cum[j1], grow, (poly || obstacles.length ? roomAt(o[i], v[i], 0) - .5 : Infinity), (poly || obstacles.length ? roomAt(o[j1], v[j1], 0) - .5 : Infinity), profs[i], profs[j1]); else { const b0 = sty.under === "bank" ? Math.max(base(i,bk0), bankHeight(profs[i], bk0, (poly || obstacles.length ? roomAt(o[i], v[i], 0) - .5 : Infinity))) : base(i,bk0), b1 = sty.under === "bank" ? Math.max(base(j1,bk1), bankHeight(profs[j1], bk1, (poly || obstacles.length ? roomAt(o[j1], v[j1], 0) - .5 : Infinity))) : base(j1,bk1); const air = (p, bk, t, b) => p.stacked && !p.lowerGhost && bk < p.lowerBack - .3 ? Math.max(b, t - 1.5) : b; quad(buf(wallKey), V(i,bk0,air(p0, bk0, t0, b0)), V(j1,bk1,air(p1, bk1, t1, b1)), V(j1,bk1,t1+1.2), V(i,bk0,t0+1.2)); } // a stand above a bank stands on the earth (air: a tier that ends out over the seats below stops at its own underside, and doesn't wall them off)
           // where the depth changes from one slice to the next (an oval or blended outline), a smooth outer wall hides the steps
           if (n0 !== n1 && !sty.under && !profs[i].slice(k+1).some(q => q && !q.ghost && nRows(q) >= 1)){
             const e0 = p0.front + n0*T, e1 = p1.front + n1*T; quad(buf(wallKey), V(i,e0,base(i,e0)), V(j1,e1,base(j1,e1)), V(j1,e1,p1.hs[n1-1]+1.2), V(i,e0,p0.hs[n0-1]+1.2)); }
