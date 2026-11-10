@@ -65,6 +65,7 @@ Groundworks has to stay quick on a phone, so its size is capped.
 | `src/ui/ground.js` | Seating sizes and rules, floors and sports, the site plot and surroundings, screens, layouts, the preset buttons |
 | `src/ui/saving.js` | My stands, saved designs, design codes, share links and Surprise me |
 | `src/ui/welcome.js` | The welcome card, help, keyboard shortcuts, keeping the controls in step with the design, and starting the app |
+| `src/ui/analytics.js` | Counts visits and which features get used (GoatCounter): names only, on the live site only |
 | `src/styles.css`, `src/body.html` | The page's look and layout |
 | `build.mjs` | Joins and minifies `src/`, three.js and the fonts into `index.html` |
 | `tests/smoke.mjs` | Opens the app in a real browser, checks the pinned capacities, then clicks through the main features (`--quick`: at phone size only) |

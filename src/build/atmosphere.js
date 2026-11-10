@@ -244,9 +244,11 @@ function applyMood(){
   if (night && S.scenery !== "model") realScenery(true);
   else if (night){ plainScenery(); scene.background = new THREE.Color(0x0a1220); groundMat.color.set(0x1d2420); plazaMat.color.set(0x262c28); }
   else if (typeof applyTheme === "function") applyTheme(true);
-  const see = !!S.seeThrough;
-  for (const [k, o] of [["roof",.92],["roofSolid",1],["roofGreen",1],["roofConcrete",1],["roofClosed",.45],["roofGlass",.45],["roofEdge",1]]){
-    const m = M[k]; if (!m) continue; m.transparent = see || o < 1; m.opacity = see ? Math.min(o, 0.18) : o; m.depthWrite = !see && o >= 1; m.needsUpdate = true; }
+  /* See inside: every roof material goes nearly clear, including the coloured and textured copies the roof sheets are
+     actually drawn with (those used to be left a rebuild behind, or out altogether, so the button seemed not to work). */
+  const see = !!S.seeThrough, clear = {roof:.92, roofSolid:1, roofGreen:1, roofConcrete:1, roofClosed:.45, roofGlass:.45, roofEdge:1, roofCushion:.88};
+  for (const k in M){ const o = clear[k.split(/[_~]/)[0]]; if (o == null) continue;
+    const m = M[k]; m.transparent = see || o < 1; m.opacity = see ? Math.min(o, 0.18) : o; m.depthWrite = !see && o >= 1; m.needsUpdate = true; }
 }
 /* ================= night-match spectacle =================
    An LED halo along the roof fronts in the club's colours, flares and drifting smoke in the home end, and fireworks over

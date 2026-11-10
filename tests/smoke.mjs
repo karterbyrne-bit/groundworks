@@ -89,6 +89,13 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(await page.locator("#nightBtn").isVisible() && await page.locator('.shows [data-fly="play"]').isVisible(), "Night match and Kick-off flyover sit over the 3D view");
   await page.click("#nightBtn"); await page.waitForTimeout(300); const nightOn = await page.evaluate(() => window.__gw.state().night);
   await page.click("#nightBtn"); await page.waitForTimeout(300);
+  // feature use is counted by name, once each, and nothing is sent anywhere from a test or a preview
+  const used = await page.evaluate(() => ({names: window.__gw.counted(), script: !!document.querySelector('script[src*="gc.zgo.at"]')}));
+  check(used.names.includes("use/nightBtn") && used.names.filter(n => n === "use/nightBtn").length === 1 && used.names.every(n => /^[a-zA-Z0-9]+(\/[A-Za-z0-9.-]+)*$/.test(n)) && !used.script, `feature use is counted by name only (${used.names.length} so far), and not sent from a test`);
+  // See inside clears the roofs on the first tap, and puts them back on the second
+  { const settle = async () => { await page.waitForFunction(() => !window.__gw.busy()); await page.waitForTimeout(300); return page.evaluate(() => window.__gw.clearRoofs()); };
+    const r0 = await settle(); await page.click("#seeBtn"); const r1 = await settle(); await page.click("#seeBtn"); const r2 = await settle();
+    check(r0 === 0 && r1 > 0 && r2 === 0, `See inside makes the roofs see-through straight away, and solid again when tapped off (${r1} roof pieces)`); }
   check(nightOn === true && !(await page.evaluate(() => window.__gw.state().night)), "the Night match button switches the lights on and off");
   await page.$$eval("details[data-keep]", ds => ds.forEach(d => { d.open = true; })); await page.waitForTimeout(200); // open for the clicks below
   check(await page.evaluate(() => { const o = JSON.parse(localStorage.getItem("groundworks-open") || "{}"); return ["look-crowd", "look-pitchside", "ground-advanced", "rules-safety"].every(k => o[k] === true) && Object.values(o).every(Boolean); }), "the app remembers which groups were opened");
