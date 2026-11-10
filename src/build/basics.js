@@ -219,6 +219,9 @@ function squareEnds(geo, front, side){ // side: which side of the ground it's on
    a roof of its own and the corner between them closed by the meeting) takes the height the tallest of them needs.
    joinedRoofGroups(): those runs, as lists of sides, or null if there are none; joinedRoofTops(need): each side's shared height. */
 var ROOF_NEED = {};
+/* A quick draft: while a slider or a handle is being dragged, each rebuild leaves the crowd out (about a quarter of the
+   work), and the full stadium is built the moment the finger lifts. Capacity and the checks are the same either way. */
+let DRAFT = false;
 function joinedRoofGroups(){
   const lay = layoutOf(); if ((lay !== "stands" && lay !== "hybrid") || (S.groundRoof && S.groundRoof.on)) return null;
   const roofed = s => S.stands[s] && S.stands[s].tiers.length && S.stands[s].roof && S.stands[s].roof.shape !== "none" && S.stands[s].roof.level !== false;
