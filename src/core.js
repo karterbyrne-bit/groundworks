@@ -340,7 +340,8 @@ const M = {
   roofCushion: std({color:0xf4f6f7, roughness:.35, metalness:.05, transparent:true, opacity:.88}),
   glassClad: std({color:0x9cc3d6, roughness:.1, metalness:.3, transparent:true, opacity:.7}),
   tower: std({color:0x8e938f, roughness:.85}), gate: std({color:0x23282b, roughness:.8}), cable: std({color:0x2b2f33, roughness:.5, metalness:.6}),
-  soffit: std({color:0x9ea39f, roughness:.95}), hball: new THREE.MeshStandardMaterial({color:0xffffff, emissive:0x2b6fb3, emissiveIntensity:.9}),
+  soffit: std({color:0x9ea39f, roughness:.95}), tierUnder: std({color:0x4b504d, roughness:1}), // (tierUnder: the shaded underside of a tier that overhangs the one below)
+  hball: new THREE.MeshStandardMaterial({color:0xffffff, emissive:0x2b6fb3, emissiveIntensity:.9}),
   roofEdge: std({color:0xd6dbdd, roughness:.5, metalness:.3}),
   steel: std({color:0xe9ecee, roughness:.4, metalness:.5}), bank: std({color:0x5f7a3a, roughness:1}),
   column: std({color:0x3c4246, roughness:.5, metalness:.4}),

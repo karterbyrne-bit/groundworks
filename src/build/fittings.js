@@ -256,6 +256,14 @@ function outlineStand(buf, m, info, pt, closed){
 /* What's behind and under a stand that has no building: a banked terrace's grassy earth bank sloping away from the
    back row to the ground, or a temporary stand's bare scaffold of steel tubes (an upright under every other row every
    2.5 m along, with rails and cross-braces along the back). */
+/* Under a tier that overhangs the one below: a shaded concourse wall behind the covered back row, from that row up to the
+   underside of the tier above, so you look into shadow there and not through to the pale inside of the stand's outer wall. */
+function overhangBackWall(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1){
+  const at = (p, bk, t) => { const d = Math.min(p.lowerBack, bk) + .05; return [d, lerp(p.hF - 1.5, t - 1.5, Math.min(1, (d - p.front)/Math.max(.1, bk - p.front)))]; };
+  if (bk0 < p0.lowerBack - .3 || bk1 < p1.lowerBack - .3) return; // it ends out over the seats below: they carry on behind it, in the open
+  const [d0, y0] = at(p0, bk0, t0), [d1, y1] = at(p1, bk1, t1);
+  if (y0 > p0.lowerBackH + .3 && y1 > p1.lowerBackH + .3) quad(buf("tierUnder"), V(i, d0, p0.lowerBackH), V(j1, d1, p1.lowerBackH), V(j1, d1, y1), V(i, d0, y0));
+}
 function standUnder(buf, V, i, j1, p0, p1, bk0, bk1, t0, t1, base, kind, u0, u1, grow, lim0 = Infinity, lim1 = Infinity, pr0, pr1){ // lim: how far out the plot lets the bank go; pr: each slice's tiers
   if (kind === "bank"){ const c0 = bankCrest(pr0 || [p0], lim0), c1 = bankCrest(pr1 || [p1], lim1), g0 = V(i, c0.foot, 0), g1 = V(j1, c1.foot, 0), b = buf("bank");
     if (c0.crest > bk0 + .1 || c1.crest > bk1 + .1) quad(b, V(i, bk0, t0 + .2), V(j1, bk1, t1 + .2), V(j1, c1.crest, t1 + .2), V(i, c0.crest, t0 + .2)); // level ground on top, under the stand above and a walk behind it

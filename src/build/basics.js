@@ -197,22 +197,29 @@ function roofDiagrid(sb, V, RR, cum){
 /* A stand on top of the bowl, squared off: where its slices fan round into a corner, they're replaced by slices that carry
    straight on in the stand's own direction, out to about as far as the fan reached, so its ends are square to it. Each new
    slice stands on the bowl's seats as they are at the end of the straight part. front: how far out the stand's front row is;
-   it carries on no further than that past the corner, so its front corner stops on the corner's diagonal and it never runs
-   into the stand round the corner, squared off or not. */
+   where the stand round the corner reaches into the same corner, it carries on no further than that past the corner, so its
+   front corner stops on the corner's diagonal and it never runs into that stand, squared off or not. */
 function squareEnds(geo, front, side){ // side: which side of the ground it's on, so it's squared to that, however little straight it has
   const {o, v, tag} = geo, n = o.length; if (n < 3) return geo;
   const unit = q => { const l = Math.hypot(q[0], q[1]) || 1; return [q[0]/l, q[1]/l]; }, vm = {N:[0,-1], S:[0,1], E:[1,0], W:[-1,0]}[side] || unit(v[Math.floor(n/2)]), tg = [-vm[1], vm[0]];
   const dot = i => { const u = unit(v[i]); return u[0]*vm[0] + u[1]*vm[1]; }, straight = i => dot(i) > .999;
   let m = 0; for (let i=1;i<n;i++) if (dot(i) > dot(m) + 1e-9 || (Math.abs(dot(i) - dot(m)) < 1e-9 && Math.abs(i - n/2) < Math.abs(m - n/2))) m = i; // the slice that faces most nearly straight out (the middle one, if several do)
   let a = m, b = m; while (a > 0 && straight(a - 1)) a--; while (b < n - 1 && straight(b + 1)) b++;
-  const along = (i, k) => { const p = [o[i][0] + v[i][0]*20, o[i][1] + v[i][1]*20], q = [o[k][0] + v[k][0]*20, o[k][1] + v[k][1]*20]; return (p[0] - q[0])*tg[0] + (p[1] - q[1])*tg[1]; }; // how far along the stand, 20 m back
+  const along = (i, k, D = 20) => { const p = [o[i][0] + v[i][0]*D, o[i][1] + v[i][1]*D], q = [o[k][0] + v[k][0]*D, o[k][1] + v[k][1]*D]; return (p[0] - q[0])*tg[0] + (p[1] - q[1])*tg[1]; }; // how far along the stand, 20 m back (or D m back)
   const step = n > 1 ? Math.max(1, Math.abs(along(m + 1 < n ? m + 1 : m - 1, m))) : 3, O = [], V = [], T = [];
   const run = (k, sgn, far) => { const out = []; for (let d = step; d <= far + 1e-6; d += step) out.push([o[k][0] + tg[0]*d*sgn, o[k][1] + tg[1]*d*sgn]); return out; };
   const farA = a > 0 ? Math.max(...Array.from({length:a}, (_, i) => -along(i, a))) : 0, farB = b < n - 1 ? Math.max(...Array.from({length:n - 1 - b}, (_, i) => along(b + 1 + i, b))) : 0;
   const sA = Math.sign(along(m, a)) || 1, lim = Math.max(0, front || 0); // (no further than the front row is from the pitch)
-  for (const p of run(a, -sA, Math.min(farA, lim)).reverse()){ O.push(p); V.push(vm); T.push(tag[a]); }
+  /* ...unless the corner is all its own: the stand round the corner has no wrap into it, isn't squared off itself and there's
+     no corner stand. Then it carries straight on as far as its wrap reaches at its back row, so it is as wide as it would be
+     fanned round, like a main stand running the full width of the ground. */
+  const own = c => { if (!c) return false; const P = cornerPlan(c), nb = S.stands[c.a === side ? c.b : c.a], nw = c.a === side ? P.wb : P.wa; return !P.stand && !nw && !(nb && nb.tiers.length && nb.squareEnds); };
+  const deep = Math.max(20, profile(S.stands[side] ? S.stands[side].tiers : [], lim).reduce((d, p) => p.rows > 0.5 ? Math.max(d, p.back - lim) : d, 0)); // how deep the stand is, front row to back
+  const endA = own(CORNERS.find(c => c.b === side)) && a > 0 ? Math.max(...Array.from({length:a}, (_, i) => -along(i, a, deep))) : Math.min(farA, lim);
+  const endB = own(CORNERS.find(c => c.a === side)) && b < n - 1 ? Math.max(...Array.from({length:n - 1 - b}, (_, i) => along(b + 1 + i, b, deep))) : Math.min(farB, lim);
+  for (const p of run(a, -sA, endA).reverse()){ O.push(p); V.push(vm); T.push(tag[a]); }
   for (let i=a;i<=b;i++){ O.push(o[i]); V.push(straight(i) ? v[i] : vm); T.push(tag[i]); }
-  for (const p of run(b, sA, Math.min(farB, lim))){ O.push(p); V.push(vm); T.push(tag[b]); }
+  for (const p of run(b, sA, endB)){ O.push(p); V.push(vm); T.push(tag[b]); }
   return {o:O, v:V, closed:false, tag:T, frac:O.map((_, i) => i/Math.max(1, O.length - 1))};
 }
 /* Roofs of stands that wrap round and meet in a corner meet flush: each such run of joined stands (on the sides, each with
