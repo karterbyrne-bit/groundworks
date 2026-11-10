@@ -1,5 +1,5 @@
 /* ================= camera ================= */
-let camMode = "aerial", anim = null, look = false, picking = false, wire = false, screenFocus = 0;
+let camMode = "aerial", anim = null, look = false, picking = false, screenFocus = 0;
 const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const tipEl = document.getElementById("tip");
 let tipOverride = null;
@@ -80,33 +80,17 @@ function goCam(mode, instant){
 document.querySelectorAll("[data-cam]").forEach(b => b.addEventListener("click", () => { goCam(b.dataset.cam); closeMore(); }));
 const spinBtn = document.getElementById("spin");
 spinBtn.addEventListener("click", () => { controls.autoRotate = !controls.autoRotate; wake(); spinBtn.setAttribute("aria-pressed", String(controls.autoRotate)); });
-/* orthographic / perspective */
-function setOrtho(on){
-  const from = camera, to = on ? ortho : persp; if (from === to) return;
-  to.position.copy(from.position); to.up.copy(from.up);
-  if (on){ const dist = from.position.distanceTo(controls.target), h = dist*Math.tan(persp.fov*Math.PI/360), a = view.clientWidth/Math.max(1, view.clientHeight);
-    ortho.left = -h*a; ortho.right = h*a; ortho.top = h; ortho.bottom = -h; ortho.zoom = 1; ortho.updateProjectionMatrix(); }
-  camera = to; controls.object = to; controls.update(); fogReach(); invalidate();
-  document.getElementById("orthoBtn").setAttribute("aria-pressed", String(on));
-}
-document.getElementById("orthoBtn").addEventListener("click", () => setOrtho(camera !== ortho));
-function applyWire(){ const seen = new Set(); group.traverse(o => { if (o.material && !seen.has(o.material)){ seen.add(o.material); o.material.wireframe = wire; } }); invalidate(); }
-document.getElementById("wireBtn").addEventListener("click", () => { wire = !wire; applyWire(); document.getElementById("wireBtn").setAttribute("aria-pressed", String(wire)); });
 document.getElementById("presentBtn").addEventListener("click", () => { document.body.classList.add("present"); closeMore(); setTimeout(resize, 30); });
 document.getElementById("exitPresent").addEventListener("click", () => { document.body.classList.remove("present"); setTimeout(resize, 30); });
 const moreBtn = document.getElementById("moreBtn"), moreBox = document.getElementById("moreViews");
 function closeMore(){ moreBox.hidden = true; moreBtn.setAttribute("aria-expanded", "false"); }
 moreBtn.addEventListener("click", () => { moreBox.hidden = !moreBox.hidden; moreBtn.setAttribute("aria-expanded", String(!moreBox.hidden)); });
-/* camera bookmarks */
+/* camera bookmarks (views saved in older designs still show, and can be deleted; new ones can no longer be added) */
 function renderViews(){
   const el = document.getElementById("bookmarks");
   el.innerHTML = (S.views || []).map((v,i) => `<span class="chip"><button data-view="${i}">${esc(v.name)}</button><button class="x" data-delview="${i}" aria-label="Delete ${esc(v.name)}">×</button></span>`).join("");
   el.hidden = !(S.views || []).length;
 }
-document.getElementById("saveView").addEventListener("click", () => {
-  S.views = S.views || []; const n = S.views.length + 1;
-  S.views.push({name:"View " + n, p:camera.position.toArray(), t:controls.target.toArray(), look}); save(); renderViews(); closeMore(); flash(`<b>Saved as View ${n}.</b> Find it under the camera buttons.`);
-});
 document.getElementById("bookmarks").addEventListener("click", e => {
   const b = e.target.closest("[data-view]"), d = e.target.closest("[data-delview]");
   if (b){ const v = S.views[+b.dataset.view]; setLook(!!v.look); picking = false; moveCam(new THREE.Vector3(...v.p), new THREE.Vector3(...v.t)); }
@@ -155,7 +139,7 @@ function recordView(){
   rec.start(500); return rec;
 }
 function kickoff(record){
-  if (!LAST || fly || touring) return; closeMore(); if (camera !== persp) setOrtho(false);
+  if (!LAST || fly || touring) return; closeMore();
   picking = false; view.classList.remove("picking"); setLook(false); controls.autoRotate = false; anim = null;
   const rec = record && canRecord ? recordView() : null;
   if (reduce) return fadeTour(rec);
