@@ -499,6 +499,13 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(await page.locator("#help").evaluate(d => d.open), "? opens help");
   await page.keyboard.press("Escape");
 
+  // changing a stand's architecture changes its outside only: its tiers, roof and capacity stay as they were
+  await page.click('#panes [data-pane="start"]'); await page.click('[data-p="ot"]'); await page.waitForTimeout(400);
+  await page.click('#panes [data-pane="stands"]'); await page.click('#tabs [data-tab="N"]'); await page.waitForTimeout(300);
+  { const snap = () => page.evaluate(() => { const st = window.__gw.state().stands.N; return {style: st.style, keep: JSON.stringify([st.tiers, st.roof]), cap: window.__gw.last().total}; });
+    const a = await snap(), other = await page.$eval("#sty", (el, cur) => [...el.options].map(o => o.value).find(v => v !== cur), a.style);
+    await page.selectOption("#sty", other); await page.waitForFunction(() => !window.__gw.busy()); await page.waitForTimeout(400); const b2 = await snap();
+    check(b2.style === other && b2.keep === a.keep && b2.cap === a.cap && errors.length === 0, `changing a stand's architecture keeps its tiers, roof and capacity (${a.style} to ${b2.style}, ${b2.cap})`); }
   await page.screenshot({ path: new URL(`../tests/screenshot-${name}.png`, import.meta.url).pathname });
   check(errors.length === 0, "no errors" + (errors.length ? `:\n        ${errors.join("\n        ")}` : ""));
   await ctx.close();

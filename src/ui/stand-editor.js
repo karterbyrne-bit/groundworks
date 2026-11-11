@@ -200,7 +200,7 @@ function renderEditor(){
         <button class="btn small" data-act="reset">Reset</button>
       </div>
       <div class="row"><label for="sty">Architecture</label><select id="sty" data-act-change="style">${Object.entries(eras).map(([era, list]) => `<optgroup label="${era}">${list.map(([v,o]) => `<option value="${v}"${v===cfg.style?" selected":""}>${o.label}</option>`).join("")}</optgroup>`).join("")}</select></div>
-      <p class="hint">${sty.note} Picking a style brings in its own tiers, overhangs, roof and façade; everything stays editable.</p>
+      <p class="hint">${sty.note} Picking a style changes the stand's outside: its walls, structure and look. Its tiers and roof stay as you made them (an empty stand gets the style's own).</p>
       <details class="sub" data-standlib data-more="lib"${openMore.has("lib") ? " open" : ""}><summary>Famous stands and my stands</summary><div class="inner">
         <div class="row"><label for="standPre">Start this stand from</label><select id="standPre" aria-label="Start this stand from"><option value="">Pick a stand…</option>
           <optgroup label="Famous kinds of stand">${Object.entries(STAND_PRESETS).map(([k, v]) => `<option value="p:${k}">${esc(v.label)}</option>`).join("")}</optgroup>
@@ -276,9 +276,13 @@ function refreshOutputs(){
       note.innerHTML = (tr.rows*S.types[tr.type].row).toFixed(1) + " m deep" + (c && c.fit < c.want ? ` · <span class="cut">Only ${c.fit} of ${c.want} ${word} fit ${LAST.poly ? "inside the plot" : "clear of the surroundings"}</span>` : ""); }
   });
 }
-function applyStyle(cfg, key, ring){
-  const st = STYLES[key], tiers = st.tiers();
+/* keep: the stand already has tiers, and only its architecture is being changed in the editor. Its tiers and roof stay
+   exactly as they are; the style changes the outside (walls, structure and look), and its lettering, clock and main
+   entrance carry over. An empty stand, or Surprise me, takes the style's own tiers and roof as well. */
+function applyStyle(cfg, key, ring, keep){
+  const st = STYLES[key], tiers = st.tiers(), was = cfg.facade || {};
   cfg.style = key; cfg.facade = Object.assign({}, st.facade);
+  if (keep && cfg.tiers.length){ for (const k of ["sign", "signAt", "signColour", "clock", "mainEntrance"]) if (was[k] != null) cfg.facade[k] = was[k]; return; }
   cfg.tiers = ring ? tiers.slice(0, 1) : isHybrid() ? (tiers.length > 1 ? tiers.slice(1) : tiers) : tiers;
   const roof = st.roof(); if (isBowl() && roof.shape === "gable") roof.shape = "slope"; cfg.roof = roof;
 }
@@ -336,7 +340,7 @@ $("editor").addEventListener("change", e => {
   if (el.dataset.cmode){ const c = CORNERS.find(x => x.key === el.dataset.cmode); if (el.value !== "part") setCorner(c, el.value); renderEditor(); changed(); return; }
   if (el.dataset.cmeet){ renderEditor(); return; }
   if (el.dataset.corner){ const cc = S.corners[el.dataset.corner], f = el.dataset.cf; cc[f] = el.type === "checkbox" ? el.checked : el.value; renderEditor(); changed(); return; }
-  if (el.dataset.actChange === "style"){ applyStyle(cfgForTab(), el.value, isHybrid() && tab === "B"); renderEditor(); changed(); return; }
+  if (el.dataset.actChange === "style"){ applyStyle(cfgForTab(), el.value, isHybrid() && tab === "B", true); renderEditor(); changed(); return; }
   if (el.tagName === "SELECT" && el.dataset.p && /(^|\.)tiers\.\d+\.support$/.test(el.dataset.p)){ // a tier held up by pillars, towers or nothing (not a roof's structure)
     const tr = el.dataset.p.split(".").slice(0, -1).reduce((o, k) => o[k], el.dataset.p.startsWith("cc.") ? {cc:{tiers:S.cornerCustom}} : targetObj());
     tr.pillars = el.value === "pillars"; if (el.value === "towers") tr.hold = "towers"; else delete tr.hold; renderEditor(); changed(); return; }
