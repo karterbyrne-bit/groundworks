@@ -17,7 +17,7 @@ function writeSaves(list){ try { localStorage.setItem(SAVES_KEY, JSON.stringify(
 /* Saved designs can be kept in groups (a league, a city, anything): each group is listed under its own heading, with how
    many stadiums it holds and their capacity added up; designs in no group come first. */
 function renderSaves(){
-  const list = readSaves(), el = $("saveList"), groups = [...new Set(list.map(d => d.group || ""))].sort((a, b) => !a - !b || a.localeCompare(b));
+  const list = readSaves(), el = $("saveList"), groups = [...new Set(list.map(d => d.group || ""))].sort((a, b) => !b - !a || a.localeCompare(b)); // (no group first)
   const row = (d, i) => `<li><span><b>${esc(d.name)}</b><small>${fmt(d.cap || 0)} capacity · ${new Date(d.at).toLocaleDateString("en-GB")}</small></span>
     <span class="acts"><button data-load="${i}">Open</button><button data-dup="${i}">Duplicate</button><button data-grp="${i}">Group</button><button class="ghost" data-del="${i}">Delete</button></span></li>`;
   el.innerHTML = list.length ? groups.map(g => { const mine = list.map((d, i) => [d, i]).filter(([d]) => (d.group || "") === g);

@@ -127,13 +127,13 @@ function rectHit(o, v, A, B){
 /* Stands on a lower bowl: how many of the bowl's seats lie on each side (N, S, E, W), so each side's stand can count the
    bowl in front of it in the results. The corners split along the line from the bowl's front corner to its back corner,
    which is where the stands above meet, whatever the shape of the play (a long, thin pitch included). */
-function bowlSeatsBySide(recs, F, set){
+function bowlSeatsBySide(recs, F, set, kinds){ // kinds, if given, is filled with each side's places by kind of seating
   const out = {N:0, S:0, E:0, W:0}, mine = recs.filter(r => r.stand === "B" && r.seats > 0);
   const fx = F.W/2 + set, fz = F.H/2 + set; let bx = fx, bz = fz;
   for (const r of mine){ bx = Math.max(bx, Math.abs(r.x)); bz = Math.max(bz, Math.abs(r.z)); }
   const dx = bx - fx, dz = bz - fz;
   for (const r of mine){ const end = dx*(Math.abs(r.z) - fz) - dz*(Math.abs(r.x) - fx) < 0;
-    out[end ? (r.x > 0 ? "E" : "W") : (r.z < 0 ? "N" : "S")] += r.seats; }
+    const sd = end ? (r.x > 0 ? "E" : "W") : (r.z < 0 ? "N" : "S"); out[sd] += r.seats; if (kinds){ const q = kinds[sd] || (kinds[sd] = {}); q[r.type] = (q[r.type] || 0) + r.seats; } }
   return out;
 }
 /* The big truss along the top of a roof can arch up over the stand, like Stadium Australia's: it runs along the roof's
