@@ -4,8 +4,8 @@ const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const tipEl = document.getElementById("tip");
 let tipOverride = null;
 function setTip(){
-  tipEl.innerHTML = tipOverride || (picking ? "<b>Click any seat</b> to see the view from it"
-    : look ? "Drag to look around · Aerial to fly back out"
+  tipEl.innerHTML = tipOverride || (picking ? "<b>Tap any seat</b> to see the view from it"
+    : look ? "Drag to look around · tap another seat to move there · double-tap to fly back out"
     : "Tap a stand to edit it · drag the blue handles to reshape it · drag to orbit, scroll or pinch to zoom" + (S.plot.on ? " · drag the red posts to reshape the plot" : ""));
   tipEl.classList.toggle("msg", !!(tipOverride || picking || look));
 }
@@ -19,7 +19,7 @@ function setLook(on){
 }
 function applyLimits(){
   if (look){ controls.minDistance = 0.5; controls.maxDistance = 0.5; }
-  else { const R0 = Math.max(LAST.ext[0], LAST.ext[1]); controls.minDistance = 1; controls.maxDistance = R0*7; }
+  else { const R0 = Math.max(LAST.ext[0], LAST.ext[1]); controls.minDistance = 1; controls.maxDistance = R0*4.5; } // (far enough for the whole ground and its surroundings, not so far it's lost)
 }
 function regionFor(key){ return LAST_REGIONS.find(r => r.key === key && r.profs.some(p => p.length)) || LAST_REGIONS.find(r => r.profs.some(p => p.length)); }
 function camTarget(mode){
@@ -99,7 +99,16 @@ document.getElementById("bookmarks").addEventListener("click", e => {
 
 /* pointer: seat picking, tapping a stand, dragging handles and the plot */
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), groundPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0), hitPt = new THREE.Vector3();
-let downAt = null, drag = null;
+let downAt = null, drag = null, lastTap = null;
+/* The seat under a tap, or the nearest one to it: a finger is a blunt pointer and seats are small from the air, so a tap
+   that just misses still lands in the stand (it looks a little further out each time, up to about a fingertip away). */
+function seatNear(e){
+  const seats = group.children.filter(m => m.userData.seat), r = renderer.domElement.getBoundingClientRect();
+  for (const d of [0, 10, 20, 32]) for (let a = 0; a < (d ? 8 : 1); a++){
+    ndc.set(((e.clientX + Math.cos(a*Math.PI/4)*d - r.left)/r.width)*2 - 1, -((e.clientY + Math.sin(a*Math.PI/4)*d - r.top)/r.height)*2 + 1); ray.setFromCamera(ndc, camera);
+    const h = ray.intersectObjects(seats, false); if (h.length) return h[0]; }
+  return null;
+}
 function setNdc(e){ const r = renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX - r.left)/r.width)*2 - 1, -((e.clientY - r.top)/r.height)*2 + 1); ray.setFromCamera(ndc, camera); }
 function groundAt(e){ setNdc(e); return ray.ray.intersectPlane(groundPlane, hitPt) ? hitPt.clone() : null; }
 function plotHandleNear(p){
@@ -197,16 +206,16 @@ renderer.domElement.addEventListener("pointermove", e => {
   view.style.cursor = handleHit(e) || plotHandleNear(groundAt(e)) || siteHandleNear(groundAt(e)) ? "grab" : "";
 });
 renderer.domElement.addEventListener("pointerup", e => {
-  if (drag){ const wasH = drag.type === "h"; drag = null; controls.enabled = true; if (wasH){ renderEditor(); } return; }
+  if (drag){ const wasH = drag.type === "h"; drag = null; controls.enabled = true; if (wasH){ renderEditor(); flash("<b>Stand reshaped.</b> Not what you meant?", UNDO); } return; }
   if (!downAt || Math.hypot(e.clientX-downAt[0], e.clientY-downAt[1]) > 6) return;
-  setNdc(e);
-  if (picking){
-    const hits = ray.intersectObjects(group.children.filter(m => m.userData.seat), false);
-    if (!hits.length){ tipEl.innerHTML = "<b>That's not a seat.</b> Click on the coloured seating."; return; }
-    const he = homeEndOf().at; seatView(hits[0].point, ["terrace","rail"].includes(hits[0].object.userData.kind) || (!!he && (standAt(hits[0].point) === he || inCorner(he, hits[0].point.x, hits[0].point.z))));
+  const now = performance.now(), twice = lastTap && now - lastTap.t < 380 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30; lastTap = twice ? null : {t: now, x: e.clientX, y: e.clientY};
+  if (twice && !picking){ goCam("aerial"); return; } // a double tap is the way back out, from anywhere
+  if (picking || look){ // choosing a seat (or, already in one, tapping another to move there)
+    const hit = seatNear(e);
+    if (!hit){ if (picking) tipEl.innerHTML = "<b>That's not a seat.</b> Tap on the coloured seating."; return; }
+    const he = homeEndOf().at; seatView(hit.point, ["terrace","rail"].includes(hit.object.userData.kind) || (!!he && (standAt(hit.point) === he || inCorner(he, hit.point.x, hit.point.z))));
     return;
   }
-  if (look) return;
   const hits = ray.intersectObjects(group.children.filter(m => m.userData.stadium), false); if (!hits.length) return;
   const key = standAt(hits[0].point); if (key) selectTab(key, true);
 });
