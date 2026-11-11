@@ -286,7 +286,8 @@ function selectTab(key, fromView){
 function constrain(){
   const D = LAST; if (!D || look || anim || fly) return;
   const fx = D.F.W/2 + D.set, fz = D.F.H/2 + D.set, tg = controls.target, c = camera.position;
-  tg.x = clamp(tg.x, -fx*1.5, fx*1.5); tg.z = clamp(tg.z, -fz*1.5, fz*1.5); tg.y = clamp(tg.y, 0, Math.max(30, D.maxH));
+  const ex = Math.max(fx*1.5, D.ext[0] + 5), ez = Math.max(fz*1.5, D.ext[1] + 5); // (the view can centre anywhere in the ground, out to the back of its stands)
+  tg.x = clamp(tg.x, -ex, ex); tg.z = clamp(tg.z, -ez, ez); tg.y = clamp(tg.y, 0, Math.max(30, D.maxH));
   let minY = 1.2 + focusY;
   for (const r of LAST_REGIONS){
     let bi = -1, bl = Infinity, bd = 0;
