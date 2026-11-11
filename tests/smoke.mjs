@@ -515,7 +515,8 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.evaluate(() => document.querySelector('.shows [data-fly="play"]').click());
   await page.waitForFunction(() => !document.body.classList.contains("flying") && document.getElementById("flyTitle").classList.contains("on"), null, {timeout: 60000}).catch(() => {});
   const fin = await page.evaluate(() => ({title: document.getElementById("flyTitle").innerText, cap: window.__gw.last().total.toLocaleString("en-GB"), hud: getComputedStyle(document.getElementById("hud")).visibility}));
-  check(flying.on && flying.hud === "hidden" && stopped && fin.title.includes(fin.cap) && fin.hud === "visible" && errors.length === 0, `the kick-off flyover hides the counter while it plays, stops on a key, and ends on a title with the capacity (${fin.title.replace(/\s+/g, " ")})`);
+  await page.waitForTimeout(2500); const waving = await page.evaluate(() => { const c = window.__gw.crowd(); return c ? c.standing : -1; }); // the Mexican wave that follows it
+  check(flying.on && flying.hud === "hidden" && stopped && fin.title.includes(fin.cap) && fin.hud === "visible" && waving > 0 && errors.length === 0, `the kick-off flyover hides the counter while it plays, stops on a key, and ends on a title with the capacity and a Mexican wave (${fin.title.replace(/\s+/g, " ")}, ${waving} fans up)`);
   await page.waitForTimeout(600);
   await page.screenshot({ path: new URL(`../tests/screenshot-${name}.png`, import.meta.url).pathname });
   check(errors.length === 0, "no errors" + (errors.length ? `:\n        ${errors.join("\n        ")}` : ""));
