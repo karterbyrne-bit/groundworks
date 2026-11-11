@@ -91,7 +91,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.click("#nightBtn"); await page.waitForTimeout(300);
   // feature use is counted by name, once each, and nothing is sent anywhere from a test or a preview
   const used = await page.evaluate(() => ({names: window.__gw.counted(), script: !!document.querySelector('script[src*="gc.zgo.at"]')}));
-  check(used.names.includes("use/nightBtn") && used.names.filter(n => n === "use/nightBtn").length === 1 && used.names.every(n => /^[a-zA-Z0-9]+(\/[A-Za-z0-9.-]+)*$/.test(n)) && !used.script, `feature use is counted by name only (${used.names.length} so far), and not sent from a test`);
+  check(used.names.includes("use/nightBtn") && used.names.filter(n => n === "use/nightBtn").length === 1 && used.names.every(n => /^[a-zA-Z0-9]+(\/[A-Za-z0-9.-]+)*$/.test(n)) && !used.script && /off at this address/.test(await page.$eval("#gcStatus", e => e.textContent)), `feature use is counted by name only (${used.names.length} so far), and not sent from a test`);
   // See inside clears the roofs on the first tap, and puts them back on the second
   { const settle = async () => { await page.waitForFunction(() => !window.__gw.busy()); await page.waitForTimeout(300); return page.evaluate(() => window.__gw.clearRoofs()); };
     const r0 = await settle(); await page.click("#seeBtn"); const r1 = await settle(); await page.click("#seeBtn"); const r2 = await settle();
