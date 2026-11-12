@@ -91,7 +91,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.click("#nightBtn"); await page.waitForTimeout(300);
   // feature use is counted by name, once each, and nothing is sent anywhere from a test or a preview
   const used = await page.evaluate(() => ({names: window.__gw.counted(), script: !!document.querySelector('script[src*="gc.zgo.at"]')}));
-  check(used.names.includes("use/nightBtn") && used.names.filter(n => n === "use/nightBtn").length === 1 && used.names.every(n => /^[a-zA-Z0-9]+(\/[A-Za-z0-9.-]+)*$/.test(n)) && !used.script, `feature use is counted by name only (${used.names.length} so far), and not sent from a test`);
+  check(used.names.includes("use/nightBtn") && used.names.filter(n => n === "use/nightBtn").length === 1 && used.names.every(n => /^[a-zA-Z0-9]+(\/[A-Za-z0-9.-]+)*$/.test(n)) && !used.script && /off at this address/.test(await page.$eval("#gcStatus", e => e.textContent)), `feature use is counted by name only (${used.names.length} so far), and not sent from a test`);
   // See inside clears the roofs on the first tap, and puts them back on the second
   { const settle = async () => { await page.waitForFunction(() => !window.__gw.busy()); await page.waitForTimeout(300); return page.evaluate(() => window.__gw.clearRoofs()); };
     const r0 = await settle(); await page.click("#seeBtn"); const r1 = await settle(); await page.click("#seeBtn"); const r2 = await settle();
@@ -507,6 +507,31 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   // (the east end's count takes in half of each corner beside it, and a corner between two kinds of seating is built as seats, so it isn't all terracing)
   { const k = await page.evaluate(() => { const D = window.__gw.last(), q = D.bowlKinds, sum = o => Object.values(o).reduce((a, b) => a + b, 0); return {east: (q.E.terrace || 0)/sum(q.E), main: (q.N.terrace || 0)/sum(q.N), adds: Math.abs(sum(q.N) - D.bowlSides.N) < 1}; });
     check(k.east > 0.5 && k.main < 0.1 && k.adds && errors.length === 0, `with terracing on the east side of the bowl only, it's counted under the east end and not the main stand (${Math.round(k.east*100)}% and ${Math.round(k.main*100)}%)`); }
+  // changing a stand's architecture changes its outside only: its tiers, roof and capacity stay as they were
+  await page.click('#panes [data-pane="start"]'); await page.click('[data-p="ot"]'); await page.waitForTimeout(400);
+  await page.click('#panes [data-pane="stands"]'); await page.click('#tabs [data-tab="N"]'); await page.waitForTimeout(300);
+  { const snap = () => page.evaluate(() => { const st = window.__gw.state().stands.N; return {style: st.style, keep: JSON.stringify([st.tiers, st.roof]), cap: window.__gw.last().total}; });
+    const a = await snap(), other = await page.$eval("#sty", (el, cur) => [...el.options].map(o => o.value).find(v => v !== cur), a.style);
+    await page.selectOption("#sty", other); await page.waitForFunction(() => !window.__gw.busy()); await page.waitForTimeout(400); const b2 = await snap();
+    check(b2.style === other && b2.keep === a.keep && b2.cap === a.cap && errors.length === 0, `changing a stand's architecture keeps its tiers, roof and capacity (${a.style} to ${b2.style}, ${b2.cap})`); }
+  // saved designs can be kept in groups, listed under their own headings, and moved between them
+  await page.click('#panes [data-pane="start"]');
+  for (const [nm, grp] of [["First", "League A"], ["Second", "League A"], ["Loose", ""]]){ await page.fill("#saveName", nm); await page.fill("#saveGroup", grp); await page.click("#saveBtn"); await page.waitForTimeout(200); }
+  const heads = () => page.$$eval("#saveList li.grp", ls => ls.map(l => l.innerText.replace(/\s+/g, " ")));
+  const h1 = await heads(), firstIs = await page.$eval("#saveList li", l => l.innerText.includes("Loose"));
+  page.once("dialog", d => d.accept("League B")); await page.locator("#saveList li", {hasText: "Loose"}).locator("[data-grp]").click(); await page.waitForTimeout(300);
+  const h2 = await heads();
+  check(h1.length === 1 && /League A 2 stadiums/.test(h1[0]) && firstIs && h2.length === 2 && /League B 1 stadium /.test(h2[1]) && errors.length === 0, `saved designs can be grouped, and a design moved to another group (${h2.join("; ")})`);
+  // the camera: choose a seat, tap another seat to move there, and double-tap to fly back out
+  await page.click('#panes [data-pane="start"]'); await page.click('[data-p="ot"]'); await page.waitForTimeout(400);
+  { const cam = () => page.evaluate(() => window.__gw.cam()), cv = page.locator("#view canvas").first();
+    await page.click('.cams [data-cam="seat"]'); await page.waitForTimeout(1200);
+    let bx = await cv.boundingBox(), sat = null; for (const [fx, fy] of [[.5,.42],[.5,.6],[.3,.5],[.7,.5]]){ await page.mouse.click(bx.x + bx.width*fx, bx.y + bx.height*fy); await page.waitForTimeout(1400); sat = await cam(); if (sat.seat) break; }
+    await page.waitForTimeout(400); bx = await cv.boundingBox(); let hop = sat;
+    for (const [fx, fy] of [[.3,.5],[.7,.5],[.15,.55],[.85,.55],[.5,.45]]){ await page.mouse.click(bx.x + bx.width*fx, bx.y + bx.height*fy); await page.waitForTimeout(1400); hop = await cam(); if (hop.p.join() !== sat.p.join()) break; }
+    await page.evaluate(([x, y]) => { const c = document.querySelector("#view canvas"); for (let i=0;i<2;i++) for (const t of ["pointerdown", "pointerup"]) c.dispatchEvent(new PointerEvent(t, {clientX:x, clientY:y, button:0, buttons: t === "pointerdown" ? 1 : 0, bubbles:true, pointerId:1, isPrimary:true})); }, [bx.x + bx.width*.5, bx.y + bx.height*.2]);
+    await page.waitForTimeout(1500); const out = await cam();
+    check(sat.seat && hop.seat && hop.p.join() !== sat.p.join() && !out.seat && out.mode === "aerial" && errors.length === 0, "from a seat, a tap on another seat moves there, and a double tap flies back out to the Aerial view"); }
   // the kick-off flyover: the counter and buttons hide while it plays, a key stops it, and it ends on a title with the capacity
   await page.evaluate(() => document.querySelector('.shows [data-fly="play"]').click()); await page.waitForTimeout(1500);
   const flying = await page.evaluate(() => ({on: document.body.classList.contains("flying"), hud: getComputedStyle(document.getElementById("hud")).visibility}));

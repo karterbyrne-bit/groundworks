@@ -258,6 +258,7 @@ const persp = new THREE.PerspectiveCamera(42, 1, 0.2, 8000), ortho = new THREE.O
 let camera = persp;
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.48; controls.autoRotateSpeed = 0.6;
+controls.zoomToCursor = true; // zooming (wheel or pinch) heads for whatever is under the pointer or between the fingers, so you can close in on the back rows of a stand and not only on the middle of the pitch
 controls.addEventListener("change", redraw);
 /* Ambient occlusion: the soft darkening where surfaces meet (under roofs, in corners, where stands meet the ground) that
    makes a stadium look solid. It's too heavy to draw on every frame, so it's drawn once, after the view has settled;

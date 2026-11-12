@@ -20,8 +20,12 @@ function featureOf(el){
 function sendUses(){ if (!(window.goatcounter && window.goatcounter.count)) return; for (const name of unsent.splice(0)) try { window.goatcounter.count({path:name, title:name, event:true}); } catch(e) {} }
 function countUse(name){ if (!name || /\/$/.test(name) || USED.has(name)) return; USED.add(name); unsent.push(name); sendUses(); }
 for (const ev of ["click", "change"]) document.addEventListener(ev, e => countUse(featureOf(e.target)), true);
+/* Help says whether the counting is running on this device, so a missing count can be told apart from a blocked one. */
+const gcSay = t => { const el = document.getElementById("gcStatus"); if (el) el.textContent = "Counting on this device: " + t + "."; };
 if (location.protocol === "https:" && !/localhost|-git-|-projects\.vercel\.app$/.test(location.hostname)){
   const s = document.createElement("script"); s.async = true; s.src = "https://gc.zgo.at/count.js"; s.dataset.goatcounter = "https://groundworks.goatcounter.com/count";
-  s.onload = sendUses; document.head.appendChild(s);
-}
+  s.onload = () => { sendUses(); gcSay(window.goatcounter && window.goatcounter.count ? "on" : "loaded, but not working"); };
+  s.onerror = () => gcSay("blocked (an ad or tracker blocker, or no connection, stopped it loading)");
+  gcSay("starting"); document.head.appendChild(s);
+} else gcSay("off at this address (it only runs on the live site)");
 window.__gw.counted = () => [...USED]; // for the automated checks

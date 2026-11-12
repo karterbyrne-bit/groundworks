@@ -216,6 +216,7 @@ textarea{width:100%;box-sizing:border-box;font-family:var(--f-mono);font-size:11
 .savelist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .savelist li{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 .savelist small{display:block;color:var(--muted);font-size:11.5px}
+.savelist li.grp{border:0;padding:8px 2px 0;font-size:13.5px}
 .savelist .acts{display:flex;gap:4px;flex-wrap:wrap}
 .savelist button{font:inherit;font-size:12px;padding:4px 8px;border-radius:5px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
 .cmp{overflow-x:auto}
