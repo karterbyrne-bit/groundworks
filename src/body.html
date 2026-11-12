@@ -248,7 +248,7 @@
 
     <section class="group" id="designs" data-pane="start">
       <h2>Saved designs</h2>
-      <div class="saverow"><input type="text" id="saveName" placeholder="Name this design" aria-label="Design name"><button class="btn small" id="saveBtn">Save</button></div>
+      <div class="saverow"><input type="text" id="saveName" placeholder="Name this design" aria-label="Design name"><input type="text" id="saveGroup" list="saveGroups" placeholder="Group, if you like: a league, a city…" aria-label="Group to save it in (optional)"><datalist id="saveGroups"></datalist><button class="btn small" id="saveBtn">Save</button></div>
       <ul class="savelist" id="saveList"></ul>
       <details class="sub"><summary>Compare two designs</summary><div class="inner">
         <div class="saverow"><select id="cmpA" aria-label="First design"></select><select id="cmpB" aria-label="Second design"></select><button class="btn small" id="cmpBtn">Compare</button></div>
@@ -441,7 +441,7 @@
       <li><kbd>R</kbd> Surprise me</li>
       <li><kbd>?</kbd> This help</li></ul></div>
   </div>
-  <p class="hint">Your current design saves itself in this browser. Nothing you make is sent anywhere: Groundworks has no accounts, adverts or tracking. To move a design to another device, use Share this design.</p>
+  <p class="hint">Your current design saves itself in this browser. Nothing you make is sent anywhere: Groundworks has no accounts, adverts or cookies. It does count visits, and which controls get used, by name only (with GoatCounter), so the maker can see what people enjoy. <span id="gcStatus"></span> To move a design to another device, use Share this design.</p>
   <p class="hint">Groundworks is a creative sandbox. Its checks are loosely based on UK guidance; passing them doesn't mean a design is safe, legal or buildable.</p>
   <form method="dialog" class="sheet-acts"><button class="btn" value="tour" id="tourBtn">Show the welcome again</button><button class="btn primary" value="close">Close</button></form>
 </dialog>

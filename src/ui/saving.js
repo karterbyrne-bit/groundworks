@@ -14,22 +14,29 @@ function applyStandCfg(from){
 }
 function readSaves(){ try { return JSON.parse(localStorage.getItem(SAVES_KEY)) || []; } catch(e) { return []; } }
 function writeSaves(list){ try { localStorage.setItem(SAVES_KEY, JSON.stringify(list)); } catch(e) { flash("<b>Couldn't save:</b> this browser isn't allowing storage here."); } }
+/* Saved designs can be kept in groups (a league, a city, anything): each group is listed under its own heading, with how
+   many stadiums it holds and their capacity added up; designs in no group come first. */
 function renderSaves(){
-  const list = readSaves(), el = $("saveList");
-  el.innerHTML = list.length ? list.map((d,i) => `<li><span><b>${esc(d.name)}</b><small>${fmt(d.cap || 0)} capacity · ${new Date(d.at).toLocaleDateString("en-GB")}</small></span>
-    <span class="acts"><button data-load="${i}">Open</button><button data-dup="${i}">Duplicate</button><button class="ghost" data-del="${i}">Delete</button></span></li>`).join("")
+  const list = readSaves(), el = $("saveList"), groups = [...new Set(list.map(d => d.group || ""))].sort((a, b) => !b - !a || a.localeCompare(b)); // (no group first)
+  const row = (d, i) => `<li><span><b>${esc(d.name)}</b><small>${fmt(d.cap || 0)} capacity · ${new Date(d.at).toLocaleDateString("en-GB")}</small></span>
+    <span class="acts"><button data-load="${i}">Open</button><button data-dup="${i}">Duplicate</button><button data-grp="${i}">Group</button><button class="ghost" data-del="${i}">Delete</button></span></li>`;
+  el.innerHTML = list.length ? groups.map(g => { const mine = list.map((d, i) => [d, i]).filter(([d]) => (d.group || "") === g);
+      return (g ? `<li class="grp"><b>${esc(g)}</b><small>${mine.length} ${mine.length === 1 ? "stadium" : "stadiums"} · ${fmt(mine.reduce((a, [d]) => a + (d.cap || 0), 0))} capacity in all</small></li>` : "") + mine.map(([d, i]) => row(d, i)).join(""); }).join("")
     : '<li class="hint">No saved designs yet. Name this one and save it.</li>';
+  $("saveGroups").innerHTML = groups.filter(Boolean).map(g => `<option value="${esc(g)}">`).join("");
   const opts = list.map((d,i) => `<option value="${i}">${esc(d.name)}</option>`).join("");
   $("cmpA").innerHTML = `<option value="cur">This design</option>` + opts; $("cmpB").innerHTML = `<option value="cur">This design</option>` + opts;
   if (list.length) $("cmpB").value = "0";
 }
 $("saveBtn").addEventListener("click", () => {
   const name = ($("saveName").value || "").trim() || `Design ${readSaves().length + 1}`;
-  const list = readSaves(); list.unshift({name, at:Date.now(), cap:LAST ? LAST.total : 0, state:S}); writeSaves(list); $("saveName").value = ""; renderSaves(); flash(`<b>Saved “${esc(name)}”.</b>`);
+  const list = readSaves(), group = ($("saveGroup").value || "").trim().slice(0, 40); list.unshift({name, at:Date.now(), cap:LAST ? LAST.total : 0, state:S, group}); writeSaves(list); $("saveName").value = ""; renderSaves(); flash(`<b>Saved “${esc(name)}”${group ? ` in ${esc(group)}` : ""}.</b>`); // (the group box keeps its name, ready for the next stadium in the same group)
 });
 $("saveList").addEventListener("click", e => {
   const list = readSaves(), l = e.target.closest("[data-load]"), d = e.target.closest("[data-dup]"), x = e.target.closest("[data-del]");
   if (l){ openState(clone(list[+l.dataset.load].state)); flash(`<b>Opened “${esc(list[+l.dataset.load].name)}”.</b>`, UNDO); }
+  const g = e.target.closest("[data-grp]");
+  if (g){ const it = list[+g.dataset.grp], to = prompt(`Group for “${it.name}” (leave empty for none)`, it.group || ""); if (to != null){ it.group = to.trim().slice(0, 40); writeSaves(list); renderSaves(); } }
   if (d){ const c = clone(list[+d.dataset.dup]); c.name += " (copy)"; c.at = Date.now(); list.unshift(c); writeSaves(list); renderSaves(); }
   if (x){ const i = +x.dataset.del, [gone] = list.splice(i, 1); writeSaves(list); renderSaves();
     toast(`<b>Deleted “${esc(gone.name)}”.</b>`, {label:"Undo", run:() => { const l2 = readSaves(); l2.splice(Math.min(i, l2.length), 0, gone); writeSaves(l2); renderSaves(); }}); }
