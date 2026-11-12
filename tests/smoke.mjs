@@ -522,6 +522,16 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   page.once("dialog", d => d.accept("League B")); await page.locator("#saveList li", {hasText: "Loose"}).locator("[data-grp]").click(); await page.waitForTimeout(300);
   const h2 = await heads();
   check(h1.length === 1 && /League A 2 stadiums/.test(h1[0]) && firstIs && h2.length === 2 && /League B 1 stadium /.test(h2[1]) && errors.length === 0, `saved designs can be grouped, and a design moved to another group (${h2.join("; ")})`);
+  // the camera: choose a seat, tap another seat to move there, and double-tap to fly back out
+  await page.click('#panes [data-pane="start"]'); await page.click('[data-p="ot"]'); await page.waitForTimeout(400);
+  { const cam = () => page.evaluate(() => window.__gw.cam()), cv = page.locator("#view canvas").first();
+    await page.click('.cams [data-cam="seat"]'); await page.waitForTimeout(1200);
+    let bx = await cv.boundingBox(), sat = null; for (const [fx, fy] of [[.5,.42],[.5,.6],[.3,.5],[.7,.5]]){ await page.mouse.click(bx.x + bx.width*fx, bx.y + bx.height*fy); await page.waitForTimeout(1400); sat = await cam(); if (sat.seat) break; }
+    await page.waitForTimeout(400); bx = await cv.boundingBox(); let hop = sat;
+    for (const [fx, fy] of [[.3,.5],[.7,.5],[.15,.55],[.85,.55],[.5,.45]]){ await page.mouse.click(bx.x + bx.width*fx, bx.y + bx.height*fy); await page.waitForTimeout(1400); hop = await cam(); if (hop.p.join() !== sat.p.join()) break; }
+    await page.evaluate(([x, y]) => { const c = document.querySelector("#view canvas"); for (let i=0;i<2;i++) for (const t of ["pointerdown", "pointerup"]) c.dispatchEvent(new PointerEvent(t, {clientX:x, clientY:y, button:0, buttons: t === "pointerdown" ? 1 : 0, bubbles:true, pointerId:1, isPrimary:true})); }, [bx.x + bx.width*.5, bx.y + bx.height*.2]);
+    await page.waitForTimeout(1500); const out = await cam();
+    check(sat.seat && hop.seat && hop.p.join() !== sat.p.join() && !out.seat && out.mode === "aerial" && errors.length === 0, "from a seat, a tap on another seat moves there, and a double tap flies back out to the Aerial view"); }
   await page.screenshot({ path: new URL(`../tests/screenshot-${name}.png`, import.meta.url).pathname });
   check(errors.length === 0, "no errors" + (errors.length ? `:\n        ${errors.join("\n        ")}` : ""));
   await ctx.close();
