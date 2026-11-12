@@ -514,6 +514,14 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
     const a = await snap(), other = await page.$eval("#sty", (el, cur) => [...el.options].map(o => o.value).find(v => v !== cur), a.style);
     await page.selectOption("#sty", other); await page.waitForFunction(() => !window.__gw.busy()); await page.waitForTimeout(400); const b2 = await snap();
     check(b2.style === other && b2.keep === a.keep && b2.cap === a.cap && errors.length === 0, `changing a stand's architecture keeps its tiers, roof and capacity (${a.style} to ${b2.style}, ${b2.cap})`); }
+  // saved designs can be kept in groups, listed under their own headings, and moved between them
+  await page.click('#panes [data-pane="start"]');
+  for (const [nm, grp] of [["First", "League A"], ["Second", "League A"], ["Loose", ""]]){ await page.fill("#saveName", nm); await page.fill("#saveGroup", grp); await page.click("#saveBtn"); await page.waitForTimeout(200); }
+  const heads = () => page.$$eval("#saveList li.grp", ls => ls.map(l => l.innerText.replace(/\s+/g, " ")));
+  const h1 = await heads(), firstIs = await page.$eval("#saveList li", l => l.innerText.includes("Loose"));
+  page.once("dialog", d => d.accept("League B")); await page.locator("#saveList li", {hasText: "Loose"}).locator("[data-grp]").click(); await page.waitForTimeout(300);
+  const h2 = await heads();
+  check(h1.length === 1 && /League A 2 stadiums/.test(h1[0]) && firstIs && h2.length === 2 && /League B 1 stadium /.test(h2[1]) && errors.length === 0, `saved designs can be grouped, and a design moved to another group (${h2.join("; ")})`);
   await page.screenshot({ path: new URL(`../tests/screenshot-${name}.png`, import.meta.url).pathname });
   check(errors.length === 0, "no errors" + (errors.length ? `:\n        ${errors.join("\n        ")}` : ""));
   await ctx.close();
