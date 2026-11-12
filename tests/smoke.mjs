@@ -532,6 +532,17 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
     await page.evaluate(([x, y]) => { const c = document.querySelector("#view canvas"); for (let i=0;i<2;i++) for (const t of ["pointerdown", "pointerup"]) c.dispatchEvent(new PointerEvent(t, {clientX:x, clientY:y, button:0, buttons: t === "pointerdown" ? 1 : 0, bubbles:true, pointerId:1, isPrimary:true})); }, [bx.x + bx.width*.5, bx.y + bx.height*.2]);
     await page.waitForTimeout(1500); const out = await cam();
     check(sat.seat && hop.seat && hop.p.join() !== sat.p.join() && !out.seat && out.mode === "aerial" && errors.length === 0, "from a seat, a tap on another seat moves there, and a double tap flies back out to the Aerial view"); }
+  // the kick-off flyover: the counter and buttons hide while it plays, a key stops it, and it ends on a title with the capacity
+  await page.evaluate(() => document.querySelector('.shows [data-fly="play"]').click()); await page.waitForTimeout(1500);
+  const flying = await page.evaluate(() => ({on: document.body.classList.contains("flying"), hud: getComputedStyle(document.getElementById("hud")).visibility}));
+  await page.keyboard.press("x"); await page.waitForTimeout(400);
+  const stopped = await page.evaluate(() => !document.body.classList.contains("flying") && !document.getElementById("flyTitle").classList.contains("on"));
+  await page.evaluate(() => document.querySelector('.shows [data-fly="play"]').click());
+  await page.waitForFunction(() => !document.body.classList.contains("flying") && document.getElementById("flyTitle").classList.contains("on"), null, {timeout: 60000}).catch(() => {});
+  const fin = await page.evaluate(() => ({title: document.getElementById("flyTitle").innerText, cap: window.__gw.last().total.toLocaleString("en-GB"), hud: getComputedStyle(document.getElementById("hud")).visibility}));
+  await page.waitForTimeout(2500); const waving = await page.evaluate(() => { const c = window.__gw.crowd(); return c ? c.standing : -1; }); // the Mexican wave that follows it
+  check(flying.on && flying.hud === "hidden" && stopped && fin.title.includes(fin.cap) && fin.hud === "visible" && waving > 0 && errors.length === 0, `the kick-off flyover hides the counter while it plays, stops on a key, and ends on a title with the capacity and a Mexican wave (${fin.title.replace(/\s+/g, " ")}, ${waving} fans up)`);
+  await page.waitForTimeout(600);
   await page.screenshot({ path: new URL(`../tests/screenshot-${name}.png`, import.meta.url).pathname });
   check(errors.length === 0, "no errors" + (errors.length ? `:\n        ${errors.join("\n        ")}` : ""));
   await ctx.close();

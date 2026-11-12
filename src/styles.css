@@ -239,6 +239,11 @@ body.present .viewbar,body.present .tip{display:none}
 body.present .exitp{display:flex;gap:6px;position:absolute;top:12px;right:max(12px, env(safe-area-inset-right,0px))}
 .veil{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .9s ease}
 .veil.on{opacity:1}
+.flytitle{position:absolute;left:0;right:0;bottom:16%;text-align:center;color:#fff;pointer-events:none;opacity:0;transform:translateY(8px);transition:opacity .9s ease,transform .9s ease;text-shadow:0 2px 14px rgba(0,0,0,.75)}
+.flytitle.on{opacity:1;transform:none}
+.flytitle b{display:block;font-family:var(--f-display);font-weight:800;font-size:clamp(26px,7vw,54px);line-height:1;letter-spacing:.02em;text-transform:uppercase}
+.flytitle span{display:block;font-family:var(--f-mono);font-size:clamp(14px,3.4vw,22px);margin-top:6px}
+body.flying .hud,body.flying .tip,body.flying .viewbar,body.flying .bookmarks{visibility:hidden}
 .exitp button{font:inherit;font-size:12px;padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
 @media (max-width:860px){ body.present .app{grid-template-rows:100svh} body.present .stage{grid-template-rows:100svh} }
 @media (max-width:860px){ body.seatfull .app{grid-template-rows:100svh 0} body.seatfull .panel,body.seatfull .shows{display:none} body.seatfull .toasts{top:auto} }

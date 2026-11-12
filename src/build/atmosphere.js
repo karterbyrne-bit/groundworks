@@ -191,7 +191,7 @@ function waveTick(t){
   [W.bodies, W.heads].forEach((m, which) => { const arr = m.instanceMatrix.array, base = W.base[which];
     for (let i=a;i<b;i++){ let d = front - P[i]; d -= Math.round(d/TAU)*TAU; const lift = d === d ? Math.max(0, 1 - Math.abs(d)/width) : 0;
       arr[i*16 + 13] = base[i*16 + 13] + 0.5*Math.sin(lift*Math.PI/2)*(which ? 1.15 : 1); }
-    m.instanceMatrix.updateRange.offset = a*16; m.instanceMatrix.updateRange.count = Math.max(0, b - a)*16; m.instanceMatrix.needsUpdate = true; });
+    m.instanceMatrix.clearUpdateRanges(); m.instanceMatrix.addUpdateRange(a*16, Math.max(0, b - a)*16); m.instanceMatrix.needsUpdate = true; }); // (only the fans in the band are sent to the graphics card)
   return k < 1;
 }
 /* Scenery round the ground. Realistic: a sky that fades to a hazy horizon, grass fields that melt into it, and a
