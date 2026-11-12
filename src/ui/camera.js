@@ -19,7 +19,7 @@ function setLook(on){
 }
 function applyLimits(){
   if (look){ controls.minDistance = 0.5; controls.maxDistance = 0.5; }
-  else { const R0 = Math.max(LAST.ext[0], LAST.ext[1]); controls.minDistance = 1; controls.maxDistance = R0*4.5; } // (far enough for the whole ground and its surroundings, not so far it's lost)
+  else { const R0 = Math.max(LAST.ext[0], LAST.ext[1]); controls.minDistance = 7; controls.maxDistance = R0*4.5; } // (a zoom stops a few rows short of what it's aimed at) // (far enough for the whole ground and its surroundings, not so far it's lost)
 }
 function regionFor(key){ return LAST_REGIONS.find(r => r.key === key && r.profs.some(p => p.length)) || LAST_REGIONS.find(r => r.profs.some(p => p.length)); }
 function camTarget(mode){
@@ -100,6 +100,20 @@ document.getElementById("bookmarks").addEventListener("click", e => {
 /* pointer: seat picking, tapping a stand, dragging handles and the plot */
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), groundPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0), hitPt = new THREE.Vector3();
 let downAt = null, drag = null, lastTap = null;
+/* Before a zoom starts, the view's pivot is put at the depth of whatever is under the pointer (or between the fingers):
+   the first thing in view there, seats or the roof over them. Zooming closes in on the pivot, so without this it stopped
+   as far short of a stand's rows as the pivot was from them; with it, a zoom carries on right up to what it's aimed at
+   and stops a few rows short, never passing through it. The pivot only moves along the line of sight, so the picture
+   doesn't jump. */
+let aimedAt = 0;
+function aimZoom(x, y){
+  const now = performance.now(); if (look || anim || fly || !LAST || now - aimedAt < 400) return; aimedAt = now;
+  const r = renderer.domElement.getBoundingClientRect(); ndc.set(((x - r.left)/r.width)*2 - 1, -((y - r.top)/r.height)*2 + 1); ray.setFromCamera(ndc, camera);
+  const h = ray.intersectObjects(group.children.filter(m => m.userData.stadium || m.userData.seat), false)[0]; if (!h) return;
+  controls.target.copy(camera.position).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(Math.max(controls.minDistance, h.distance)));
+}
+view.addEventListener("wheel", e => aimZoom(e.clientX, e.clientY), {capture: true, passive: true});
+view.addEventListener("touchstart", e => { if (e.touches.length === 2) aimZoom((e.touches[0].clientX + e.touches[1].clientX)/2, (e.touches[0].clientY + e.touches[1].clientY)/2); }, {capture: true, passive: true});
 /* The seat under a tap, or the nearest one to it: a finger is a blunt pointer and seats are small from the air, so a tap
    that just misses still lands in the stand (it looks a little further out each time, up to about a fingertip away). */
 function seatNear(e){
