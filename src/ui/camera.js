@@ -11,7 +11,7 @@ function setTip(){
 }
 function setLook(on){
   look = on; if (!on && crowdClear) clearCrowdNear(null); if (!on) clearObsOutline();
-  controls.enableZoom = !on; controls.enablePan = !on;
+  controls.enableZoom = false; controls.enablePan = !on; // (zooming is done by zoomBy(), below)
   controls.rotateSpeed = on ? -0.35 : 1;
   controls.maxPolarAngle = on ? Math.PI*0.95 : Math.PI*0.49; // in a seat you can crane right up to the roof
   /* On a phone, a seat (or pitchside) takes the whole screen; Aerial or any other view brings the controls back. */
@@ -19,7 +19,7 @@ function setLook(on){
 }
 function applyLimits(){
   if (look){ controls.minDistance = 0.5; controls.maxDistance = 0.5; }
-  else { const R0 = Math.max(LAST.ext[0], LAST.ext[1]); controls.minDistance = 7; controls.maxDistance = R0*4.5; } // (a zoom stops a few rows short of what it's aimed at) // (far enough for the whole ground and its surroundings, not so far it's lost)
+  else { const R0 = Math.max(LAST.ext[0], LAST.ext[1]); controls.minDistance = 1; controls.maxDistance = R0*7; }
 }
 function regionFor(key){ return LAST_REGIONS.find(r => r.key === key && r.profs.some(p => p.length)) || LAST_REGIONS.find(r => r.profs.some(p => p.length)); }
 function camTarget(mode){
@@ -100,20 +100,42 @@ document.getElementById("bookmarks").addEventListener("click", e => {
 /* pointer: seat picking, tapping a stand, dragging handles and the plot */
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), groundPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0), hitPt = new THREE.Vector3();
 let downAt = null, drag = null, lastTap = null;
-/* Before a zoom starts, the view's pivot is put at the depth of whatever is under the pointer (or between the fingers):
-   the first thing in view there, seats or the roof over them. Zooming closes in on the pivot, so without this it stopped
-   as far short of a stand's rows as the pivot was from them; with it, a zoom carries on right up to what it's aimed at
-   and stops a few rows short, never passing through it. The pivot only moves along the line of sight, so the picture
-   doesn't jump. */
-let aimedAt = 0;
-function aimZoom(x, y){
-  const now = performance.now(); if (look || anim || fly || !LAST || now - aimedAt < 400) return; aimedAt = now;
-  const r = renderer.domElement.getBoundingClientRect(); ndc.set(((x - r.left)/r.width)*2 - 1, -((y - r.top)/r.height)*2 + 1); ray.setFromCamera(ndc, camera);
-  const h = ray.intersectObjects(group.children.filter(m => m.userData.stadium || m.userData.seat), false)[0]; if (!h) return;
-  controls.target.copy(camera.position).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(Math.max(controls.minDistance, h.distance)));
+/* Zooming (the wheel, a trackpad or a two-finger pinch) is done here, not by the 3D engine's own controls. It closes in on
+   the spot you are pointing at, between your fingers or under the pointer, and keeps that spot where your fingers are as
+   it goes, so a pinch on a stand's back rows carries on right up to those rows and can't stop short in mid-air. The spot is
+   found when the pinch starts: the first thing in view there, or the seats behind it when that is a roof. The camera
+   stops a few metres short of it and doesn't turn, and the view then turns round the place you have zoomed in on. */
+let zoomHit = null, wheelAt = 0, wheelXY = [0, 0], multiAt = 0, pinch = null;
+const pts = new Map();
+function zoomSpot(x, y){
+  const r = renderer.domElement.getBoundingClientRect(), all = group.children.filter(m => m.userData.stadium || m.userData.seat);
+  const cast = (dx, dy, list) => { ndc.set(((x + dx - r.left)/r.width)*2 - 1, -((y + dy - r.top)/r.height)*2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObjects(list, false)[0]; };
+  let best = null; for (const [dx, dy] of [[0, 0], [14, 0], [-14, 0], [0, 14], [0, -14]]){ const h = cast(dx, dy, all); if (h && (!best || h.distance < best.distance)) best = h; } // (the nearest of five, so a gap at the edge of a stand doesn't send it far behind)
+  if (best){ const m = [].concat(best.object.material)[0], key = Object.keys(M).find(k => M[k] === m) || "";
+    if (/^roof/.test(key)){ const seat = cast(0, 0, all.filter(q => q.userData.seat)); if (seat && seat.distance - best.distance < 80) best = seat; } } // a roof isn't what's being aimed at when seats lie under it
+  if (best) return best.point.clone();
+  ndc.set(((x - r.left)/r.width)*2 - 1, -((y - r.top)/r.height)*2 + 1); ray.setFromCamera(ndc, camera);
+  return ray.ray.intersectPlane(groundPlane, hitPt) ? hitPt.clone() : null;
 }
-view.addEventListener("wheel", e => aimZoom(e.clientX, e.clientY), {capture: true, passive: true});
-view.addEventListener("touchstart", e => { if (e.touches.length === 2) aimZoom((e.touches[0].clientX + e.touches[1].clientX)/2, (e.touches[0].clientY + e.touches[1].clientY)/2); }, {capture: true, passive: true});
+function zoomBy(k){ // k above 1 closes in on the spot, below 1 backs away from it
+  if (!zoomHit || !LAST || look || fly || anim) return;
+  const c = camera.position, d = zoomHit.clone().sub(c), L = d.length(); if (L < 1e-3) return;
+  const fwd = camera.getWorldDirection(new THREE.Vector3()), L2 = Math.max(L/k, Math.min(L, 5)), to = zoomHit.clone().addScaledVector(d, -L2/L);
+  if (k < 1 && to.length() > Math.max(LAST.ext[0], LAST.ext[1])*4.5 && to.length() > c.length()) return; // as far out as the view goes
+  c.copy(to); controls.target.copy(c).addScaledVector(fwd, Math.max(3, zoomHit.clone().sub(c).dot(fwd)));
+  invalidate();
+}
+view.addEventListener("wheel", e => {
+  if (look || fly || anim || !LAST) return; e.preventDefault();
+  const now = performance.now(); if (!zoomHit || now - wheelAt > 250 || Math.hypot(e.clientX - wheelXY[0], e.clientY - wheelXY[1]) > 8) zoomHit = zoomSpot(e.clientX, e.clientY);
+  wheelAt = now; wheelXY = [e.clientX, e.clientY]; zoomBy(Math.exp(-e.deltaY*(e.deltaMode === 1 ? 0.04 : 0.0016)));
+}, {capture: true, passive: false});
+const pinchGap = () => { const [a, b] = [...pts.values()]; return Math.hypot(a[0] - b[0], a[1] - b[1]); };
+renderer.domElement.addEventListener("pointerdown", e => { if (e.pointerType === "mouse") return; if (e.isPrimary) pts.clear(); pts.set(e.pointerId, [e.clientX, e.clientY]);
+  if (pts.size === 2){ multiAt = performance.now(); pinch = {gap: pinchGap() || 1}; const [a, b] = [...pts.values()]; zoomHit = look || fly || anim || !LAST ? null : zoomSpot((a[0] + b[0])/2, (a[1] + b[1])/2); } }, true);
+renderer.domElement.addEventListener("pointermove", e => { if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, [e.clientX, e.clientY]);
+  if (pinch && pts.size === 2 && !drag){ const g = pinchGap(); if (g > 4 && pinch.gap > 4) zoomBy(g/pinch.gap); pinch.gap = g; } }, true);
+for (const ev of ["pointerup", "pointercancel"]) renderer.domElement.addEventListener(ev, e => { if (pts.delete(e.pointerId) && pts.size < 2){ if (pinch) multiAt = performance.now(); pinch = null; } }, true);
 /* The seat under a tap, or the nearest one to it: a finger is a blunt pointer and seats are small from the air, so a tap
    that just misses still lands in the stand (it looks a little further out each time, up to about a fingertip away). */
 function seatNear(e){
@@ -250,7 +272,7 @@ renderer.domElement.addEventListener("pointermove", e => {
 });
 renderer.domElement.addEventListener("pointerup", e => {
   if (drag){ const wasH = drag.type === "h"; drag = null; controls.enabled = true; if (wasH){ renderEditor(); flash("<b>Stand reshaped.</b> Not what you meant?", UNDO); } return; }
-  if (!downAt || Math.hypot(e.clientX-downAt[0], e.clientY-downAt[1]) > 6) return;
+  if (!downAt || Math.hypot(e.clientX-downAt[0], e.clientY-downAt[1]) > 6 || performance.now() - multiAt < 500) return; // (a finger lifting at the end of a pinch isn't a tap)
   const now = performance.now(), twice = lastTap && now - lastTap.t < 380 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30; lastTap = twice ? null : {t: now, x: e.clientX, y: e.clientY};
   if (twice && !picking){ goCam("aerial"); return; } // a double tap is the way back out, from anywhere
   if (picking || look){ // choosing a seat (or, already in one, tapping another to move there)

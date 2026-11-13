@@ -532,6 +532,16 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
     await page.evaluate(([x, y]) => { const c = document.querySelector("#view canvas"); for (let i=0;i<2;i++) for (const t of ["pointerdown", "pointerup"]) c.dispatchEvent(new PointerEvent(t, {clientX:x, clientY:y, button:0, buttons: t === "pointerdown" ? 1 : 0, bubbles:true, pointerId:1, isPrimary:true})); }, [bx.x + bx.width*.5, bx.y + bx.height*.2]);
     await page.waitForTimeout(1500); const out = await cam();
     check(sat.seat && hop.seat && hop.p.join() !== sat.p.join() && !out.seat && out.mode === "aerial" && errors.length === 0, "from a seat, a tap on another seat moves there, and a double tap flies back out to the Aerial view"); }
+  // zooming (the wheel, or a two-finger pinch on a phone) closes in on the spot under the pointer, right up to it, and keeps it there
+  { await page.click('.cams [data-cam="aerial"]'); await page.waitForTimeout(1500);
+    const cv = page.locator("#view canvas").first(), bx = await cv.boundingBox(), px = bx.x + bx.width*.5, py = bx.y + bx.height*.55;
+    await page.mouse.move(px, py); let w = null; for (let i=0;i<24;i++){ await page.mouse.wheel(0, -240); await page.waitForTimeout(150); w = await page.evaluate(() => window.__gw.zoomInfo()); if (w && w.away <= 6) break; } // (as many notches as it takes: how far away the spot is depends on the screen)
+    check(w && w.away <= 6 && Math.hypot(w.screen[0] - px, w.screen[1] - py) < 20 && errors.length === 0, `the wheel zooms right up to the spot under the pointer, and keeps it there (${w ? w.away + " m away" : "no spot"})`);
+    if (name === "phone"){ await page.click('.cams [data-cam="aerial"]'); await page.waitForTimeout(1500);
+      const cdp = await ctx.newCDPSession(page), cx = bx.x + bx.width*.5, cy = bx.y + bx.height*.45, tt = (type, d) => cdp.send("Input.dispatchTouchEvent", {type, touchPoints: type === "touchEnd" ? [] : [{x: cx - d, y: cy, id: 1}, {x: cx + d, y: cy, id: 2}]});
+      let info = null; for (let k=0;k<3;k++){ await tt("touchStart", 24); for (let d = 28; d <= 110; d += 4){ await tt("touchMove", d); await page.waitForTimeout(20); } info = await page.evaluate(() => window.__gw.zoomInfo()); await tt("touchEnd"); await page.waitForTimeout(500); if (info && info.away <= 6) break; }
+      const after = await page.evaluate(() => window.__gw.cam());
+      check(info && info.away <= 6 && Math.hypot(info.screen[0] - cx, info.screen[1] - cy) < 20 && after.mode === "aerial" && errors.length === 0, `a two-finger pinch closes in on the spot between the fingers, and doesn't fly back out (${info ? info.away + " m away" : "no spot"})`); } }
   // the kick-off flyover: the counter and buttons hide while it plays, a key stops it, and it ends on a title with the capacity
   await page.evaluate(() => document.querySelector('.shows [data-fly="play"]').click()); await page.waitForTimeout(1500);
   const flying = await page.evaluate(() => ({on: document.body.classList.contains("flying"), hud: getComputedStyle(document.getElementById("hud")).visibility}));
