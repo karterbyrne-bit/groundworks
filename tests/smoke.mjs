@@ -537,6 +537,11 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
     const cv = page.locator("#view canvas").first(), bx = await cv.boundingBox(), px = bx.x + bx.width*.5, py = bx.y + bx.height*.55;
     await page.mouse.move(px, py); let w = null; for (let i=0;i<24;i++){ await page.mouse.wheel(0, -240); await page.waitForTimeout(150); w = await page.evaluate(() => window.__gw.zoomInfo()); if (w && w.away <= 6) break; } // (as many notches as it takes: how far away the spot is depends on the screen)
     check(w && w.away <= 6 && Math.hypot(w.screen[0] - px, w.screen[1] - py) < 20 && errors.length === 0, `the wheel zooms right up to the spot under the pointer, and keeps it there (${w ? w.away + " m away" : "no spot"})`);
+    // right up against a wall, zooming on isn't stopped dead: it carries on towards what's beyond
+    { const ex = await page.evaluate(() => window.__gw.last().ext), dist = () => page.evaluate(() => Math.hypot(...window.__gw.cam().p));
+      await page.evaluate(([x, z]) => window.__gw.look([x, 18, z], [0, 18, 0]), [0, -(ex[1] + 2.5)]); await page.waitForTimeout(900);
+      const d0 = await dist(); await page.mouse.move(bx.x + bx.width*.5, bx.y + bx.height*.5); for (let i=0;i<10;i++){ await page.mouse.wheel(0, -240); await page.waitForTimeout(120); } await page.waitForTimeout(400);
+      const d1 = await dist(); check(d1 < d0 - 1.5 && errors.length === 0, `zooming on isn't stopped dead by a wall 2.5 m in front of the camera (${Math.round(d0)} m from the middle, then ${Math.round(d1)} m)`); }
     if (name === "phone"){ await page.click('.cams [data-cam="aerial"]'); await page.waitForTimeout(1500);
       const cdp = await ctx.newCDPSession(page), cx = bx.x + bx.width*.5, cy = bx.y + bx.height*.45, tt = (type, d) => cdp.send("Input.dispatchTouchEvent", {type, touchPoints: type === "touchEnd" ? [] : [{x: cx - d, y: cy, id: 1}, {x: cx + d, y: cy, id: 2}]});
       let info = null; for (let k=0;k<3;k++){ await tt("touchStart", 24); for (let d = 28; d <= 110; d += 4){ await tt("touchMove", d); await page.waitForTimeout(20); } info = await page.evaluate(() => window.__gw.zoomInfo()); await tt("touchEnd"); await page.waitForTimeout(500); if (info && info.away <= 6) break; }
