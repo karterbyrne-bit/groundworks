@@ -109,13 +109,16 @@ let zoomHit = null, wheelAt = 0, wheelXY = [0, 0], multiAt = 0, pinch = null;
 const pts = new Map();
 function zoomSpot(x, y){
   const r = renderer.domElement.getBoundingClientRect(), all = group.children.filter(m => m.userData.stadium || m.userData.seat);
-  const cast = (dx, dy, list) => { ndc.set(((x + dx - r.left)/r.width)*2 - 1, -((y + dy - r.top)/r.height)*2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObjects(list, false)[0]; };
+  const cast = (dx, dy, list) => { ndc.set(((x + dx - r.left)/r.width)*2 - 1, -((y + dy - r.top)/r.height)*2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObjects(list, false).find(h => h.distance >= 4); }; // (a surface right up against the camera is never the spot: being close to a wall must not stop you zooming on towards what's beyond it)
   let best = null; for (const [dx, dy] of [[0, 0], [14, 0], [-14, 0], [0, 14], [0, -14]]){ const h = cast(dx, dy, all); if (h && (!best || h.distance < best.distance)) best = h; } // (the nearest of five, so a gap at the edge of a stand doesn't send it far behind)
   if (best){ const m = [].concat(best.object.material)[0], key = Object.keys(M).find(k => M[k] === m) || "";
     if (/^roof/.test(key)){ const seat = cast(0, 0, all.filter(q => q.userData.seat)); if (seat && seat.distance - best.distance < 80) best = seat; } } // a roof isn't what's being aimed at when seats lie under it
   if (best) return best.point.clone();
+  /* Nothing in view there (the sky, or the far side of a wall that can only be seen from the front): aim at the middle of the
+     stadium, along the line you're pointing, so a zoom always carries you back in and never off into the distance. */
   ndc.set(((x - r.left)/r.width)*2 - 1, -((y - r.top)/r.height)*2 + 1); ray.setFromCamera(ndc, camera);
-  return ray.ray.intersectPlane(groundPlane, hitPt) ? hitPt.clone() : null;
+  const mid = new THREE.Vector3(0, Math.max(6, LAST.maxH*0.3), 0), t = Math.max(8, mid.clone().sub(ray.ray.origin).dot(ray.ray.direction));
+  return ray.ray.origin.clone().addScaledVector(ray.ray.direction, t);
 }
 function zoomBy(k){ // k above 1 closes in on the spot, below 1 backs away from it
   if (!zoomHit || !LAST || look || fly || anim) return;
