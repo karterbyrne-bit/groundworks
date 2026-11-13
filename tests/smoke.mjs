@@ -535,8 +535,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   // zooming (the wheel, or a two-finger pinch on a phone) closes in on the spot under the pointer, right up to it, and keeps it there
   { await page.click('.cams [data-cam="aerial"]'); await page.waitForTimeout(1500);
     const cv = page.locator("#view canvas").first(), bx = await cv.boundingBox(), px = bx.x + bx.width*.5, py = bx.y + bx.height*.55;
-    await page.mouse.move(px, py); for (let i=0;i<8;i++){ await page.mouse.wheel(0, -240); await page.waitForTimeout(150); } await page.waitForTimeout(500);
-    const w = await page.evaluate(() => window.__gw.zoomInfo());
+    await page.mouse.move(px, py); let w = null; for (let i=0;i<24;i++){ await page.mouse.wheel(0, -240); await page.waitForTimeout(150); w = await page.evaluate(() => window.__gw.zoomInfo()); if (w && w.away <= 6) break; } // (as many notches as it takes: how far away the spot is depends on the screen)
     check(w && w.away <= 6 && Math.hypot(w.screen[0] - px, w.screen[1] - py) < 20 && errors.length === 0, `the wheel zooms right up to the spot under the pointer, and keeps it there (${w ? w.away + " m away" : "no spot"})`);
     if (name === "phone"){ await page.click('.cams [data-cam="aerial"]'); await page.waitForTimeout(1500);
       const cdp = await ctx.newCDPSession(page), cx = bx.x + bx.width*.5, cy = bx.y + bx.height*.45, tt = (type, d) => cdp.send("Input.dispatchTouchEvent", {type, touchPoints: type === "touchEnd" ? [] : [{x: cx - d, y: cy, id: 1}, {x: cx + d, y: cy, id: 2}]});
