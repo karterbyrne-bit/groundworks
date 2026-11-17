@@ -103,7 +103,7 @@
     </section>
 
     <details class="group" id="groundMore" data-pane="ground" data-keep="ground-advanced">
-      <summary>Advanced<small>sizes, sightlines, plot, convertible, surroundings</small></summary>
+      <summary>Advanced<small>sizes, sightlines, plot, surroundings</small></summary>
       <div class="inner">
         <details class="sub" id="floorExact">
           <summary>Exact floor size<small id="floorSummary"></small></summary>
@@ -164,21 +164,6 @@
             </div></details>
             <label class="toggle"><input type="checkbox" id="plotClip"> Treat the boundary as a hard limit and cut stands back to fit</label>
             <p class="hint">Untick it to use the boundary as a soft guide: stands are built in full and you get a note where they cross it.</p>
-          </div>
-        </section>
-        <section class="group" id="convertBox">
-          <h2>Convertible</h2>
-          <p class="hint">Let the ground switch to a second sport. A bigger field gets room as the lower tier slides back under the one above (like the Stade de France) or has its front rows decked over; a smaller one brings pull-out seats forward to sit fans close.</p>
-          <label class="toggle"><input type="checkbox" id="cvOn"> It converts for a second sport</label>
-          <div id="cvMore" class="group">
-            <div class="row"><label for="cvTo">Second sport</label><select id="cvTo"></select></div>
-            <div class="row"><label for="cvHow">Making room for a bigger field</label><select id="cvHow"><option value="slide">The lower tier slides back</option><option value="cover">The front rows are decked over</option></select></div>
-            <label class="toggle"><input type="checkbox" id="cvPull"> Pull-out seats come forward for a smaller field</label>
-            <div class="seg" role="radiogroup" aria-label="Show it set up for">
-              <input type="radio" name="cvShow" id="cvs-base" value="base"><label for="cvs-base" id="cvBaseLabel">Football</label>
-              <input type="radio" name="cvShow" id="cvs-second" value="second"><label for="cvs-second" id="cvSecondLabel">Athletics</label>
-            </div>
-            <p class="hint" id="cvCaps"></p>
           </div>
         </section>
         <section class="group" id="siteBox">
