@@ -5,10 +5,6 @@ const SPORTS = {
   athletics:{W:177,H:92.6,r:46.3,set:4,noStands:true,note:"400 m, eight-lane track wrapped around a football pitch."},
   custom:{set:3,note:""}
 };
-/* A ground that converts for a second sport: a bigger field gets room by sliding the lower tier back or decking over its
-   front rows; a smaller one gets pull-out seats coming forward. show picks which set-up is drawn. */
-const CONVERT = {on:false, to:"athletics", how:"slide", pull:true, show:"base"};
-const CONVERT_TO = {football:"Football", rugby:"Rugby", athletics:"Athletics", wrestleball:"Wrestleball"};
 const KINDS = {
   wrestleball:{label:"Wrestleball", W:16.5,H:4.5,r:0,surface:"grass",set:5,floor:0,zones:[4,8.5,4],outdoor:true,note:"An outdoor sport on grass: 16.5 × 4.5 m, with two 4 m end zones either side of an 8.5 m central playing area, and 5 m of grass round it for safety."},
   plain:{label:"Plain floor", W:100,H:64,r:0,surface:"grass",set:4,floor:0,note:"Any floor up to 400 × 300 m. Set the exact size below."}
@@ -328,14 +324,13 @@ function migrate(old){
    wrapping halfway in to meet; stands that met in a corner of a bowl meet where they did; a corner with its own tiers
    keeps them as a corner stand; extra length beside an open corner becomes the stand running on past the pitch. */
 /* Cricket, baseball, tennis and the bullring were taken out in October 2026: a saved design or link using one opens as
-   football (a ground converting to tennis stops converting), with a note saying so. */
+   football, with a note saying so. */
 let swappedSport = null;
 function dropRemovedSports(s){
   if (!s || typeof s !== "object") return s;
   const gone = {cricket:"cricket", baseball:"baseball"}[s.sport] || (s.sport === "custom" && s.custom && {tennis:"tennis", bullring:"a bullring"}[s.custom.kind]);
   if (gone){ s.sport = "football"; s.custom = clone(BASE.custom); swappedSport = gone; }
-  if (s.convert && s.convert.to === "tennis"){ s.convert.on = false; s.convert.to = CONVERT.to; swappedSport = swappedSport || "tennis"; }
-  delete s.cricket; delete s.ballpark; return s;
+  delete s.cricket; delete s.ballpark; delete s.convert; return s; // (convertible grounds were taken out in November 2026: a design that had one opens set up for its own sport)
 }
 const noteSwappedSport = () => { if (!swappedSport) return;
   toast(swappedSport === "tennis" ? "<b>Converting to tennis is switched off.</b> Groundworks no longer has tennis." : `<b>Switched to football.</b> This design used ${swappedSport}, which Groundworks no longer has.`); swappedSport = null; };

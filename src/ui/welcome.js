@@ -74,7 +74,6 @@ function syncUI(){
   $("plotOn").checked = S.plot.on; $("plotBox").hidden = !S.plot.on; $("plotClip").checked = S.plot.clip;
   if (S.plot.pts && plotDrawn !== JSON.stringify(S.plot.pts)) renderPlot();
   if (siteDrawn !== JSON.stringify(S.site || [])) renderSite();
-  syncConvert();
   $("boards").checked = !!S.boards;
   { const BS = boardSetOf(), D = LAST, FP = D ? pitchOf(D.F) : null; $("boardRows").hidden = !S.boards;
     $("bdEnd").value = BS.end; $("bdSide").value = BS.side; $("bdHeight").value = BS.height;
