@@ -160,9 +160,7 @@ $("screens").addEventListener("input", e => { const el = e.target; if (!el.datas
   const out = el.parentElement.querySelector("output"); if (out) out.textContent = el.dataset.sf === "size" ? el.value + " m" : (+el.value === 0 ? "centre" : Math.abs(+el.value) + "% " + (+el.value < 0 ? "left" : "right")); changed(false, true); });
 $("screens").addEventListener("change", e => { const el = e.target; if (!el.dataset.sf || el.tagName !== "SELECT") return; screensOf()[+el.dataset.i][el.dataset.sf] = el.value; renderScreens(); changed(); viewScreen(+el.dataset.i); });
 for (const id of ["crowd","night","seeThrough","players"]) $(id).addEventListener("change", e => { S[id] = e.target.checked; changed(); });
-$("scenery").addEventListener("change", e => { S.scenery = e.target.checked ? "real" : "model"; changed(); });
 bindRange("crowdFill", v => S.crowdFill = v/100);
-for (const [id, k] of [["bdEnd","end"],["bdSide","side"],["bdHeight","height"]]) bindRange(id, v => { S.boardSet = Object.assign(boardSetOf(), {[k]: v}); });
 $("fieldShape").innerHTML = Object.entries(FIELD_SHAPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
 $("fieldShape").addEventListener("change", e => { S.fieldShape = Object.assign(fieldShapeOf(), {shape:e.target.value}); changed(true); });
 bindRange("fieldMargin", v => { S.fieldShape = Object.assign(fieldShapeOf(), {margin:v}); }, true);
@@ -173,7 +171,6 @@ const tnSet = (k, v) => { S.tunnel = Object.assign(tunnelOf(), {[k]: v}); }, dgS
 $("dgStyle").innerHTML = Object.entries(DUGOUT_STYLES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
 $("tnOn").addEventListener("change", e => { tnSet("on", e.target.checked); changed(); });
 $("tnAt").addEventListener("change", e => { tnSet("at", e.target.value); changed(); });
-$("tnExtend").addEventListener("change", e => { tnSet("extend", e.target.checked); changed(); });
 $("tnColour").addEventListener("input", e => { tnSet("colour", e.target.value); changed(false, true); });
 bindRange("tnPos", v => tnSet("pos", v)); bindRange("tnWidth", v => tnSet("width", v));
 $("dgOn").addEventListener("change", e => { dgSet("on", e.target.checked); changed(); });
@@ -208,7 +205,6 @@ $("awayAt").addEventListener("change", e => { awaySet("at", e.target.value); cha
 $("awayAnchor").addEventListener("change", e => { awaySet("anchor", e.target.value); changed(); });
 $("awayCount").addEventListener("input", e => { if (e.target.value === "" || isNaN(+e.target.value)) return; awaySet("count", Math.max(0, Math.round(+e.target.value))); changed(false, true); });
 $("awayColour").addEventListener("input", e => { awaySet("colour", e.target.value); changed(false, true); });
-bindRange("awayGap", v => awaySet("gap", v));
 $("homeAt").addEventListener("change", e => { S.homeEnd = Object.assign(homeEndOf(), {at:e.target.value}); changed(); });
 const heSet = (k, v) => { S.homeEnd = Object.assign(homeEndOf(), {[k]: v}); };
 for (const [id, k] of [["homeFlags","flags"],["homeBanners","banners"],["homeTifo","tifo"]]) $(id).addEventListener("change", e => { heSet(k, e.target.checked); changed(); });
@@ -234,7 +230,6 @@ const seatTextOf = () => (S.seatText = Object.assign({text:"", at:""}, S.seatTex
 $("seatText").addEventListener("input", e => { const T = seatTextOf(); T.text = cleanName(e.target.value).toUpperCase();
   const opts = seatTextStands(); if (!opts.some(o => o[0] === T.at) && opts.length) T.at = opts[0][0]; changed(false, true); });
 $("seatTextAt").addEventListener("change", e => { seatTextOf().at = e.target.value; changed(); });
-bindRange("focusIn", v => S.focusIn = v);
 const archOf = () => (S.arch = Object.assign({skin:"none", skinShape:"round"}, S.arch || {}));
 const outerOf = () => (S.outer = Object.assign({shape:"follow", fit:"ring", size:0}, S.outer || {}));
 bindRadio("outerShape", v => { outerOf().shape = v; changed(); });

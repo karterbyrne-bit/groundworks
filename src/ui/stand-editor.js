@@ -40,14 +40,12 @@ const TYPE_SHORT = {seated:"Seats", exec:"Boxes", rail:"Rail seats", bench:"Benc
 const sideRowsBox = (tr, pre) => `<div class="row"><label>Seating and rows on each side</label></div><div class="siderows">${SIDES.map(s => { const gone = bowlGone(s), ty = sideTypeOf(tr, s);
   return `<label><span>${SIDE_SHORT[s]}</span><select data-p="${pre}sideType.${s}"${gone ? " disabled" : ""} aria-label="Seating on the ${SIDE_NAMES[s].toLowerCase()}">${Object.entries(TYPE_SHORT).map(([k,v]) => `<option value="${k}"${k === ty ? " selected" : ""}>${v}</option>`).join("")}</select>
     <input type="number" data-p="${pre}sideRows.${s}" value="${gone ? 0 : Math.round(sideRowsOf(tr, s))}" min="0" max="120" step="1"${gone ? " disabled" : ""} aria-label="${ty === "terrace" ? "Steps" : "Rows"} on the ${SIDE_NAMES[s].toLowerCase()}"></label>`; }).join("")}</div>`;
-const TIER_FRONTS = {auto:"Stand's own style", plain:"Plain fascia", lattice:"Criss-cross lattice (Leitch)", glass:"Glass balustrade", concrete:"Concrete parapet", brick:"Brick parapet"};
 const TIER_HOLDS = {none:"Nothing visible (cantilever)", pillars:"Pillars under its front edge", towers:"Towers at each end with a truss"};
 const colourPick = (label, p, val, def) => `<div class="row colour"><label>${label}</label><span class="num"><input type="color" data-p="${p}" value="${val || def || "#888888"}" aria-label="${label}">
   ${val ? `<button class="mini" data-act="clearColour" data-cp="${p}">Default</button>` : `<small>default</small>`}</span></div>`;
 /* The tier's own look, its length and what holds it up. */
 const openMore = new Set();
 const tierMore = (tr, pre, stacked, ends) => `<details class="sub" data-more="${tab}:${pre}"${openMore.has(tab + ":" + pre) ? " open" : ""}><summary>Look, entrances${ends ? ", length" : ""}${stacked ? " and support" : ""}</summary><div class="inner">
-  ${pick("Front", pre + "front", tr.front || "auto", TIER_FRONTS)}
   ${colourPick("Front colour", pre + "frontColour", tr.frontColour)}
   ${tr.type === "seated" || tr.type === "rail" ? colourPick("Seat colour", pre + "seatColour", tr.seatColour) : ""}
   ${ends ? pair("Stops short of the left end", pre + "trim0", tr.trim0 || 0, 0, 80, 1, "m", "Left and right as seen from the play.") + pair("Stops short of the right end", pre + "trim1", tr.trim1 || 0, 0, 80, 1, "m") : ""}
@@ -105,7 +103,6 @@ function roofBlock(cfg, bowl){
     ${check("Line up every roof in the ground at the same height", "roofAlign", !!S.roofAlign)}
     ${pair(rf.level !== false ? "Height above the tallest row" : "Height above the top row", "roof.lift", rf.lift, 1.5, 40, 0.5, "m")}
     ${rf.shape !== "gable" ? pair("Tilt up towards the play", "roof.tilt", rf.tilt, -15, 25, 1, "°") + pair("Curve", "roof.curve", Math.round((rf.curve||0)*100), 0, 100, 5, "%") : ""}
-    ${rf.shape !== "gable" ? pair("See-through strip at the front", "roof.edge", Math.round((rf.edge != null ? rf.edge : rf.mat === "metal" ? .2 : 0)*100), 0, 60, 5, "%", "Lets light reach the pitch, as most modern roofs do.") : ""}
     ${rf.shape === "closed" ? pair("Opening in the middle", "roof.opening", Math.round((rf.opening||0)*100), 0, 90, 5, "%") : ""}` : ""}
   </div></details>`;
 }
@@ -224,7 +221,7 @@ function renderEditor(){
       ${tierBlocks(cfg.tiers, above, "", (bowl || ring) && S.bowl.varyRows, !bowl && !ring)}
       ${cfg.tiers.length < MAX_TIERS ? `<button class="btn small" data-act="addTier">Add a tier</button>` : `<p class="hint">${MAX_TIERS} tiers is as high as it goes.</p>`}
       ${ring ? "" : roofBlock(cfg, bowl)}
-      <details class="sub"><summary>Facilities, access and fire risk</summary><div class="inner">
+      <details class="sub"><summary>Facilities and access</summary><div class="inner">
         ${pick("Facilities", "facilities", facilitiesOf(cfg), FACILITIES)}
         <p class="hint">Better facilities cost more to build but make for happier fans.</p>
         ${accessOf().on ? (() => { const SA = standAccessOf(cfg), own = cfg.access || {}, here = LAST ? LAST.parts.filter(p => p.key === tab).reduce((a, p) => a + (p.wheel || 0), 0) : 0;
@@ -232,9 +229,7 @@ function renderEditor(){
             ${pair(isBowl() ? "Platforms on each side" : "Platforms in this stand", "access.count", SA.per, 0, 16, 1, "")}
             ${pick("Where", "access.at", own.at || "", Object.assign({"":"Same as the whole ground"}, ACCESS_AT))}
             ${pick("Arranged", "access.arrange", own.arrange || "", Object.assign({"":"Same as the whole ground"}, ACCESS_ARRANGE))}
-            ${pair("Length of each", "access.length", SA.length, 4, 30, 1, "m", `${Math.floor(SA.length/1.6)} spaces each, with a companion seat beside every one.`)}`; })() : ""}
-        ${pick("Fire risk", "fire", cfg.fire || "auto", FIRE_RISKS)}
-        <p class="hint">Sets how quickly this stand has to clear in an emergency: ${S.limits.evacLow} minutes for low risk, ${S.limits.evacMedium} for medium, ${S.limits.evacHigh} for high. Worked out from its style, this one counts as <b>${fireRiskOf(cfg)}</b>.</p></div></details>
+            ${pair("Length of each", "access.length", SA.length, 4, 30, 1, "m", `${Math.floor(SA.length/1.6)} spaces each, with a companion seat beside every one.`)}`; })() : ""}</div></details>
       ${ring ? "" : S.arch && S.arch.skin && S.arch.skin !== "none" ? `<p class="hint">This stand's outside is covered by the skin round the whole ground. Change it under <b>Look → Architecture → Outside of the ground</b>.</p>` : `<details class="sub" open><summary>Outside walls</summary><div class="inner">
         ${pick("Look", "facade.look", FACADE_LOOKS[fac.look] ? fac.look : sty.look || "plain", FACADE_LOOKS)}
         ${colourPick("Wall colour", "facade.colour", fac.colour, "#" + (sty.clad || 0x888888).toString(16).padStart(6, "0"))}
@@ -417,7 +412,6 @@ function renderGroundRoof(){
     ${pick("Material", p("mat"), gr.mat, ROOF_MATS)}${pick("Structure", p("support"), gr.support, GROUND_ROOF_SUPPORTS)}
     ${gr.support !== "none" ? `<div class="row colour"><label>Steel colour</label><input type="color" data-p="gr.colour" value="${gr.colour || "#e9ecee"}" aria-label="Steel colour"></div>` : ""}
     ${pair("Reaches past the front row", p("reach"), gr.reach, -20, 40, 0.5, "m", gr.shape === "follow" ? "Negative leaves the front rows open." : "Measured halfway along the long sides. Negative leaves the front rows open.")}
-    ${pair("Overhang behind the back row", p("back"), gr.back, 0, 30, 0.5, "m")}
     ${gr.cover !== "closed" ? pick("Height", p("height"), gr.height || "level", GROUND_ROOF_HEIGHTS) : ""}${pair(gr.height === "stands" && gr.cover !== "closed" ? "Height above each stand" : "Height above the tallest stand", p("lift"), gr.lift, 1.5, 40, 0.5, "m")}
     ${pair("Tilt up towards the play", p("tilt"), gr.tilt, -15, 25, 1, "°")}${pair("Curve", p("curve"), Math.round((gr.curve||0)*100), 0, 100, 5, "%")}
     ${check("Close in the outside, down to the ground", p("wall"), gr.wall)}`;

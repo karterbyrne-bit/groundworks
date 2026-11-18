@@ -58,9 +58,6 @@ function syncUI(){
   so("runoff", S.runoff == null ? 3 : S.runoff, (S.runoff == null ? 3 : S.runoff) + " m");
   so("setback", S.setback, S.setback + " m" + (effSet > S.setback + 0.01 ? ` (${+effSet.toFixed(1)} m to fit floor seats)` : ""));
   so("corner", S.corner, S.corner + " m");
-  const fIn = LAST && LAST.focusIn != null ? LAST.focusIn : (S.focusIn || 0);
-  $("focusIn").max = Math.max(0.5, Math.floor(maxFocusIn(F)*2)/2);
-  so("focusIn", fIn, fIn < 0.05 ? "edge of play" : `${+fIn.toFixed(1)} m into the floor` + (S.focusIn == null ? " (auto)" : ""));
   const OU = Object.assign({shape:"follow", fit:"ring", size:0}, S.outer || {}), upper = lay === "bowl" ? S.bowl.tiers.length > 1 : SIDES.some(s => S.stands[s].tiers.length);
   $("outerBox").hidden = lay === "stands" || lay === "ring";
   document.querySelector(`input[name=outerShape][value=${OU.shape}]`).checked = true;
@@ -76,8 +73,6 @@ function syncUI(){
   if (siteDrawn !== JSON.stringify(S.site || [])) renderSite();
   $("boards").checked = !!S.boards;
   { const BS = boardSetOf(), D = LAST, FP = D ? pitchOf(D.F) : null; $("boardRows").hidden = !S.boards;
-    $("bdEnd").value = BS.end; $("bdSide").value = BS.side; $("bdHeight").value = BS.height;
-    $("o-bdEnd").textContent = BS.end + " m"; $("o-bdSide").textContent = BS.side + " m"; $("o-bdHeight").textContent = BS.height.toFixed(1) + " m";
     const roomX = D ? D.set + (D.F.W - FP.W)/2 - 1 : 99, roomZ = D ? D.set + (D.F.H - FP.H)/2 - 1 : 99, tight = BS.end > roomX + .01 || BS.side > roomZ + .01;
     $("bdNote").hidden = !tight; $("bdNote").textContent = tight ? `The stands are close, so the boards stop a metre short of them (${Math.max(0, Math.min(BS.end, roomX)).toFixed(1)} m behind the goals, ${Math.max(0, Math.min(BS.side, roomZ)).toFixed(1)} m from the touchlines).` : ""; }
   const AR = Object.assign({skin:"none", skinShape:"round"}, S.arch || {});
@@ -95,7 +90,7 @@ function syncUI(){
   $("hour").value = S.hour == null ? 15 : S.hour; $("o-hour").textContent = clock(S.hour == null ? 15 : S.hour); $("hourRow").hidden = !!S.night;
   { const TNs = tunnelOf(), DGs = dugoutsOf(), opts = tdSides(), sel = (id, val) => { $(id).innerHTML = opts.map(([k, n]) => `<option value="${k}"${k === val ? " selected" : ""}>${esc(n)}</option>`).join(""); };
     $("tdBox").hidden = !hasDugouts();
-    $("tnOn").checked = TNs.on; $("tnRows").hidden = !TNs.on; sel("tnAt", TNs.at); $("tnExtend").checked = TNs.extend !== false;
+    $("tnOn").checked = TNs.on; $("tnRows").hidden = !TNs.on; sel("tnAt", TNs.at);
     $("tnPos").value = TNs.pos; $("o-tnPos").textContent = TNs.pos ? `${Math.abs(TNs.pos)} m ${TNs.pos < 0 ? "left" : "right"}` : "middle";
     $("tnWidth").value = TNs.width; $("o-tnWidth").textContent = TNs.width + " m";
     if (document.activeElement !== $("tnColour")) $("tnColour").value = TNs.colour || S.seat;
@@ -104,13 +99,13 @@ function syncUI(){
     $("dgGap").value = DGs.gap; $("o-dgGap").textContent = DGs.gap + " m";
     if (document.activeElement !== $("dgColour")) $("dgColour").value = DGs.colour || "#1d2a3a"; }
   $("players").checked = !!S.players; $("playersRow").hidden = !["football","rugby"].includes(S.sport);
-  $("scenery").checked = S.scenery !== "model"; $("crowd").checked = S.crowd !== false; $("night").checked = !!S.night; $("seeThrough").checked = !!S.seeThrough;
+  $("crowd").checked = S.crowd !== false; $("night").checked = !!S.night; $("seeThrough").checked = !!S.seeThrough;
   { const AW = awayOf(), fillPct = Math.round(100*(S.crowdFill == null ? 0.93 : S.crowdFill));
     $("crowdBox").hidden = S.crowd === false; $("crowdFill").value = fillPct; $("o-crowdFill").textContent = fillPct + "%";
     const HEs = homeEndOf(), AL = LAST && LAST.awayAlloc, opts = tdSides().concat(CORNERS.filter(c => (AL && AL.corners || []).includes(c.key) || c.key === AW.at || c.key === HEs.at).map(c => [c.key, c.name.toLowerCase()]));
     $("awayOn").checked = AW.on; $("awayRows").hidden = !AW.on;
     $("awayAt").innerHTML = opts.map(([k, n]) => `<option value="${k}"${k === AW.at ? " selected" : ""}>${esc(n)}</option>`).join("");
-    $("awayAnchor").value = AW.anchor; $("awayGap").value = AW.gap; $("o-awayGap").textContent = AW.gap ? AW.gap + " m" : "none";
+    $("awayAnchor").value = AW.anchor;
     if (document.activeElement !== $("awayCount")) $("awayCount").value = AW.count != null ? AW.count : Math.min(3000, Math.round((LAST ? LAST.total : 0)*0.1/100)*100);
     $("awayNote").textContent = AL && AW.on ? `${fmt(AL.seats)} seats given to away fans${AL.gap ? `, ${fmt(AL.gap)} left empty to keep the fans apart` : ""}.` : "";
     if (document.activeElement !== $("awayColour")) $("awayColour").value = AW.colour;
