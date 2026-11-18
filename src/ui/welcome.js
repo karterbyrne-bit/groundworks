@@ -54,8 +54,8 @@ function syncUI(){
   const so = (id, v, txt) => { $(id).value = v; if ($("o-"+id) && txt !== undefined) $("o-"+id).textContent = txt; };
   so("floorRows", S.custom.floor || 0, (S.custom.floor || 0) ? S.custom.floor + " rows" : "none");
   const effSet = LAST ? LAST.set : S.setback;
-  const hs = hardStop(); $("runoffRow").hidden = $("runoffNote").hidden = S.sport !== "football"; $("setback").min = Math.max(1, hs);
-  so("runoff", S.runoff == null ? 3 : S.runoff, (S.runoff == null ? 3 : S.runoff) + " m");
+  const hs = hardStop(); $("runoffNote").hidden = S.sport !== "football"; $("setback").min = Math.max(1, hs);
+  $("runoffNote").textContent = `Football keeps a ${hs} m run-off round the pitch, so the gap can't go below it: stands, pull-out seats, roads, buildings and the plot boundary all stop at it.`;
   so("setback", S.setback, S.setback + " m" + (effSet > S.setback + 0.01 ? ` (${+effSet.toFixed(1)} m to fit floor seats)` : ""));
   so("corner", S.corner, S.corner + " m");
   const OU = Object.assign({shape:"follow", fit:"ring", size:0}, S.outer || {}), upper = lay === "bowl" ? S.bowl.tiers.length > 1 : SIDES.some(s => S.stands[s].tiers.length);
@@ -87,7 +87,7 @@ function syncUI(){
     if (document.activeElement !== $("spTitleColour")) $("spTitleColour").value = SP.titleColour || "#ffffff";
     $("spOnStand").checked = SP.onStand !== false; $("spTitleRow").hidden = $("spOnStandRow").hidden = !SP.title;
     $("stadiumTitle").textContent = SP.title || ""; $("stadiumTitle").hidden = !SP.title; }
-  $("hour").value = S.hour == null ? 15 : S.hour; $("o-hour").textContent = clock(S.hour == null ? 15 : S.hour); $("hourRow").hidden = !!S.night;
+  $("kickoff").value = S.night ? "night" : [12.5, 15, 19.75].reduce((a, b) => Math.abs(b - (S.hour == null ? 15 : S.hour)) < Math.abs(a - (S.hour == null ? 15 : S.hour)) ? b : a) + "";
   { const TNs = tunnelOf(), DGs = dugoutsOf(), opts = tdSides(), sel = (id, val) => { $(id).innerHTML = opts.map(([k, n]) => `<option value="${k}"${k === val ? " selected" : ""}>${esc(n)}</option>`).join(""); };
     $("tdBox").hidden = !hasDugouts();
     $("tnOn").checked = TNs.on; $("tnRows").hidden = !TNs.on; sel("tnAt", TNs.at);
@@ -99,7 +99,7 @@ function syncUI(){
     $("dgGap").value = DGs.gap; $("o-dgGap").textContent = DGs.gap + " m";
     if (document.activeElement !== $("dgColour")) $("dgColour").value = DGs.colour || "#1d2a3a"; }
   $("players").checked = !!S.players; $("playersRow").hidden = !["football","rugby"].includes(S.sport);
-  $("crowd").checked = S.crowd !== false; $("night").checked = !!S.night; $("seeThrough").checked = !!S.seeThrough;
+  $("crowd").checked = S.crowd !== false;
   { const AW = awayOf(), fillPct = Math.round(100*(S.crowdFill == null ? 0.93 : S.crowdFill));
     $("crowdBox").hidden = S.crowd === false; $("crowdFill").value = fillPct; $("o-crowdFill").textContent = fillPct + "%";
     const HEs = homeEndOf(), AL = LAST && LAST.awayAlloc, opts = tdSides().concat(CORNERS.filter(c => (AL && AL.corners || []).includes(c.key) || c.key === AW.at || c.key === HEs.at).map(c => [c.key, c.name.toLowerCase()]));

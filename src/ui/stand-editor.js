@@ -40,6 +40,8 @@ const TYPE_SHORT = {seated:"Seats", exec:"Boxes", rail:"Rail seats", bench:"Benc
 const sideRowsBox = (tr, pre) => `<div class="row"><label>Seating and rows on each side</label></div><div class="siderows">${SIDES.map(s => { const gone = bowlGone(s), ty = sideTypeOf(tr, s);
   return `<label><span>${SIDE_SHORT[s]}</span><select data-p="${pre}sideType.${s}"${gone ? " disabled" : ""} aria-label="Seating on the ${SIDE_NAMES[s].toLowerCase()}">${Object.entries(TYPE_SHORT).map(([k,v]) => `<option value="${k}"${k === ty ? " selected" : ""}>${v}</option>`).join("")}</select>
     <input type="number" data-p="${pre}sideRows.${s}" value="${gone ? 0 : Math.round(sideRowsOf(tr, s))}" min="0" max="120" step="1"${gone ? " disabled" : ""} aria-label="${ty === "terrace" ? "Steps" : "Rows"} on the ${SIDE_NAMES[s].toLowerCase()}"></label>`; }).join("")}</div>`;
+const TIER_SHAPES = {even:"The same depth all along", curve:"Curves down towards both ends", wedge:"Deeper at one end than the other"};
+const WINDOW_LOOKS = {none:["None: a blank wall", [0, 1]], few:["A few", [.5, 1]], usual:["The usual", [1, 1]], lots:["Lots of small ones", [1.75, .7]], big:["Big picture windows", [.75, 1.5]]};
 const TIER_HOLDS = {none:"Nothing visible (cantilever)", pillars:"Pillars under its front edge", towers:"Towers at each end with a truss"};
 const colourPick = (label, p, val, def) => `<div class="row colour"><label>${label}</label><span class="num"><input type="color" data-p="${p}" value="${val || def || "#888888"}" aria-label="${label}">
   ${val ? `<button class="mini" data-act="clearColour" data-cp="${p}">Default</button>` : `<small>default</small>`}</span></div>`;
@@ -48,7 +50,7 @@ const openMore = new Set();
 const tierMore = (tr, pre, stacked, ends) => `<details class="sub" data-more="${tab}:${pre}"${openMore.has(tab + ":" + pre) ? " open" : ""}><summary>Look, entrances${ends ? ", length" : ""}${stacked ? " and support" : ""}</summary><div class="inner">
   ${colourPick("Front colour", pre + "frontColour", tr.frontColour)}
   ${tr.type === "seated" || tr.type === "rail" ? colourPick("Seat colour", pre + "seatColour", tr.seatColour) : ""}
-  ${ends ? pair("Stops short of the left end", pre + "trim0", tr.trim0 || 0, 0, 80, 1, "m", "Left and right as seen from the play.") + pair("Stops short of the right end", pre + "trim1", tr.trim1 || 0, 0, 80, 1, "m") : ""}
+  ${ends ? pair("Stops short of each end", pre + "trim", Math.max(tr.trim0 || 0, tr.trim1 || 0), 0, 80, 1, "m") : ""}
   ${pick("Fans get in", pre + "entry", ENTRY[tr.entry] ? tr.entry : "auto", ENTRY)}
   ${tr.entry === "middle" ? pair("How far up the tier", pre + "entryAt", Math.round((tr.entryAt || .42)*100), 15, 85, 5, "%") : ""}
   ${tr.entry && tr.entry !== "auto" ? pair("One entrance every", pre + "entryEvery", tr.entryEvery || S.design.exitEvery, 8, 60, 1, "m") : ""}
@@ -69,9 +71,10 @@ function tierBlocks(arr, above, base, bySide, ends){
     return `<div class="tier" data-k="${k}"><div class="tier-h"><span>${nm ? nm + " tier" : "Tier"}</span><span>${arr.length > 1 ? `<button class="mini adv" data-act="moveTier" data-k="${k}" data-to="${k + 1}"${k === arr.length - 1 ? " disabled" : ""} aria-label="Move this tier up the stand" title="Move up">↑</button> <button class="mini adv" data-act="moveTier" data-k="${k}" data-to="${k - 1}"${k === 0 ? " disabled" : ""} aria-label="Move this tier down the stand" title="Move down">↓</button> ` : ""}<button class="mini" data-act="removeTier" data-k="${k}" aria-label="Remove this tier">Remove</button></span></div>
       ${bySide ? "" : `<div class="row"><label>Type</label><select data-p="${pre}type" aria-label="Seating type">${Object.entries(TYPES).map(([v,o]) => `<option value="${v}"${v===tr.type?" selected":""}>${o.label}</option>`).join("")}</select></div>`}
       ${bySide ? sideRowsBox(tr, pre) : pair(isT ? "Steps" : "Rows", pre + "rows", tr.rows, 1, 90, 1, "", `${depth.toFixed(1)} m deep`)}
-      ${!base && !bySide && (SIDES.includes(tab) || /^R\d/.test(tab)) ? pair("Rows at the right-hand end", pre + "rowsEnd", tr.rowsEnd == null ? tr.rows : tr.rowsEnd, 1, 90, 1, "", "Seen from the pitch. Make it more or fewer than Rows and the tier gets deeper or shallower along the stand.") : ""}
       ${tab === "B" && !base ? pair("Slopes down towards the corners", pre + "taper", Math.round((tr.taper || 0)*100), 0, 80, 5, "%", "Like the Emirates' upper tier: deepest at the middle of each side, with fewer rows towards the corners.")
-        : !base && !bySide && (SIDES.includes(tab) || /^R\d/.test(tab)) ? pair("Curves down towards the ends", pre + "taper", Math.round((tr.taper || 0)*100), 0, 100, 5, "%", "Like the upper tiers at the Emirates, Benfica or the Vélodrome: deepest in the middle, curving down to fewer rows at each end (none at 100%). The roof and the back of the stand sweep down with it.") : ""}
+        : !base && !bySide && (SIDES.includes(tab) || /^R\d/.test(tab)) ? (() => { const sh = tr.taper > 0 ? "curve" : tr.rowsEnd != null && tr.rowsEnd !== tr.rows ? "wedge" : "even";
+          return pick("Along the stand", pre + "shape", sh, TIER_SHAPES) + (sh === "curve" ? pair("Rows left at each end", pre + "endRows", Math.round(tr.rows*(1 - tr.taper)), 0, tr.rows, 1, "", "Like the upper tiers at the Emirates, Benfica or the Vélodrome. The roof and the back of the stand sweep down with it.")
+            : sh === "wedge" ? pair("Rows at the right-hand end", pre + "rowsEnd", tr.rowsEnd, 1, 90, 1, "", "Seen from the pitch.") : ""); })() : ""}
       <div class="row"><label class="toggle"><input type="checkbox" data-p="${pre}auto"${tr.auto ? " checked" : ""}> Auto steepness</label><output id="o-rk-${k}"></output>
         ${tr.auto ? "" : `<input type="range" data-p="${pre}rake" min="8" max="60" step="1" value="${tr.rake}" aria-label="Steepness in degrees">`}</div>
       ${stacked ? `${pair("Projects forward over the tier below", pre + "over", tr.over || 0, -15, 40, 0.5, "m", "Negative sets it back instead.")}
@@ -84,6 +87,8 @@ function tierBlocks(arr, above, base, bySide, ends){
 const groundRoofOn = () => !!(S.groundRoof && S.groundRoof.on);
 /* The famous roofs, one tap each: they bring in the one roof over the whole ground, set up like the real thing. */
 const famousRow = () => `<div class="row famous"><label>Famous roofs</label><span class="chips">${["sansiro", "allianz", "stadefrance", "cardiff"].map(k => `<button class="btn small" data-act="famousRoof" data-f="${k}">${esc(FAMOUS_ROOFS[k].label.split(":")[0])}</button>`).join("")}</span></div>`;
+/* The roof's structure, with the pillars' place folded in (pillars outside the stand block nobody's view). */
+function supportOpts(){ const o = {}; for (const [k, v] of Object.entries(ROOF_SUPPORTS)){ if (k !== "columns"){ o[k] = v; continue; } for (const [w, t] of Object.entries(PILLAR_SPOTS)) o["col:" + w] = "Pillars " + t.toLowerCase(); } return o; }
 function roofBlock(cfg, bowl){
   const shapes = Object.assign({}, ROOF_SHAPES, {ground:"One roof over the whole ground"}); if (!bowl) delete shapes.closed;
   if (groundRoofOn()){ const gr = groundRoofOf(); return `<details class="sub roof" open><summary>Roof</summary><div class="inner">${pick("Shape", "roof.shape", "ground", shapes)}${famousRow()}
@@ -92,11 +97,9 @@ function roofBlock(cfg, bowl){
   const rf = cfg.roof, on = rf.shape !== "none";
   return `<details class="sub roof" open><summary>Roof</summary><div class="inner">
     ${pick("Shape", "roof.shape", rf.shape, shapes)}${famousRow()}${on ? colourPick("Roof colour", "roof.colour", rf.colour, "#c9ced1") : ""}
-    ${on ? `${pick("Material", "roof.mat", rf.mat, ROOF_MATS)}${pick("Structure", "roof.support", rf.support, ROOF_SUPPORTS)}
-    ${bowl ? "" : pair("Roof starts along the stand", "roof.coverFrom", Math.round((rf.coverFrom || 0)*100), 0, 90, 5, "%") + pair("Roof ends along the stand", "roof.coverTo", Math.round((rf.coverTo == null ? 1 : rf.coverTo)*100), 10, 100, 5, "%", "Measured from the left-hand end, looking at the stand from the pitch. Cover just the middle, or stop short of one end.")}
-    ${rf.support === "columns" ? pick("Pillars stand", "roof.colAt", rf.colAt || "front", PILLAR_SPOTS) + pair("Space between pillars", "roof.colEvery", rf.colEvery || 14, 6, 40, 1, "m", "Outside the stand, they hold the roof up from behind and block nobody's view.") : ""}
+    ${on ? `${pick("Material", "roof.mat", rf.mat, ROOF_MATS)}${pick("Structure", "roof.support", rf.support === "columns" ? "col:" + (rf.colAt || "front") : rf.support, supportOpts())}
+    ${bowl ? "" : pair("Roof covers", "roof.cover", Math.round(((rf.coverTo == null ? 1 : rf.coverTo) - (rf.coverFrom || 0))*100), 10, 100, 5, "%", "Less than 100% covers just the middle of the stand.")}
     ${pair("Reaches past the front row", "roof.reach", rf.reach, -40, 40, 0.5, "m", "Negative leaves the front rows open.")}
-    ${rf.support !== "toptruss" ? check("A big steel truss along the top of the roof (like Old Trafford's)", "roof.topTruss", !!rf.topTruss) : ""}
     ${rf.support === "toptruss" || rf.topTruss ? pick("The truss comes down", "roof.trussEnds", trussEndsOf(rf), TRUSS_ENDS) : ""}
     ${check("Level roofline (one straight height along the stand)", "roof.level", rf.level !== false)}
     ${bowl ? "" : check("Glass screens at the open ends (so the roof doesn't look as if it's floating)", "roof.endScreens", rf.endScreens !== false)}
@@ -221,22 +224,16 @@ function renderEditor(){
       ${tierBlocks(cfg.tiers, above, "", (bowl || ring) && S.bowl.varyRows, !bowl && !ring)}
       ${cfg.tiers.length < MAX_TIERS ? `<button class="btn small" data-act="addTier">Add a tier</button>` : `<p class="hint">${MAX_TIERS} tiers is as high as it goes.</p>`}
       ${ring ? "" : roofBlock(cfg, bowl)}
-      <details class="sub"><summary>Facilities and access</summary><div class="inner">
+      <details class="sub"><summary>Facilities</summary><div class="inner">
         ${pick("Facilities", "facilities", facilitiesOf(cfg), FACILITIES)}
-        <p class="hint">Better facilities cost more to build but make for happier fans.</p>
-        ${accessOf().on ? (() => { const SA = standAccessOf(cfg), own = cfg.access || {}, here = LAST ? LAST.parts.filter(p => p.key === tab).reduce((a, p) => a + (p.wheel || 0), 0) : 0;
-          return `<div class="row"><label>Wheelchair platforms</label><output>${here} spaces here</output></div>
-            ${pair(isBowl() ? "Platforms on each side" : "Platforms in this stand", "access.count", SA.per, 0, 16, 1, "")}
-            ${pick("Where", "access.at", own.at || "", Object.assign({"":"Same as the whole ground"}, ACCESS_AT))}
-            ${pick("Arranged", "access.arrange", own.arrange || "", Object.assign({"":"Same as the whole ground"}, ACCESS_ARRANGE))}
-            ${pair("Length of each", "access.length", SA.length, 4, 30, 1, "m", `${Math.floor(SA.length/1.6)} spaces each, with a companion seat beside every one.`)}`; })() : ""}</div></details>
+        <p class="hint">Better facilities cost more to build but make for happier fans.</p></div></details>
       ${ring ? "" : S.arch && S.arch.skin && S.arch.skin !== "none" ? `<p class="hint">This stand's outside is covered by the skin round the whole ground. Change it under <b>Look → Architecture → Outside of the ground</b>.</p>` : `<details class="sub" open><summary>Outside walls</summary><div class="inner">
         ${pick("Look", "facade.look", FACADE_LOOKS[fac.look] ? fac.look : sty.look || "plain", FACADE_LOOKS)}
         ${colourPick("Wall colour", "facade.colour", fac.colour, "#" + (sty.clad || 0x888888).toString(16).padStart(6, "0"))}
         ${colourPick("Accent colour", "facade.accent", fac.accent, "#d9d2c2")}
         <p class="hint">The accent colours the trims, bands, ribs and fins.</p>
-        ${pair("Windows", "facade.windows", fac.windows == null ? 1 : fac.windows, 0, 2, 0.25, "×", "0 leaves the wall blank, 2 doubles them.")}
-        ${pair("Window size", "facade.winSize", fac.winSize || 1, 0.5, 1.6, 0.1, "×")}
+        ${(() => { const w = fac.windows == null ? 1 : fac.windows, z = fac.winSize || 1, near = Object.keys(WINDOW_LOOKS).sort((a, b) => { const d = k => Math.abs(WINDOW_LOOKS[k][1][0] - w) + Math.abs(WINDOW_LOOKS[k][1][1] - z); return d(a) - d(b); })[0];
+          return pick("Windows", "facade.winLook", near, Object.fromEntries(Object.entries(WINDOW_LOOKS).map(([k, v]) => [k, v[0]]))); })()}
         ${check("Glazed concourse along the ground floor", "facade.concourse", fac.concourse)}
         <div class="row"><label for="facSign">Lettering</label><input type="text" id="facSign" data-p="facade.sign" maxlength="30" value="${esc(fac.sign || "")}" placeholder="e.g. YOUR CLUB" aria-label="Lettering"></div>
         ${fac.sign ? pick("Lettering goes", "facade.signAt", fac.signAt || "wall", {wall:"On the outside wall", roof:"Along the roof front"}) + colourPick("Lettering colour", "facade.signColour", fac.signColour, "#ffffff") : ""}
@@ -289,6 +286,12 @@ function setPath(obj, path, val){
   const parts = path.split("."); if (parts[0] === "cc"){ obj = {tiers:S.cornerCustom}; parts.shift(); }
   let o = obj; for (let i=0;i<parts.length-1;i++) o = o[parts[i]] = o[parts[i]] || {};
   const last = parts[parts.length-1];
+  if (last === "trim"){ o.trim0 = o.trim1 = val; return; } // one distance for both ends
+  if (last === "cover"){ const v = val/100; o.coverFrom = (1 - v)/2; o.coverTo = (1 + v)/2; return; } // the middle part of the stand
+  if (last === "support" && String(val).startsWith("col:")){ o.support = "columns"; o.colAt = val.slice(4); return; } // pillars, and where they stand
+  if (last === "winLook"){ [o.windows, o.winSize] = WINDOW_LOOKS[val][1]; return; }
+  if (last === "shape" && parts.includes("tiers")){ o.taper = val === "curve" ? o.taper || .4 : 0; if (val === "wedge") o.rowsEnd = o.rowsEnd == null ? Math.max(1, Math.round(o.rows*.6)) : o.rowsEnd; else delete o.rowsEnd; return; }
+  if (last === "endRows"){ o.taper = clamp(1 - val/o.rows, 0, 1); return; } // rows left at each end of a tier that curves down
   if (last === "curve" || last === "opening" || last === "entryAt" || last === "edge" || last === "taper" || last === "coverFrom" || last === "coverTo") val = val/100;
   o[last] = val;
 }
@@ -315,7 +318,7 @@ $("editor").addEventListener("input", e => {
       renderEditor(); changed(); return; }
     if (p === "distSame"){ cfgForTab().dist = el.checked ? null : (LAST ? LAST.set : S.setback); renderEditor(); changed(); return; }
     setPath(targetObj(), p, el.checked);
-    if (p.endsWith(".auto") || p === "roof.topTruss") renderEditor(); // the truss brings its own options
+    if (p.endsWith(".auto")) renderEditor();
     changed(); return;
   }
   if (el.type === "color"){ if (p.startsWith("gr.")) groundRoofOf()[p.slice(3)] = el.value; else setPath(targetObj(), p, el.value); changed(false, true); return; }
@@ -323,7 +326,7 @@ $("editor").addEventListener("input", e => {
   const v = +el.value; if (!isFinite(v)) return;
   setPath(targetObj(), p, p.includes(".sideRows.") ? clamp(Math.round(v), 0, 120) : el.type === "number" && p.endsWith("rows") ? Math.max(1, Math.round(v)) : v);
   $("editor").querySelectorAll(`[data-p="${p}"]`).forEach(o => { if (o !== el) o.value = el.value; });
-  if (p.endsWith(".taper") && v > 0 && tab !== "B"){ const rf = targetObj().roof; if (rf && rf.level !== false){ rf.level = false; const cb = $("editor").querySelector('[data-p="roof.level"]'); if (cb) cb.checked = false; } } // a stand's tier curving down takes its roof (and back) down with it
+  if ((p.endsWith(".taper") && v > 0 || p.endsWith(".endRows") && v < getPath(targetObj(), p.replace(/endRows$/, "rows"))) && tab !== "B"){ const rf = targetObj().roof; if (rf && rf.level !== false){ rf.level = false; const cb = $("editor").querySelector('[data-p="roof.level"]'); if (cb) cb.checked = false; } } // a stand's tier curving down takes its roof (and back) down with it
   if (p.endsWith(".rows")){ const tr = p.split(".").slice(-2)[0], tier = targetObj().tiers[+tr]; const note = el.closest(".pair").querySelector(".note"); if (note) note.textContent = (tier.rows*S.types[tier.type].row).toFixed(1) + " m deep"; }
   refreshOutputs(); changed(false, el.type === "range");
 });
@@ -349,7 +352,9 @@ $("editor").addEventListener("change", e => {
   if (el.dataset.p === "roof.shape" && (el.value === "ground" || groundRoofOn())){ // the one roof over the whole ground, picked like any other roof shape (or left for this stand's own)
     groundRoofOf().on = el.value === "ground"; $("grOn").checked = groundRoofOf().on; if (el.value !== "ground") cfgForTab().roof = Object.assign({}, cfgForTab().roof, {shape: el.value});
     renderGroundRoof(); renderEditor(); changed(); return; }
-  if (el.tagName === "SELECT" && el.dataset.p){ setPath(targetObj(), el.dataset.p, el.value); renderEditor(); changed(); }
+  if (el.tagName === "SELECT" && el.dataset.p){ setPath(targetObj(), el.dataset.p, el.value);
+    if (el.value === "curve" && tab !== "B" && targetObj().roof) targetObj().roof.level = false; // the roof sweeps down with the tier
+    renderEditor(); changed(); }
 });
 $("editor").addEventListener("click", e => {
   const pc = e.target.closest("[data-piece]");
