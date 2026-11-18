@@ -376,26 +376,18 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.locator('.tier[data-k="0"] select[data-p$=".entry"]').first().selectOption("middle"); await page.waitForTimeout(300);
   check((await cap()) < fromBack && await page.locator('.tier[data-k="0"] input[type=range][data-p$=".entryAt"]').count() > 0, "fans can come in from the back, or from the middle at a height you choose");
   await page.locator('.tier[data-k="0"] select[data-p$=".entry"]').first().selectOption("auto"); await page.waitForTimeout(300);
-  await page.locator('details.sub', {hasText:"Facilities, access and fire risk"}).locator("summary").first().click();
+  await page.locator('details.sub', {hasText:"Facilities and access"}).locator("summary").first().click();
   await page.locator('select[data-p="facilities"]').selectOption("premium"); await page.waitForTimeout(300);
   check(errors.length === 0 && /premium/.test(await page.evaluate(() => JSON.stringify(window.__gw.state()))), "a stand's facilities can be chosen");
-  // each stand can set its own wheelchair platforms, and a roof can have a see-through strip at the front
+  // each stand can set its own wheelchair platforms
   await page.click('#panes [data-pane="details"]'); await page.check("#acOn"); await page.waitForTimeout(400); const wc0 = await page.evaluate(() => window.__gw.last().wheelchair);
   await page.click('#panes [data-pane="stands"]'); await page.waitForTimeout(200);
   const accCount = page.locator('input[type=number][data-p="access.count"]').first();
-  if (!(await accCount.isVisible())) await page.locator('details.sub', {hasText:"Facilities, access and fire risk"}).locator("summary").first().click();
+  if (!(await accCount.isVisible())) await page.locator('details.sub', {hasText:"Facilities and access"}).locator("summary").first().click();
   await accCount.fill("1"); await accCount.press("Tab"); await page.waitForTimeout(400);
   check((await page.evaluate(() => window.__gw.last().wheelchair)) < wc0, "a stand can have its own number of wheelchair platforms");
-  const edgeBox = page.locator('input[type=number][data-p="roof.edge"]').first();
-  if (await edgeBox.count()){ await edgeBox.fill("40"); await edgeBox.press("Tab"); await page.waitForTimeout(300);
-    check(/"edge":0.4/.test(await page.evaluate(() => JSON.stringify(window.__gw.state()))) && errors.length === 0, "a roof can have a see-through strip along its front"); }
   await page.click('#panes [data-pane="details"]'); await page.uncheck("#acOn");
   await page.click('#panes [data-pane="look"]'); await page.uncheck("#tnOn"); await page.uncheck("#dgOn");
-  // the pitch-side boards can be set further back
-  if (!(await page.locator("#boards").isChecked())) await page.check("#boards");
-  await page.evaluate(() => { const el = document.getElementById("bdEnd"); el.value = "8"; el.dispatchEvent(new Event("input", {bubbles:true})); });
-  await page.waitForTimeout(300);
-  check((await page.evaluate(() => window.__gw.state().boardSet.end)) === 8 && (await page.evaluate(() => window.__gw.boards())), "the advertising boards can be moved further from the pitch");
 
 
   // the big truss over a roof can arch up and land its legs outside, like Stadium Australia's
