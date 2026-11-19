@@ -117,9 +117,7 @@
           <h2>Spacing and sightlines</h2>
           <div class="row"><label for="setback">Gap from floor to front row</label><output id="o-setback"></output>
             <input type="range" id="setback" min="1" max="30" step="0.5"></div>
-          <div class="row" id="runoffRow"><label for="runoff">Minimum run-off round the pitch</label><output id="o-runoff"></output>
-            <input type="range" id="runoff" min="1" max="10" step="0.5"></div>
-          <p class="hint" id="runoffNote">Nothing can be built on the pitch or this strip round it: stands, pull-out seats, roads, buildings and the plot boundary all stop at it.</p>
+          <p class="hint" id="runoffNote"></p>
         </section>
         <section class="group" id="outerBox">
           <h2>Upper tiers</h2>
@@ -165,7 +163,7 @@
         </section>
         <section class="group" id="siteBox">
           <h2>Surroundings</h2>
-          <p class="hint">Roads, rivers, canals, railways and buildings round the ground, at real sizes. Stands are cut back to clear them (untick the hard boundary under Site boundary to get warnings instead). In the 3D view, drag a yellow post's middle one to move it and its end one to turn and stretch it.</p>
+          <p class="hint">Roads, rivers and canals, railways and buildings round the ground, at real sizes. Stands are cut back to clear them (untick the hard boundary under Site boundary to get warnings instead). In the 3D view, drag a yellow post's middle one to move it and its end one to turn and stretch it.</p>
           <div class="presets" id="siteAdd"></div>
           <div id="siteList" class="screens"></div>
         </section>
@@ -212,7 +210,7 @@
           <div class="row"><label for="vhPos">Along the stand</label><output id="o-vhPos"></output><input type="range" id="vhPos" min="-60" max="60" step="1"></div>
           <div class="row"><label for="vhWidth">Width</label><output id="o-vhWidth"></output><input type="range" id="vhWidth" min="3.5" max="8" step="0.5"></div>
         </div>
-        <p class="hint">Each stand can have its own number, place and arrangement of platforms: pick the stand under Stands, then <b>Facilities and access</b>. Each wheelchair space comes with a companion seat beside it. The vehicle entrance is 4.5 m high, so an ambulance or fire engine can drive straight onto the pitch.</p>
+        <p class="hint">Each wheelchair space comes with a companion seat beside it. The vehicle entrance is 4.5 m high, so an ambulance or fire engine can drive straight onto the pitch.</p>
       </div>
     </details>
 
@@ -284,14 +282,12 @@
     <details class="group look" data-pane="look" data-keep="look-night">
       <summary>Night and spectacle</summary>
       <div class="inner">
-        <label class="toggle"><input type="checkbox" id="night"> Night match under the lights</label>
-        <div class="row" id="hourRow"><label for="hour">Time of day</label><output id="o-hour"></output><input type="range" id="hour" min="6" max="21" step="0.25"></div>
+        <div class="row"><label for="kickoff">Kick-off</label><select id="kickoff"><option value="12.5">Lunchtime, 12.30</option><option value="15">Saturday, 3pm</option><option value="19.75">Summer evening, low sun</option><option value="night">Night match under the lights</option></select></div>
         <label class="toggle"><input type="checkbox" id="spectacle"> Matchday spectacle</label>
         <p class="hint">An LED halo round the roofs in the club's colours, and flares and smoke in the home end<span id="flaresHint"> (the flares need a home end, picked under Crowd and atmosphere)</span>.</p>
         <button class="btn small" id="fireworksBtn">🎆 Fireworks over the ground</button>
         <p class="hint">A 15-second swoop from high over the town, round and in over the roof, down to the touchline. Tap to stop it.</p>
         <div class="row"><button class="btn small" data-fly="play">🎬 Play the flyover</button><button class="btn small" data-fly="record">⏺ Record it as a video</button></div>
-        <label class="toggle"><input type="checkbox" id="seeThrough"> See-through roofs</label>
       </div>
     </details>
 

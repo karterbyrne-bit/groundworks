@@ -31,11 +31,12 @@ function drawSite(features, bf, ext){
       slab("pavement", -L, L, -W, W, .03); slab("road", -L, L, -W + pv, W - pv, .05);
       for (const t of [-W + pv, W - pv]) side("concrete", -L, L, t, .03, .17);
       for (let s0=-L; s0<L-4; s0+=9) slab("white", s0, s0 + 4.5, -.08, .08, .06); }
-    else if (f.kind === "river" || f.kind === "canal"){ // water at ground level between walls: stone copings on a canal, embankment walls on a river
-      const tow = f.kind === "canal" ? Math.min(3.5, W*0.3) : 0, ww = W - tow, wallH = f.kind === "canal" ? .35 : .9;
+    else if (f.kind === "river" || f.kind === "canal"){ // water at ground level between walls: stone copings on a canal (or a river under 20 m wide), embankment walls on a river
+      const canal = f.kind === "canal" || f.width < 20;
+      const tow = canal ? Math.min(3.5, W*0.3) : 0, ww = W - tow, wallH = canal ? .35 : .9;
       slab("water", -L, L, -ww, ww, .02);
-      for (const t of [-ww, ww]){ side(f.kind === "canal" ? "trim" : "concrete", -L, L, t, 0, wallH); side(f.kind === "canal" ? "trim" : "concrete", -L, L, t + Math.sign(t)*.5, 0, wallH);
-        quad(bf(f.kind === "canal" ? "trim" : "concrete"), P(-L,t,wallH), P(L,t,wallH), P(L,t + Math.sign(t)*.5,wallH), P(-L,t + Math.sign(t)*.5,wallH)); }
+      for (const t of [-ww, ww]){ side(canal ? "trim" : "concrete", -L, L, t, 0, wallH); side(canal ? "trim" : "concrete", -L, L, t + Math.sign(t)*.5, 0, wallH);
+        quad(bf(canal ? "trim" : "concrete"), P(-L,t,wallH), P(L,t,wallH), P(L,t + Math.sign(t)*.5,wallH), P(-L,t + Math.sign(t)*.5,wallH)); }
       if (tow) for (const sg of [-1, 1]) slab("pavement", -L, L, sg*(ww + .5), sg*W, .05); }
     else if (f.kind === "rail"){
       slab("ballast", -L, L, -W, W, .08);

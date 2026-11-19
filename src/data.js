@@ -168,7 +168,7 @@ const SIDE_ENDS = {N:["NW","NE"], S:["SE","SW"], E:["NE","SE"], W:["SW","NW"]};
 /* Things around the ground, at real sizes: each is a straight piece placed at x, z and turned by angle (degrees). */
 const SITE_KINDS = {
   road:{label:"Road", length:260, width:12, note:"Two lanes with pavements"},
-  river:{label:"River", length:320, width:30, note:"Between embankment walls"},
+  river:{label:"River", length:320, width:30, note:"Narrow it below 20 m for a canal"},
   canal:{label:"Canal", length:280, width:16, note:"With towpaths"},
   rail:{label:"Railway", length:320, width:14, note:"Two tracks"},
   houses:{label:"Terraced houses", length:60, width:9, height:9, note:"5 m wide each"},

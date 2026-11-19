@@ -44,7 +44,7 @@ document.querySelectorAll("[data-plot]").forEach(b => b.addEventListener("click"
 $("plotOn").addEventListener("change", e => { if (e.target.checked && !S.plot.pts) plotShape("snug"); else { S.plot.on = e.target.checked; changed(true); } setTip(); });
 $("plotClip").addEventListener("change", e => { S.plot.clip = e.target.checked; changed(); });
 /* Surroundings: add, edit and remove roads, water, railways and buildings. */
-$("siteAdd").innerHTML = Object.entries(SITE_KINDS).map(([k, v]) => `<button class="btn" data-site="${k}">${v.label}<small>${v.note}</small></button>`).join("");
+$("siteAdd").innerHTML = Object.entries(SITE_KINDS).filter(([k]) => k !== "canal").map(([k, v]) => `<button class="btn" data-site="${k}">${v.label}<small>${v.note}</small></button>`).join("");
 const siteOf = () => (S.site = Array.isArray(S.site) ? S.site : []);
 let siteDrawn = null;
 function renderSite(){
@@ -121,7 +121,6 @@ bindRadio("layout", v => { S.layout = v; if (v === "hybrid") tab = "B"; if (v ==
 bindRadio("cshape", v => { S.cornerShape = v; changed(); });
 const bindRange = (id, fn, cam) => $(id).addEventListener("input", e => { fn(+e.target.value); changed(cam, true); });
 bindRange("setback", v => S.setback = v);
-bindRange("runoff", v => S.runoff = v);
 bindRange("corner", v => S.corner = v);
 bindRange("floorRows", v => S.custom.floor = v, true);
 for (const [id, key, max] of [["nW","W",400],["nH","H",300],["nR","r",150]]) $(id).addEventListener("change", e => {
@@ -159,7 +158,7 @@ $("screens").addEventListener("click", e => { const b = e.target.closest("[data-
 $("screens").addEventListener("input", e => { const el = e.target; if (!el.dataset.sf || el.tagName === "SELECT") return; const sc = screensOf()[+el.dataset.i]; sc[el.dataset.sf] = +el.value;
   const out = el.parentElement.querySelector("output"); if (out) out.textContent = el.dataset.sf === "size" ? el.value + " m" : (+el.value === 0 ? "centre" : Math.abs(+el.value) + "% " + (+el.value < 0 ? "left" : "right")); changed(false, true); });
 $("screens").addEventListener("change", e => { const el = e.target; if (!el.dataset.sf || el.tagName !== "SELECT") return; screensOf()[+el.dataset.i][el.dataset.sf] = el.value; renderScreens(); changed(); viewScreen(+el.dataset.i); });
-for (const id of ["crowd","night","seeThrough","players"]) $(id).addEventListener("change", e => { S[id] = e.target.checked; changed(); });
+for (const id of ["crowd","players"]) $(id).addEventListener("change", e => { S[id] = e.target.checked; changed(); });
 bindRange("crowdFill", v => S.crowdFill = v/100);
 $("fieldShape").innerHTML = Object.entries(FIELD_SHAPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
 $("fieldShape").addEventListener("change", e => { S.fieldShape = Object.assign(fieldShapeOf(), {shape:e.target.value}); changed(true); });
@@ -190,8 +189,8 @@ bindRange("acPer", v => acSet("per", v)); bindRange("acLength", v => acSet("leng
 $("vhOn").addEventListener("change", e => { vhSet("on", e.target.checked); changed(); });
 $("vhAt").addEventListener("change", e => { vhSet("at", e.target.value); changed(); });
 bindRange("vhPos", v => vhSet("pos", v)); bindRange("vhWidth", v => vhSet("width", v));
-const clock = h => { const hh = Math.floor(h), mm = Math.round((h - hh)*60); return `${((hh + 11) % 12) + 1}:${String(mm).padStart(2, "0")} ${hh < 12 ? "am" : "pm"}`; };
-$("hour").addEventListener("input", e => { S.hour = +e.target.value; $("o-hour").textContent = clock(S.hour); applyMood(); invalidate(); save(true); });
+$("kickoff").addEventListener("change", e => { const v = e.target.value, was = !!S.night; S.night = v === "night"; if (!S.night) S.hour = +v;
+  if (was !== S.night) changed(); else { applyMood(); invalidate(); save(true); } });
 /* Names typed by people end up in the page and in share links, so anything that looks like markup is stripped. */
 const cleanName = v => String(v).replace(/[<>"'`\\]/g, "").slice(0, 30);
 const spOf = () => (S.sponsors = Object.assign(sponsorsOf(), S.sponsors || {}));
