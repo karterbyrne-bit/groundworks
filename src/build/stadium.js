@@ -1077,7 +1077,7 @@ function build(){
     if (poly && !S.plot.clip && ring.o.some((_, i) => !inPoly(P(i, dOut[i]), poly))) issue("The roof over the ground runs past the plot boundary.", "site:roof", "geo",
       {fix:{label:"Cut it back to fit the plot", run:() => { S.plot.clip = true; return true; }}});
     const base = Math.max(outerTop, 4) + Math.max(1.5, gr.lift), tilt = Math.tan((gr.tilt || 0)*Math.PI/180);
-    const yIn = base + tilt*Math.max(...dOut.map((d, i) => d - dIn[i])), curve = gr.curve || 0, drop = groundRoofDrop(gr, n, P, dOut, anchors); // (drop: how far it comes down to follow a lower stand)
+    const yIn = base + tilt*Math.max(...dOut.map((d, i) => d - dIn[i])), curve = gr.curve || 0, drop = groundRoofDrop(gr, n, P, dOut, anchors), sill = gr.wall && standTopsUnder(n, P, dOut, anchors); // (drop: how far it comes down to follow a lower stand; sill: where a close-in wall stops, at the top of the stand behind)
     const yAt = (span, f) => lerp(yIn, base, f) + curve*span*0.2*Math.sin(Math.PI*f);
     const Y = i => f => yAt(dOut[i] - dIn[i], f) - drop[i], at = (i, f) => lerp(dIn[i], dOut[i], f), V3 = (i, d, y) => { const p = P(i, d); return [p[0], y, p[1]]; };
     const rm = buf(ROOF_MAT_KEY[gr.mat] || "roof"), nS = curve > 0.01 ? 6 : 1, edgeH = gr.support === "none" ? 2.4 : 1.2;
@@ -1087,8 +1087,8 @@ function build(){
       for (let s=0;s<nS;s++){ const f0 = s/nS, f1 = (s+1)/nS, sp = Math.max(1, dOut[i] - dIn[i]), u0 = i*3, u1 = (i + 1)*3;
         sheet(tint(ROOF_MAT_KEY[gr.mat] || "roof", gr.sheet), V3(i,at(i,f0),a(f0)), V3(j,at(j,f0),b(f0)), V3(j,at(j,f1),b(f1)), V3(i,at(i,f1),a(f1)), u0, u1, f0*sp, f1*sp); }
       quad(buf("roofEdge"), V3(i,dIn[i],a(0)-edgeH), V3(j,dIn[j],b(0)-edgeH), V3(j,dIn[j],b(0)), V3(i,dIn[i],a(0)));
-      const low = gr.wall ? [0, 0] : [a(1) - .8, b(1) - .8];
-      quad(buf(gr.wall ? wallKey : "roofEdge"), V3(i,dOut[i],low[0]), V3(j,dOut[j],low[1]), V3(j,dOut[j],b(1)), V3(i,dOut[i],a(1)));
+      const low = gr.wall ? (sill ? [Math.min(a(1) - .8, sill[i] - 1), Math.min(b(1) - .8, sill[j] - 1)] : [0, 0]) : [a(1) - .8, b(1) - .8];
+      quad(buf(gr.wall ? wallKey : "roofEdge"), V3(i,dOut[i],low[0]), V3(j,dOut[j],low[1]), V3(j,dOut[j],b(1)), V3(i,dOut[i],a(1))); if (sill) for (const [u, w] of [[i, j], [j, i]]) quad(buf(wallKey), V3(u,dOut[u],low[u === i ? 0 : 1]), V3(w,dOut[w],low[w === i ? 0 : 1]), V3(w,dOut[w] - back - 1,low[w === i ? 0 : 1]), V3(u,dOut[u] - back - 1,low[u === i ? 0 : 1])); // and a soffit back under it to the stand
       if (gr.support === "truss") latticeAlong(buf("steel"), i, j, (k, off) => { const ys = k === i ? a : b, sp = dOut[k] - dIn[k]; return [V3(k, dIn[k] + off, ys(Math.max(0, off)/sp))]; });
       roofQuads.push([P(i,dIn[i]), P(j,dIn[j]), P(j,dOut[j]), P(i,dOut[i])]);
     }
