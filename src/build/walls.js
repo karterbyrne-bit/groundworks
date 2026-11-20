@@ -203,6 +203,15 @@ function dressWall(buf, look, wallKey, a, b, ya, yb, n, opt){
   for (let d = 6.5; d < total - 2; d += 13) if (here(d) && turn.every(t => Math.abs(t - d) > 5) && gates.every(g => Math.abs(g - d) > 4)){
     const fd = f(d); panel("frame", fd - 1/len, fd + 1/len, .3, 2.55, .05); panel("gate", fd - .9/len, fd + .9/len, .3, 2.45, .07); } // doors, in a frame
 }
+/* Where a stand's lettering goes: its own choice of wall or roof front. The ground's name (naming rights) goes along the
+   main stand's roof front, facing the play, and on its outside wall too, facing the street, so it can be seen from
+   both. A grand main entrance already carries the name over its doors (and the stand's own lettering, which would
+   otherwise run into its atrium), and with one skin round the ground the skin carries it. */
+function signSpots(fac, named, homeNamed, look){
+  const skin = S.arch && S.arch.skin && S.arch.skin !== "none";
+  if (fac.mainEntrance && !skin) return named || homeNamed ? ["roof"] : fac.signAt === "roof" ? ["roof"] : [];
+  return named && !skin && look !== "none" ? ["roof", "wall"] : [named || homeNamed ? "roof" : fac.signAt];
+}
 /* With one skin round the whole ground, the stands' own outside walls are hidden behind it, so they're drawn plain, with
    no gates, towers or entrance of their own to show through or poke out past it. What faces the pitch stays: the stand's
    lettering (moved to its roof front) and a clock on its roof. */

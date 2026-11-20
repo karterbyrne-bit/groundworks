@@ -147,6 +147,27 @@ function glassInside(bf, P, N, n, H){
       quad(bf("concrete"), [a[0],y,a[1]], [b[0],y,b[1]], [d[0],y,d[1]], [c[0],y,c[1]]); quad(bf("concrete"), [c[0],y-.6,c[1]], [d[0],y-.6,d[1]], [d[0],y,d[1]], [c[0],y,c[1]]); } }
   for (let i=0;i<n;i+=3){ const q = [lerp(In[i][0], P[i][0], .5), lerp(In[i][1], P[i][1], .5)]; post(bf("column"), q[0], q[1], 0, H, .45); } // columns every 9 m, inside the glass
 }
+/* The ground's name in big letters high on the skin, on the main side where the main stand is, following the skin round
+   its curve and reading left to right from the street (as at the Etihad or the Emirates). */
+function skinName(P, N, cum, H, y0, off, kind){
+  const SP = sponsorsOf(), main = S.stands && S.stands.N && S.stands.N.facade, text = (SP.onStand !== false && SP.title) || (main && main.sign) || "";
+  if (!text || H - y0 < 6) return;
+  const n = P.length, perim = cum[n]; let si = -1, bx = Infinity;
+  for (let i=0;i<n;i++) if (N[i][1] < -.95 && Math.abs(P[i][0]) < bx){ bx = Math.abs(P[i][0]); si = i; }
+  if (si < 0) return;
+  const mat = signMaterial(String(text).slice(0, 30), SP.titleColour || "#ffffff"); mat.emissiveIntensity = S.night ? .9 : .35;
+  let h = Math.max(2, Math.min(6, (H - y0)*.16)); if (h*mat.aspect > perim*.3) h = perim*.3/mat.aspect;
+  const w = h*mat.aspect, yc = H - .8 - h*.6, f = (yc - y0)/(H - y0), out = Math.max(off(f), off(.5)) + (kind === "fins" ? 1.7 : .35), c0 = cum[si];
+  const at = (s, d) => { s = ((s % perim) + perim) % perim; let i = 0; while (i < n - 1 && cum[i+1] <= s) i++; const j = (i+1)%n, t = (s - cum[i])/((cum[i+1] - cum[i]) || 1);
+    return [lerp(P[i][0], P[j][0], t) + lerp(N[i][0], N[j][0], t)*d, lerp(P[i][1], P[j][1], t) + lerp(N[i][1], N[j][1], t)*d]; };
+  const tg = [P[(si+1)%n][0] - P[si][0], P[(si+1)%n][1] - P[si][1]], flip = tg[0]*N[si][1] - tg[1]*N[si][0] < 0, K = Math.max(8, Math.ceil(w/.6));
+  const strip = (m, d) => { const pos = [], uv = [];
+    for (let q=0;q<K;q++){ const A = at(c0 - w/2 + w*q/K, d), B = at(c0 - w/2 + w*(q+1)/K, d), ua = flip ? 1 - q/K : q/K, ub = flip ? 1 - (q+1)/K : (q+1)/K;
+      pos.push(A[0],yc-h/2,A[1], B[0],yc-h/2,B[1], B[0],yc+h/2,B[1], A[0],yc-h/2,A[1], B[0],yc+h/2,B[1], A[0],yc+h/2,A[1]); uv.push(ua,0, ub,0, ub,1, ua,0, ub,1, ua,1); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); geo.computeVertexNormals();
+    m.side = THREE.DoubleSide; const ms = new THREE.Mesh(geo, m); ms.userData.stadium = true; group.add(ms); };
+  strip(mat, out); for (let l=1;l<=4;l++) strip(mat.edge, out - l*.06); // raised letters, standing off the skin
+}
 function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf, ext, anchors){
   if (outline.length < 3) return 0;
   let top = 0;
@@ -183,6 +204,7 @@ function addArchitecture(F, A, outline, outerTop, poly, standInfo, set, sext, bf
       emissive: glow ? new THREE.Color(kind === "cushion" ? S.seat : 0xffd9a0) : new THREE.Color(0), emissiveMap: glow ? tex : null, emissiveIntensity: glow ? (kind === "cushion" ? 1.1 : kind === "glass" ? .15 : .5) : 0,
       transparent: kind === "glass", opacity: kind === "glass" ? .6 : 1});
     const mesh = new THREE.Mesh(g, mat); mesh.castShadow = true; mesh.receiveShadow = true; mesh.userData.stadium = true; group.add(mesh);
+    skinName(P, N, cum, H, y0, off, kind);
     // coping ring on top and entrances at the foot
     const inner = offsetPoly(P, -3); for (let i=0;i<n;i++){ const j = (i+1)%n; quad(bf("roofEdge"), [P[i][0],H,P[i][1]], [P[j][0],H,P[j][1]], [inner[j][0],H+.3,inner[j][1]], [inner[i][0],H+.3,inner[i][1]]); }
     if (kind === "fins") for (let i=0;i<n;i+=1) for (const f of [0]){ const j = (i+1)%n, p = lerp2(P[i], P[j], f), m = [lerp(N[i][0], N[j][0], f), lerp(N[i][1], N[j][1], f)], t = [-m[1]*.3, m[0]*.3]; // a real steel fin every 3 m, 1.4 m deep and 60 cm thick

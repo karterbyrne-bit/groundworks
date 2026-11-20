@@ -813,7 +813,7 @@ function build(){
       topAll = Math.max(topAll, yT + 1.5);
     }
     // façade extras: stair towers, entrance gates and window mullions on the back wall
-    const backAt = i => info[i] ? info[i].back + (roofOn ? 1.5 : 0) : null; if (st.sel && !DRY) outlineStand(buf, m, info, pt, closed); if (fac.mainEntrance && info[midI] && !DRY && !(base(midI, backAt(midI)) > 0)) mainEntrance(buf, (d, w, y) => { const q = pt(midI, backAt(midI) + d), tg = tangent(midI); return [q[0] + tg[0]*w, y, q[1] + tg[1]*w]; }, wallKey, roofOn && RRout && RRout[midI] ? RRout[midI].y(1) : info[midI].top, Math.min(20, lenTotal*.16), fac.sign ? "" : sponsorsOf().title || ""); // the stand being edited, picked out; and its grand main entrance
+    const backAt = i => info[i] ? info[i].back + (roofOn ? 1.5 : 0) : null; if (st.sel && !DRY) outlineStand(buf, m, info, pt, closed); if (fac.mainEntrance && info[midI] && !DRY && !(base(midI, backAt(midI)) > 0)) mainEntrance(buf, (d, w, y) => { const q = pt(midI, backAt(midI) + d), tg = tangent(midI); return [q[0] + tg[0]*w, y, q[1] + tg[1]*w]; }, wallKey, roofOn && RRout && RRout[midI] ? RRout[midI].y(1) : info[midI].top, Math.min(20, lenTotal*.16), fac.sign || sponsorsOf().title || ""); // the stand being edited, picked out; and its grand main entrance
     if (fac.clock === "wall" && info[midI] && !DRY){ // a stand clock high on the back wall, facing the street
       const R3 = roofOn && RRout ? RRout[midI] : null, d = (R3 ? R3.outer : info[midI].back) + .4, top = R3 ? R3.y(1) : info[midI].top, r = Math.max(1.8, Math.min(4, top*0.12));
       if (top > 2*r + 4) addClock(pt(midI, d), top - r - 1.5, pt(midI, d + 60), r); }
@@ -849,8 +849,8 @@ function build(){
     // the stadium's name (naming rights) goes along the main stand's roof front, unless that stand has lettering of its own
     const SP = sponsorsOf(), named = !fac.sign && SP.title && SP.onStand !== false && st.key === (lay === "bowl" ? "B" : lay === "ring" ? "R0" : "N");
     const HEn = homeEndOf(), homeNamed = !fac.sign && !named && HEn.name && (HEn.at === st.key || HEn.at === st.ck); // the home end's name, like the Kop's
-    const signText = fac.sign || (named ? SP.title : homeNamed ? HEn.name : ""), signAt = named || homeNamed ? "roof" : fac.signAt;
-    if (signText && !DRY){ // lettering on the outside wall, or along the roof front facing the play
+    const signText = fac.sign || (named ? SP.title : homeNamed ? HEn.name : ""), signAts = signSpots(fac, named, homeNamed, look);
+    for (const signAt of signAts) if (signText && !DRY){ // lettering on the outside wall, or along the roof front facing the play (or both, for the ground's name)
       let si = midI;
       if (closed){ let bd = Infinity; si = -1; for (let i=0;i<m;i++){ if (!info[i]) continue; const d = -v[i][1]/(Math.hypot(v[i][0], v[i][1]) || 1), xx = Math.abs(pt(i, 0)[0]); if (d > .95 && xx < bd){ bd = xx; si = i; } } } // the middle of the main side
       const x = si >= 0 ? info[si] : null, R2 = x && RRout ? RRout[si] : null;
@@ -863,7 +863,7 @@ function build(){
         let h = onRoof ? Math.max(1.4, Math.min(5, top*0.11)) : Math.max(2, Math.min(7, top*0.17)); if (h*mat.aspect > lenTotal*0.7) h = lenTotal*0.7/mat.aspect;
         /* The lettering follows the line of the roof front (or the wall) round the stand, so on a curved bowl the ends of a
            name don't disappear into the roof or the wall. It reads left to right for whoever's looking at it. */
-        const w = h*mat.aspect, wallOff = look === "fins" ? 1.9 : look === "concrete" ? 1.3 : look === "glass" ? .9 : .7;
+        const w = h*mat.aspect, wallOff = look === "fins" ? 1.9 : look === "exposed" ? 3.6 : look === "concrete" ? 1.3 : look === "glass" ? .9 : .7;
         const dOf = (i, extra) => onRoof ? (RRout[i] || R2).inner - .3 - extra : ((roofOn && RRout[i] ? RRout[i].outer : (info[i] || x).back) + wallOff - extra);
         const seg = s2 => { let xx = closed ? ((s2 % lenTotal) + lenTotal) % lenTotal : Math.max(0, Math.min(cum[m-1], s2)), i = 0;
           while (i < m - 1 && cum[i+1] <= xx) i++; if (!closed && i >= m - 1) i = m - 2; const j = nx(i), sl = (j === 0 ? lenTotal : cum[j]) - cum[i];
