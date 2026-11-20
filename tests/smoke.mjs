@@ -79,7 +79,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.waitForFunction(() => document.documentElement.classList.contains("ready"));
   console.log(`        first frame after ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   check(external.length === 0, "loads nothing from other websites" + (external.length ? `: ${external.join(", ")}` : ""));
-  check(await page.locator("#welcome").evaluate(d => d.open), "welcome card greets a first-time visitor");
+  check(await page.waitForFunction(() => document.getElementById("welcome").open, null, {timeout:5000}).then(() => true, () => false), "welcome card greets a first-time visitor"); // (it opens a moment after the first frame)
   await page.click("#welcome .btn.primary");
   const cap = () => page.evaluate(() => window.__gw.last().total);
   // the layout: six section tabs that fit without scrolling, folded groups of controls, Night match and the flyover in reach
@@ -99,7 +99,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(nightOn === true && !(await page.evaluate(() => window.__gw.state().night)), "the Night match button switches the lights on and off");
   await page.$$eval("details[data-keep]", ds => ds.forEach(d => { d.open = true; })); await page.waitForTimeout(200); // open for the clicks below
   check(await page.evaluate(() => { const o = JSON.parse(localStorage.getItem("groundworks-open") || "{}"); return ["look-crowd", "look-pitchside", "ground-advanced", "rules-safety"].every(k => o[k] === true) && Object.values(o).every(Boolean); }), "the app remembers which groups were opened");
-  check((await cap()) > 1000, "default stadium has a capacity");
+  check((await cap()) === 0 && (await page.evaluate(() => window.__gw.state().stands.N.tiers.length)) === 0, "a first visit starts on a bare pitch, with no stands");
 
   await page.click('[data-p="wrestle"]'); await page.waitForTimeout(300);
   await page.evaluate(() => { const b = document.getElementById("boards"); if (!b.checked){ b.checked = true; b.dispatchEvent(new Event("change")); } });
@@ -555,11 +555,16 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   page.setDefaultTimeout(120000);
   await page.goto(base);
   await page.waitForFunction(() => document.documentElement.classList.contains("ready"));
-  await page.click("#welcome .btn.primary").catch(() => {});
+  await page.waitForFunction(() => document.getElementById("welcome").open, null, {timeout:5000}).catch(() => {}); await page.click("#welcome .btn.primary").catch(() => {});
   const shown = sel => page.evaluate(s => { const e = document.querySelector(s); return !!(e && e.offsetParent); }, sel);
   check(await page.evaluate(() => document.body.classList.contains("simple")) && !(await shown('#panes [data-pane="details"]')), "\n  Simple mode hides the Details tab");
   await page.click('#panes [data-pane="start"]');
-  check(await shown("#shareSaveBtn") && !(await shown("#shareBtn")), "Share, Save as image and Save this design sit behind one Share & save button");
+  const inSimple = sel => page.evaluate(s => { const e = document.querySelector(s); return !!e && !e.closest(".adv"); }, sel);
+  check(await shown("#shareBtn") && await shown("#imageBtn") && await inSimple('[data-keep="look-night"]') && await inSimple('[data-keep="look-night"] [data-fly="play"]'), "Simple shows Share, Save as image, and Night and spectacle with the kick-off flyover");
+  { const hints = await page.locator("#sideHints button:not([hidden])").count(); await page.click('[data-p="blank"]'); await page.waitForTimeout(600);
+    const h = page.locator("#sideHints button:not([hidden])").first(), n0 = await page.locator("#sideHints button").count(); await h.click(); await page.waitForTimeout(800); await page.waitForFunction(() => !window.__gw.busy());
+    check(n0 >= 3 && (await page.evaluate(() => window.__gw.last().total)) > 0 && (await page.locator("#sideHints button").count()) === n0 - 1, `on a bare pitch in Simple, each empty side has an Add a stand button that builds a stand (${n0} sides, ${hints} in view at first)`);
+    await page.click('#panes [data-pane="start"]'); await page.click('[data-p="ot"]'); await page.waitForTimeout(600); await page.waitForFunction(() => !window.__gw.busy()); } // back to a full ground for the checks below
   await page.click('#panes [data-pane="stands"]'); await page.click('[data-tab="N"]');
   check(!(await shown('[data-act="addBoxes"]')) && await shown('[data-act="famousRoof"]'), "a stand shows its simple controls, with the famous roofs one tap away");
   await page.click('[data-act="famousRoof"][data-f="cardiff"]');
@@ -583,7 +588,7 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   check(true, "\n  a damaged saved design shows the recovery card");
   await page.click("[data-fresh]");
   await page.waitForFunction(() => document.documentElement.classList.contains("ready"));
-  check((await page.evaluate(() => window.__gw.last().total)) > 0, "Start with a fresh design recovers");
+  check((await page.evaluate(() => window.__gw.last().total)) === 0 && !(await page.evaluate(() => window.__gw.state().stands.N.tiers.length)), "Start with a fresh design recovers, on a bare pitch");
   await ctx.close();
 }
 

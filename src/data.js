@@ -354,6 +354,6 @@ let S;
   try { S = JSON.parse(localStorage.getItem(KEY)); } catch(e) { S = null; }
   if (!S){ try { S = migrate(JSON.parse(localStorage.getItem("groundworks-v5"))); } catch(e) { S = null; } }
   dropRemovedSports(S);
-  if (!S || S.version !== 6 || !SPORTS[S.sport]) S = clone(PRESETS.ot);
+  if (!S || S.version !== 6 || !SPORTS[S.sport]) S = clone(PRESETS.blank); // a first visit (or a fresh start) begins on a bare pitch
   upgradeCorners(S);
 })();

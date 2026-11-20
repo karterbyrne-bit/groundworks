@@ -242,6 +242,6 @@ function openState(st, sideTab, tweak){
 }
 document.querySelectorAll("#presets button").forEach(b => b.addEventListener("click", () => {
   const P = clone(PRESETS[b.dataset.p]); openState(P, b.dataset.p === "monument" ? "E" : "N");
-  toast(b.dataset.p === "blank" ? "<b>Blank pitch.</b> Open Stands, pick a side and press + Tier to start building." : `<b>${esc(b.firstChild.textContent.trim())}</b> loaded. Tap any stand to make it yours.`, UNDO);
+  toast(b.dataset.p === "blank" ? (simpleMode ? "<b>Blank pitch.</b> Tap Add a stand on any side to start building." : "<b>Blank pitch.</b> Open Stands, pick a side and press + Tier to start building.") : `<b>${esc(b.firstChild.textContent.trim())}</b> loaded. Tap any stand to make it yours.`, UNDO);
 }));
 
