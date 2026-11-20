@@ -105,20 +105,27 @@ let downAt = null, drag = null, lastTap = null;
    it goes, so a pinch on a stand's back rows carries on right up to those rows and can't stop short in mid-air. The spot is
    found when the pinch starts: the first thing in view there, or the seats behind it when that is a roof. The camera
    stops a few metres short of it and doesn't turn, and the view then turns round the place you have zoomed in on. */
-let zoomHit = null, wheelAt = 0, wheelXY = [0, 0], multiAt = 0, pinch = null;
+let zoomHit = null, zoomPast = null, wheelAt = 0, wheelXY = [0, 0], multiAt = 0, pinch = null;
 const pts = new Map();
 function zoomSpot(x, y){
   const r = renderer.domElement.getBoundingClientRect(), all = group.children.filter(m => m.userData.stadium || m.userData.seat);
-  const cast = (dx, dy, list) => { ndc.set(((x + dx - r.left)/r.width)*2 - 1, -((y + dy - r.top)/r.height)*2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObjects(list, false)[0]; };
+  const cast = (dx, dy, list) => { ndc.set(((x + dx - r.left)/r.width)*2 - 1, -((y + dy - r.top)/r.height)*2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObjects(list, false).find(h => h.distance >= 4); }; // (a surface right up against the camera is never the spot: being close to a wall must not stop you zooming on towards what's beyond it)
   let best = null; for (const [dx, dy] of [[0, 0], [14, 0], [-14, 0], [0, 14], [0, -14]]){ const h = cast(dx, dy, all); if (h && (!best || h.distance < best.distance)) best = h; } // (the nearest of five, so a gap at the edge of a stand doesn't send it far behind)
   if (best){ const m = [].concat(best.object.material)[0], key = Object.keys(M).find(k => M[k] === m) || "";
     if (/^roof/.test(key)){ const seat = cast(0, 0, all.filter(q => q.userData.seat)); if (seat && seat.distance - best.distance < 80) best = seat; } } // a roof isn't what's being aimed at when seats lie under it
-  if (best) return best.point.clone();
+  zoomPast = null;
+  if (best){ // and what lies behind it, for when the camera is already up against it and still closing in (back in through a wall)
+    const far = cast(0, 0, all.filter(q => q !== best.object)); zoomPast = far && far.distance > best.distance + 2 ? far.point.clone() : null;
+    return best.point.clone(); }
+  /* Nothing in view there (the sky, or the far side of a wall that can only be seen from the front): aim at the middle of the
+     stadium, along the line you're pointing, so a zoom always carries you back in and never off into the distance. */
   ndc.set(((x - r.left)/r.width)*2 - 1, -((y - r.top)/r.height)*2 + 1); ray.setFromCamera(ndc, camera);
-  return ray.ray.intersectPlane(groundPlane, hitPt) ? hitPt.clone() : null;
+  const mid = new THREE.Vector3(0, Math.max(6, LAST.maxH*0.3), 0), t = Math.max(8, mid.clone().sub(ray.ray.origin).dot(ray.ray.direction));
+  return ray.ray.origin.clone().addScaledVector(ray.ray.direction, t);
 }
 function zoomBy(k){ // k above 1 closes in on the spot, below 1 backs away from it
   if (!zoomHit || !LAST || look || fly || anim) return;
+  if (k > 1 && zoomPast && zoomHit.distanceTo(camera.position) < 5.5){ zoomHit = zoomPast; zoomPast = null; } // pressed up against it: carry on through
   const c = camera.position, d = zoomHit.clone().sub(c), L = d.length(); if (L < 1e-3) return;
   const fwd = camera.getWorldDirection(new THREE.Vector3()), L2 = Math.max(L/k, Math.min(L, 5)), to = zoomHit.clone().addScaledVector(d, -L2/L);
   if (k < 1 && to.length() > Math.max(LAST.ext[0], LAST.ext[1])*4.5 && to.length() > c.length()) return; // as far out as the view goes
