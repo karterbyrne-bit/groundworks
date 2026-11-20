@@ -43,31 +43,8 @@ function plotShape(kind, silent){
 document.querySelectorAll("[data-plot]").forEach(b => b.addEventListener("click", () => plotShape(b.dataset.plot)));
 $("plotOn").addEventListener("change", e => { if (e.target.checked && !S.plot.pts) plotShape("snug"); else { S.plot.on = e.target.checked; changed(true); } setTip(); });
 $("plotClip").addEventListener("change", e => { S.plot.clip = e.target.checked; changed(); });
-/* Convertible grounds: a second sport, how room is made, and which set-up is shown. */
-const convOf = () => (S.convert = Object.assign({}, CONVERT, S.convert || {}));
-const sportName = sp => CONVERT_TO[sp] || (sp === "custom" ? (KINDS[S.custom.kind] || KINDS.plain).label : cap1(sp));
-$("cvOn").addEventListener("change", e => { const C = convOf(); C.on = e.target.checked; if (C.to === S.sport) C.to = Object.keys(CONVERT_TO).find(k => k !== S.sport); if (!C.on) C.show = "base"; changed(true); });
-$("cvTo").addEventListener("change", e => { convOf().to = e.target.value; changed(true); });
-$("cvHow").addEventListener("change", e => { convOf().how = e.target.value; changed(); });
-$("cvPull").addEventListener("change", e => { convOf().pull = e.target.checked; changed(); });
-bindRadio("cvShow", v => { convOf().show = v; changed(); });
-let capsFor = null;
-function syncConvert(){
-  const C = Object.assign({}, CONVERT, S.convert || {});
-  $("cvOn").checked = !!C.on; $("cvMore").hidden = !C.on;
-  $("cvTo").innerHTML = Object.entries(CONVERT_TO).filter(([k]) => k !== S.sport).map(([k, v]) => `<option value="${k}"${k === C.to ? " selected" : ""}>${v}</option>`).join("");
-  $("cvHow").value = C.how; $("cvPull").checked = C.pull !== false;
-  $("cvBaseLabel").textContent = sportName(S.sport); $("cvSecondLabel").textContent = sportName(C.to);
-  document.querySelector(`input[name=cvShow][value=${C.show === "second" ? "second" : "base"}]`).checked = true;
-  if (!C.on){ $("cvCaps").textContent = ""; return; }
-  // the capacity both ways round, worked out once per design
-  const key = JSON.stringify(S); if (capsFor === key) return; capsFor = key;
-  clearTimeout(syncConvert.t); syncConvert.t = setTimeout(() => {
-    const both = ["base", "second"].map(show => statsOf(Object.assign(clone(S), {convert:Object.assign({}, C, {show})})).total);
-    $("cvCaps").textContent = `${sportName(S.sport)}: ${fmt(both[0])} places · ${sportName(C.to)}: ${fmt(both[1])} places.`; }, 50);
-}
 /* Surroundings: add, edit and remove roads, water, railways and buildings. */
-$("siteAdd").innerHTML = Object.entries(SITE_KINDS).map(([k, v]) => `<button class="btn" data-site="${k}">${v.label}<small>${v.note}</small></button>`).join("");
+$("siteAdd").innerHTML = Object.entries(SITE_KINDS).filter(([k]) => k !== "canal").map(([k, v]) => `<button class="btn" data-site="${k}">${v.label}<small>${v.note}</small></button>`).join("");
 const siteOf = () => (S.site = Array.isArray(S.site) ? S.site : []);
 let siteDrawn = null;
 function renderSite(){
@@ -144,7 +121,6 @@ bindRadio("layout", v => { S.layout = v; if (v === "hybrid") tab = "B"; if (v ==
 bindRadio("cshape", v => { S.cornerShape = v; changed(); });
 const bindRange = (id, fn, cam) => $(id).addEventListener("input", e => { fn(+e.target.value); changed(cam, true); });
 bindRange("setback", v => S.setback = v);
-bindRange("runoff", v => S.runoff = v);
 bindRange("corner", v => S.corner = v);
 bindRange("floorRows", v => S.custom.floor = v, true);
 for (const [id, key, max] of [["nW","W",400],["nH","H",300],["nR","r",150]]) $(id).addEventListener("change", e => {
@@ -182,10 +158,8 @@ $("screens").addEventListener("click", e => { const b = e.target.closest("[data-
 $("screens").addEventListener("input", e => { const el = e.target; if (!el.dataset.sf || el.tagName === "SELECT") return; const sc = screensOf()[+el.dataset.i]; sc[el.dataset.sf] = +el.value;
   const out = el.parentElement.querySelector("output"); if (out) out.textContent = el.dataset.sf === "size" ? el.value + " m" : (+el.value === 0 ? "centre" : Math.abs(+el.value) + "% " + (+el.value < 0 ? "left" : "right")); changed(false, true); });
 $("screens").addEventListener("change", e => { const el = e.target; if (!el.dataset.sf || el.tagName !== "SELECT") return; screensOf()[+el.dataset.i][el.dataset.sf] = el.value; renderScreens(); changed(); viewScreen(+el.dataset.i); });
-for (const id of ["crowd","night","seeThrough","players"]) $(id).addEventListener("change", e => { S[id] = e.target.checked; changed(); });
-$("scenery").addEventListener("change", e => { S.scenery = e.target.checked ? "real" : "model"; changed(); });
+for (const id of ["crowd","players"]) $(id).addEventListener("change", e => { S[id] = e.target.checked; changed(); });
 bindRange("crowdFill", v => S.crowdFill = v/100);
-for (const [id, k] of [["bdEnd","end"],["bdSide","side"],["bdHeight","height"]]) bindRange(id, v => { S.boardSet = Object.assign(boardSetOf(), {[k]: v}); });
 $("fieldShape").innerHTML = Object.entries(FIELD_SHAPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
 $("fieldShape").addEventListener("change", e => { S.fieldShape = Object.assign(fieldShapeOf(), {shape:e.target.value}); changed(true); });
 bindRange("fieldMargin", v => { S.fieldShape = Object.assign(fieldShapeOf(), {margin:v}); }, true);
@@ -196,7 +170,6 @@ const tnSet = (k, v) => { S.tunnel = Object.assign(tunnelOf(), {[k]: v}); }, dgS
 $("dgStyle").innerHTML = Object.entries(DUGOUT_STYLES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
 $("tnOn").addEventListener("change", e => { tnSet("on", e.target.checked); changed(); });
 $("tnAt").addEventListener("change", e => { tnSet("at", e.target.value); changed(); });
-$("tnExtend").addEventListener("change", e => { tnSet("extend", e.target.checked); changed(); });
 $("tnColour").addEventListener("input", e => { tnSet("colour", e.target.value); changed(false, true); });
 bindRange("tnPos", v => tnSet("pos", v)); bindRange("tnWidth", v => tnSet("width", v));
 $("dgOn").addEventListener("change", e => { dgSet("on", e.target.checked); changed(); });
@@ -216,8 +189,8 @@ bindRange("acPer", v => acSet("per", v)); bindRange("acLength", v => acSet("leng
 $("vhOn").addEventListener("change", e => { vhSet("on", e.target.checked); changed(); });
 $("vhAt").addEventListener("change", e => { vhSet("at", e.target.value); changed(); });
 bindRange("vhPos", v => vhSet("pos", v)); bindRange("vhWidth", v => vhSet("width", v));
-const clock = h => { const hh = Math.floor(h), mm = Math.round((h - hh)*60); return `${((hh + 11) % 12) + 1}:${String(mm).padStart(2, "0")} ${hh < 12 ? "am" : "pm"}`; };
-$("hour").addEventListener("input", e => { S.hour = +e.target.value; $("o-hour").textContent = clock(S.hour); applyMood(); invalidate(); save(true); });
+$("kickoff").addEventListener("change", e => { const v = e.target.value, was = !!S.night; S.night = v === "night"; if (!S.night) S.hour = +v;
+  if (was !== S.night) changed(); else { applyMood(); invalidate(); save(true); } });
 /* Names typed by people end up in the page and in share links, so anything that looks like markup is stripped. */
 const cleanName = v => String(v).replace(/[<>"'`\\]/g, "").slice(0, 30);
 const spOf = () => (S.sponsors = Object.assign(sponsorsOf(), S.sponsors || {}));
@@ -231,7 +204,6 @@ $("awayAt").addEventListener("change", e => { awaySet("at", e.target.value); cha
 $("awayAnchor").addEventListener("change", e => { awaySet("anchor", e.target.value); changed(); });
 $("awayCount").addEventListener("input", e => { if (e.target.value === "" || isNaN(+e.target.value)) return; awaySet("count", Math.max(0, Math.round(+e.target.value))); changed(false, true); });
 $("awayColour").addEventListener("input", e => { awaySet("colour", e.target.value); changed(false, true); });
-bindRange("awayGap", v => awaySet("gap", v));
 $("homeAt").addEventListener("change", e => { S.homeEnd = Object.assign(homeEndOf(), {at:e.target.value}); changed(); });
 const heSet = (k, v) => { S.homeEnd = Object.assign(homeEndOf(), {[k]: v}); };
 for (const [id, k] of [["homeFlags","flags"],["homeBanners","banners"],["homeTifo","tifo"]]) $(id).addEventListener("change", e => { heSet(k, e.target.checked); changed(); });
@@ -257,7 +229,6 @@ const seatTextOf = () => (S.seatText = Object.assign({text:"", at:""}, S.seatTex
 $("seatText").addEventListener("input", e => { const T = seatTextOf(); T.text = cleanName(e.target.value).toUpperCase();
   const opts = seatTextStands(); if (!opts.some(o => o[0] === T.at) && opts.length) T.at = opts[0][0]; changed(false, true); });
 $("seatTextAt").addEventListener("change", e => { seatTextOf().at = e.target.value; changed(); });
-bindRange("focusIn", v => S.focusIn = v);
 const archOf = () => (S.arch = Object.assign({skin:"none", skinShape:"round"}, S.arch || {}));
 const outerOf = () => (S.outer = Object.assign({shape:"follow", fit:"ring", size:0}, S.outer || {}));
 bindRadio("outerShape", v => { outerOf().shape = v; changed(); });

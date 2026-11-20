@@ -103,7 +103,7 @@
     </section>
 
     <details class="group" id="groundMore" data-pane="ground" data-keep="ground-advanced">
-      <summary>Advanced<small>sizes, sightlines, plot, convertible, surroundings</small></summary>
+      <summary>Advanced<small>sizes, sightlines, plot, surroundings</small></summary>
       <div class="inner">
         <details class="sub" id="floorExact">
           <summary>Exact floor size<small id="floorSummary"></small></summary>
@@ -117,12 +117,7 @@
           <h2>Spacing and sightlines</h2>
           <div class="row"><label for="setback">Gap from floor to front row</label><output id="o-setback"></output>
             <input type="range" id="setback" min="1" max="30" step="0.5"></div>
-          <div class="row"><label for="focusIn">Sightlines aimed at</label><output id="o-focusIn"></output>
-            <input type="range" id="focusIn" min="0" max="10" step="0.5"></div>
-          <p class="hint">Aiming a few metres into the floor (as arenas do) lets steep stands sit right on top of the action. Aiming at the edge of play is the stricter football rule.</p>
-          <div class="row" id="runoffRow"><label for="runoff">Minimum run-off round the pitch</label><output id="o-runoff"></output>
-            <input type="range" id="runoff" min="1" max="10" step="0.5"></div>
-          <p class="hint" id="runoffNote">Nothing can be built on the pitch or this strip round it: stands, pull-out seats, roads, buildings and the plot boundary all stop at it.</p>
+          <p class="hint" id="runoffNote"></p>
         </section>
         <section class="group" id="outerBox">
           <h2>Upper tiers</h2>
@@ -166,24 +161,9 @@
             <p class="hint">Untick it to use the boundary as a soft guide: stands are built in full and you get a note where they cross it.</p>
           </div>
         </section>
-        <section class="group" id="convertBox">
-          <h2>Convertible</h2>
-          <p class="hint">Let the ground switch to a second sport. A bigger field gets room as the lower tier slides back under the one above (like the Stade de France) or has its front rows decked over; a smaller one brings pull-out seats forward to sit fans close.</p>
-          <label class="toggle"><input type="checkbox" id="cvOn"> It converts for a second sport</label>
-          <div id="cvMore" class="group">
-            <div class="row"><label for="cvTo">Second sport</label><select id="cvTo"></select></div>
-            <div class="row"><label for="cvHow">Making room for a bigger field</label><select id="cvHow"><option value="slide">The lower tier slides back</option><option value="cover">The front rows are decked over</option></select></div>
-            <label class="toggle"><input type="checkbox" id="cvPull"> Pull-out seats come forward for a smaller field</label>
-            <div class="seg" role="radiogroup" aria-label="Show it set up for">
-              <input type="radio" name="cvShow" id="cvs-base" value="base"><label for="cvs-base" id="cvBaseLabel">Football</label>
-              <input type="radio" name="cvShow" id="cvs-second" value="second"><label for="cvs-second" id="cvSecondLabel">Athletics</label>
-            </div>
-            <p class="hint" id="cvCaps"></p>
-          </div>
-        </section>
         <section class="group" id="siteBox">
           <h2>Surroundings</h2>
-          <p class="hint">Roads, rivers, canals, railways and buildings round the ground, at real sizes. Stands are cut back to clear them (untick the hard boundary under Site boundary to get warnings instead). In the 3D view, drag a yellow post's middle one to move it and its end one to turn and stretch it.</p>
+          <p class="hint">Roads, rivers and canals, railways and buildings round the ground, at real sizes. Stands are cut back to clear them (untick the hard boundary under Site boundary to get warnings instead). In the 3D view, drag a yellow post's middle one to move it and its end one to turn and stretch it.</p>
           <div class="presets" id="siteAdd"></div>
           <div id="siteList" class="screens"></div>
         </section>
@@ -230,7 +210,7 @@
           <div class="row"><label for="vhPos">Along the stand</label><output id="o-vhPos"></output><input type="range" id="vhPos" min="-60" max="60" step="1"></div>
           <div class="row"><label for="vhWidth">Width</label><output id="o-vhWidth"></output><input type="range" id="vhWidth" min="3.5" max="8" step="0.5"></div>
         </div>
-        <p class="hint">Each stand can have its own number, place and arrangement of platforms: pick the stand under Stands, then <b>Facilities, access and fire risk</b>. Each wheelchair space comes with a companion seat beside it. The vehicle entrance is 4.5 m high, so an ambulance or fire engine can drive straight onto the pitch.</p>
+        <p class="hint">Each wheelchair space comes with a companion seat beside it. The vehicle entrance is 4.5 m high, so an ambulance or fire engine can drive straight onto the pitch.</p>
       </div>
     </details>
 
@@ -282,7 +262,6 @@
             <div class="row"><label for="awayAt">Away end stand</label><span class="num"><select id="awayAt" aria-label="Away end"></select> <input type="color" id="awayColour" value="#f2f2f2" aria-label="Away colours"></span></div>
             <div class="row"><label for="awayAnchor">Starting from</label><select id="awayAnchor" aria-label="Where in the stand the away end starts"><option value="middle">The middle of the stand</option><option value="left">Its left-hand end</option><option value="right">Its right-hand end</option></select></div>
             <div class="row pair"><label for="awayCount">Away allocation</label><span class="num"><input type="number" id="awayCount" min="0" max="30000" step="100" aria-label="Away allocation"> fans</span><small class="note" id="awayNote"></small></div>
-            <div class="row"><label for="awayGap">Empty seats between the fans</label><output id="o-awayGap"></output><input type="range" id="awayGap" min="0" max="20" step="1"></div>
           </div>
           <div class="row"><label for="homeAt">Home end</label><select id="homeAt" aria-label="Home end"></select></div>
           <div id="homeRows">
@@ -303,15 +282,12 @@
     <details class="group look" data-pane="look" data-keep="look-night">
       <summary>Night and spectacle</summary>
       <div class="inner">
-        <label class="toggle"><input type="checkbox" id="night"> Night match under the lights</label>
-        <div class="row" id="hourRow"><label for="hour">Time of day</label><output id="o-hour"></output><input type="range" id="hour" min="6" max="21" step="0.25"></div>
+        <div class="row"><label for="kickoff">Kick-off</label><select id="kickoff"><option value="12.5">Lunchtime, 12.30</option><option value="15">Saturday, 3pm</option><option value="19.75">Summer evening, low sun</option><option value="night">Night match under the lights</option></select></div>
         <label class="toggle"><input type="checkbox" id="spectacle"> Matchday spectacle</label>
         <p class="hint">An LED halo round the roofs in the club's colours, and flares and smoke in the home end<span id="flaresHint"> (the flares need a home end, picked under Crowd and atmosphere)</span>.</p>
         <button class="btn small" id="fireworksBtn">🎆 Fireworks over the ground</button>
         <p class="hint">A 15-second swoop from high over the town, round and in over the roof, down to the touchline. Tap to stop it.</p>
         <div class="row"><button class="btn small" data-fly="play">🎬 Play the flyover</button><button class="btn small" data-fly="record">⏺ Record it as a video</button></div>
-        <label class="toggle"><input type="checkbox" id="scenery"> Real sky and fields round the ground (untick for a plain model look)</label>
-        <label class="toggle"><input type="checkbox" id="seeThrough"> See-through roofs</label>
       </div>
     </details>
 
@@ -342,7 +318,6 @@
             <div class="row"><label for="tnAt">Tunnel stand</label><select id="tnAt" aria-label="Stand the tunnel comes out of"></select></div>
             <div class="row"><label for="tnPos">Along the stand</label><output id="o-tnPos"></output><input type="range" id="tnPos" min="-40" max="40" step="1"></div>
             <div class="row"><label for="tnWidth">Width</label><output id="o-tnWidth"></output><input type="range" id="tnWidth" min="3" max="8" step="0.5"></div>
-            <label class="toggle"><input type="checkbox" id="tnExtend"> Extending tunnel out onto the pitch</label>
             <div class="row colour"><label for="tnColour">Tunnel colour</label><span class="num"><input type="color" id="tnColour" aria-label="Tunnel colour"></span></div>
           </div>
           <label class="toggle"><input type="checkbox" id="dgOn"> Dugouts</label>
@@ -357,9 +332,6 @@
         </div>
         <label class="toggle"><input type="checkbox" id="boards"> Advertising boards round the pitch</label>
         <div id="boardRows">
-          <div class="row"><label for="bdEnd">Behind the goals</label><output id="o-bdEnd"></output><input type="range" id="bdEnd" min="1" max="15" step="0.5"></div>
-          <div class="row"><label for="bdSide">Back from the touchlines</label><output id="o-bdSide"></output><input type="range" id="bdSide" min="1" max="15" step="0.5"></div>
-          <div class="row"><label for="bdHeight">Board height</label><output id="o-bdHeight"></output><input type="range" id="bdHeight" min="0.6" max="1.4" step="0.1"></div>
           <p class="hint" id="bdNote" hidden></p>
         </div>
         <div class="row"><label for="spNames">Sponsors, one per line</label></div>

@@ -10,7 +10,6 @@ function build(){
   const floorNeed = floorRows ? floorStart + floorRows*floorT + 0.9 : 1;
   const hard = hardStop(), set = Math.max(S.setback, floorNeed, hard);
   const standSet = cfg => Math.max(floorNeed, hard, cfg && cfg.dist != null ? cfg.dist : S.setback);
-  const CV = convertView();
   const radius = F.pitch ? F.r : (F.custom || F.noStands) ? (F.r > 0 ? F.r : S.corner) : S.corner; // a shaped field sets its own curve
   const poly = S.plot.on && S.plot.pts ? S.plot.pts : null;
   const site = (Array.isArray(S.site) ? S.site : []).filter(f => SITE_KINDS[f.kind] && f.length > 0 && f.width > 0);
@@ -183,30 +182,11 @@ function build(){
         if (any) for (let i=0;i<m;i++){ const g = group(i); if (g != null && lifts[g]) profs[i] = profile(tierList[i], setAt(i), lifts[g]); }
       }
     }
-    /* A convertible ground set up for its second sport: the lower tier slides back or has its front rows decked over so a
-       bigger field fits, or pull-out seats come forward towards a smaller one. Tiers above stay where they are. */
-    /* The stand's outline as built for its own sport: the roof, outside walls and anything hung from them are sized from
-       this, so converting for a second sport moves seats but never the building. */
+    /* The stand's outline: the roof, outside walls and anything hung from them are sized from this. */
     const info = profs.map(pr => { const live = pr.filter(p => !p.ghost && nRows(p) >= 1); if (!live.length) return null;
       return {back: Math.max(...live.map(p => p.front + nRows(p)*p.T)), top: Math.max(...live.map(p => p.hs[nRows(p)-1])) + 1.2, front: Math.min(...live.map(p => p.front)), prof: pr}; });
     for (const i of gapped){ const a = info[(i - 1 + m) % m], b = info[(i + 1) % m]; if (!a || !b) continue;
       const own = info[i]; info[i] = {back: Math.max(a.back, b.back), top: Math.max(a.top, b.top), front: own ? own.front : Math.min(a.front, b.front), prof: own ? own.prof : a.prof}; }
-    const decks = [];
-    if (CV && st.drawFrom === 0) for (let i=0;i<m;i++){
-      const p = profs[i][0]; if (!p || p.stacked || p.ghost || nRows(p) < 1) continue;
-      const need = lineHit(CV.poly2, o[i], v[i]); if (need == null) continue;
-      const delta = need - p.front, from = p.front;
-      if (delta > 0.2){
-        if (CV.how === "cover"){ const kc = Math.min(nRows(p), Math.ceil(delta/p.T - 1e-6)); p.front += kc*p.T; p.rows -= kc; p.hs = p.hs.slice(kc); if (p.hs.length) p.hF = p.hs[0]; }
-        else { p.front += delta; p.back += delta; p.slid = delta; }
-        decks[i] = {from, to:p.front, h: nRows(p) >= 1 ? p.hF : 0};
-      } else if (delta < -0.5 && CV.pull){
-        const k = Math.min(12, Math.floor(-delta/p.T)); if (k < 1) continue; // telescopic seating runs to about a dozen rows
-        const N0 = p.hs.length > 1 ? Math.max(.15, p.hs[1] - p.hs[0]) : .3, add = [];
-        for (let j=0;j<k;j++) add.push(Math.max(.35, p.hF - (k - j)*N0));
-        p.hs = add.concat(p.hs); p.front -= k*p.T; p.rows += k; p.hF = p.hs[0];
-      }
-    }
     if (overflow > 0.05) issue(`The ${st.name.toLowerCase()} runs ${Math.round(overflow)} m past the plot boundary${obstacles.length ? " or into its surroundings" : ""}.`, "site:" + st.name, "geo",
       {tab:st.key, fix:{label:"Cut it back to fit", run:() => { S.plot.clip = true; return true; }}});
     const marks = step => { const out = new Set(); if (lenTotal < step*0.6) return out; let next = step/2;
@@ -254,11 +234,11 @@ function build(){
     const rightAt = si => { const last = !closed && si >= m - 1, a = pt(last ? si - 1 : si, 0), b = pt(last ? si : nx(si), 0);
       return (b[0] - a[0])*(-a[1]) - (b[1] - a[1])*(-a[0]) >= 0 ? 1 : -1; }; // +1 when going along the stand is to the right, seen from the play
     const wrapS = d => closed ? d - Math.round(d/lenTotal)*lenTotal : d;
-    const blocks = [], TN = tunnelOf(), DG = dugoutsOf(), pitchy = hasDugouts() && !CV;
+    const blocks = [], TN = tunnelOf(), DG = dugoutsOf(), pitchy = hasDugouts();
     if (pitchy && TN.on){ const si = sideHere(TN.at); if (si >= 0) blocks.push({kind:"tunnel", si, c: cum[si] + rightAt(si)*TN.pos, hw: TN.width/2}); }
     if (pitchy && DG.on){ const si = sideHere(DG.at); if (si >= 0)
       for (const e2 of [-1, 1]) blocks.push({kind: DG.style === "seats" ? "padded" : DG.style === "sunk" ? "dugout" : "bubble", si, c: cum[si] + e2*(DG.gap + DG.length/2), hw: DG.length/2}); }
-    const VH = vehicleOf(); if (VH.on && !CV){ const si = sideHere(VH.at); if (si >= 0) blocks.push({kind:"vehicle", si, c: cum[si] + rightAt(si)*VH.pos, hw: VH.width/2 + .3}); }
+    const VH = vehicleOf(); if (VH.on){ const si = sideHere(VH.at); if (si >= 0) blocks.push({kind:"vehicle", si, c: cum[si] + rightAt(si)*VH.pos, hw: VH.width/2 + .3}); }
     const AC = standAccessOf(cfg), acPer = AC.per;
     if (AC.on && acPer > 0){ // along the stand's seated length (each side of a closed bowl in turn), spread out or grouped as asked
       let iL = -1, iR = -1; for (let i=0;i<m;i++) if (profs[i].some((p, k) => k >= st.drawFrom && p && !p.ghost && nRows(p) >= 1)){ if (iL < 0) iL = i; iR = i; }
@@ -449,7 +429,6 @@ function build(){
               if (j === 0) frontLen += len;
               continue; }
             let use = Math.max(0, len - Math.min(len*.49, v0) - Math.min(len*.49, v1)); // exit tunnels take seats out; gangways are already allowed for
-            if (p0.slid || p1.slid){ const q0 = pt(i, a0 + T/2 - (p0.slid || 0)), q1 = pt(j1, a1 + T/2 - (p1.slid || 0)); use = Math.min(use, Math.hypot(q1[0]-q0[0], q1[1]-q0[1])); } // a tier slid back keeps its own seats
             const PC = piecesOf(i, j1, j, f0, f1, len);
             if (PC || LG){ // piece by piece: around the tunnel and dugouts, and seat by seat where letters are spelt out
               const segL = (closed && j1 === 0 ? lenTotal : cum[j1]) - cum[i], row = nRows(best) - 1 - j; let used = 0;
@@ -485,7 +464,7 @@ function build(){
           else quad(fasc, V(i,p0.front,y00), V(j1,p1.front,y10), V(j1,p1.front,p1.hF), V(i,p0.front,p0.hF));
           if (tierType === "exec") execBoxes(buf, V, i, j1, p0, p1, n0, n1, cum[i], closed && j1 === 0 ? lenTotal : cum[j1]); else if (front === "glass") quad(buf("glass"), V(i,p0.front,p0.hF), V(j1,p1.front,p1.hF), V(j1,p1.front,p1.hF+1.1), V(i,p0.front,p0.hF+1.1));
           if (front === "concrete" || front === "brick") quad(fasc, V(i,p0.front,p0.hF), V(j1,p1.front,p1.hF), V(j1,p1.front,p1.hF+1), V(i,p0.front,p0.hF+1)); // a solid parapet
-          if (homeHere(i) && homeHere(j1) && !CV){ // the home end's banners, hung over the front of every tier
+          if (homeHere(i) && homeHere(j1)){ // the home end's banners, hung over the front of every tier
             const t0 = p0.hF + (p0.stacked ? 1.05 : .75), t1 = p1.hF + (p1.stacked ? 1.05 : .75), dh = Math.min(1.5, Math.max(.8, Math.min(t0, t1) - .2));
             (bannerRows[k] = bannerRows[k] || []).push({a:V(i, p0.front - .08, t0 - dh), b:V(j1, p1.front - .08, t1 - dh), h:dh, view:[0, 0]}); }
           if ((front === "plain" || front === "lattice") && tierType !== "exec"){ // a front wall a little under a metre above the front row (more on a balcony), with a coping
@@ -701,10 +680,6 @@ function build(){
         both("riser", V(i,da1,ha0), V(j1,db1,hb0), V(j1,db1,hb1), V(i,da1,ha1)); }
     }
 
-    // the deck over the vacated (or covered) front of the lower tier, at the second sport's level, and the wall behind it
-    for (let i=0;i<segs;i++){ const j1 = nx(i), a = decks[i], b = decks[j1]; if (!a || !b) continue;
-      quad(buf(CV.sp === "athletics" ? "track" : "aisle"), V(i,a.from,.06), V(j1,b.from,.06), V(j1,b.to,.06), V(i,a.to,.06));
-      if (a.h > .3 || b.h > .3) quad(buf("concrete"), V(i,a.to,0), V(j1,b.to,0), V(j1,b.to,b.h), V(i,a.to,a.h)); }
     /* ---------- roof: shape, reach, height, tilt, curve, material and visible structure ---------- */
 
     let topAll = standTop, RRout = null;
@@ -838,7 +813,7 @@ function build(){
       topAll = Math.max(topAll, yT + 1.5);
     }
     // façade extras: stair towers, entrance gates and window mullions on the back wall
-    const backAt = i => info[i] ? info[i].back + (roofOn ? 1.5 : 0) : null; if (st.sel && !DRY) outlineStand(buf, m, info, pt, closed); if (fac.mainEntrance && info[midI] && !DRY && !(base(midI, backAt(midI)) > 0)) mainEntrance(buf, (d, w, y) => { const q = pt(midI, backAt(midI) + d), tg = tangent(midI); return [q[0] + tg[0]*w, y, q[1] + tg[1]*w]; }, wallKey, roofOn && RRout && RRout[midI] ? RRout[midI].y(1) : info[midI].top, Math.min(20, lenTotal*.16), fac.sign ? "" : sponsorsOf().title || ""); // the stand being edited, picked out; and its grand main entrance
+    const backAt = i => info[i] ? info[i].back + (roofOn ? 1.5 : 0) : null; if (st.sel && !DRY) outlineStand(buf, m, info, pt, closed); if (fac.mainEntrance && info[midI] && !DRY && !(base(midI, backAt(midI)) > 0)) mainEntrance(buf, (d, w, y) => { const q = pt(midI, backAt(midI) + d), tg = tangent(midI); return [q[0] + tg[0]*w, y, q[1] + tg[1]*w]; }, wallKey, roofOn && RRout && RRout[midI] ? RRout[midI].y(1) : info[midI].top, Math.min(20, lenTotal*.16), fac.sign || sponsorsOf().title || ""); // the stand being edited, picked out; and its grand main entrance
     if (fac.clock === "wall" && info[midI] && !DRY){ // a stand clock high on the back wall, facing the street
       const R3 = roofOn && RRout ? RRout[midI] : null, d = (R3 ? R3.outer : info[midI].back) + .4, top = R3 ? R3.y(1) : info[midI].top, r = Math.max(1.8, Math.min(4, top*0.12));
       if (top > 2*r + 4) addClock(pt(midI, d), top - r - 1.5, pt(midI, d + 60), r); }
@@ -874,8 +849,8 @@ function build(){
     // the stadium's name (naming rights) goes along the main stand's roof front, unless that stand has lettering of its own
     const SP = sponsorsOf(), named = !fac.sign && SP.title && SP.onStand !== false && st.key === (lay === "bowl" ? "B" : lay === "ring" ? "R0" : "N");
     const HEn = homeEndOf(), homeNamed = !fac.sign && !named && HEn.name && (HEn.at === st.key || HEn.at === st.ck); // the home end's name, like the Kop's
-    const signText = fac.sign || (named ? SP.title : homeNamed ? HEn.name : ""), signAt = named || homeNamed ? "roof" : fac.signAt;
-    if (signText && !DRY){ // lettering on the outside wall, or along the roof front facing the play
+    const signText = fac.sign || (named ? SP.title : homeNamed ? HEn.name : ""), signAts = signSpots(fac, named, homeNamed, look);
+    for (const signAt of signAts) if (signText && !DRY){ // lettering on the outside wall, or along the roof front facing the play (or both, for the ground's name)
       let si = midI;
       if (closed){ let bd = Infinity; si = -1; for (let i=0;i<m;i++){ if (!info[i]) continue; const d = -v[i][1]/(Math.hypot(v[i][0], v[i][1]) || 1), xx = Math.abs(pt(i, 0)[0]); if (d > .95 && xx < bd){ bd = xx; si = i; } } } // the middle of the main side
       const x = si >= 0 ? info[si] : null, R2 = x && RRout ? RRout[si] : null;
@@ -888,7 +863,7 @@ function build(){
         let h = onRoof ? Math.max(1.4, Math.min(5, top*0.11)) : Math.max(2, Math.min(7, top*0.17)); if (h*mat.aspect > lenTotal*0.7) h = lenTotal*0.7/mat.aspect;
         /* The lettering follows the line of the roof front (or the wall) round the stand, so on a curved bowl the ends of a
            name don't disappear into the roof or the wall. It reads left to right for whoever's looking at it. */
-        const w = h*mat.aspect, wallOff = look === "fins" ? 1.9 : look === "concrete" ? 1.3 : look === "glass" ? .9 : .7;
+        const w = h*mat.aspect, wallOff = look === "fins" ? 1.9 : look === "exposed" ? 3.6 : look === "concrete" ? 1.3 : look === "glass" ? .9 : .7;
         const dOf = (i, extra) => onRoof ? (RRout[i] || R2).inner - .3 - extra : ((roofOn && RRout[i] ? RRout[i].outer : (info[i] || x).back) + wallOff - extra);
         const seg = s2 => { let xx = closed ? ((s2 % lenTotal) + lenTotal) % lenTotal : Math.max(0, Math.min(cum[m-1], s2)), i = 0;
           while (i < m - 1 && cum[i+1] <= xx) i++; if (!closed && i >= m - 1) i = m - 2; const j = nx(i), sl = (j === 0 ? lenTotal : cum[j]) - cum[i];
@@ -1191,7 +1166,7 @@ function build(){
   const FP = pitchOf(F), boardsFit = S.sport === "football" || S.sport === "rugby" || (F.custom && !(FP.r > 0) && ["wrestleball","plain"].includes(S.custom.kind));
   const BS = boardSetOf(), roomX = set + (F.W - FP.W)/2 - 1, roomZ = set + (F.H - FP.H)/2 - 1 - (S.sport === "football" ? .5 : 0);
   const offX = floorRows ? .6 : Math.min(BS.end, roomX), offZ = floorRows ? .6 : Math.min(BS.side, roomZ), bH = BS.height;
-  const boardsOn = S.boards && !CV && boardsFit && offX >= .5 && offZ >= .5;
+  const boardsOn = S.boards && boardsFit && offX >= .5 && offZ >= .5;
 
   /* ---------- obstructed views ---------- */
   { const A = S.arch || {}, H = Math.max(8, outerTop), fm = floodMode();
@@ -1223,7 +1198,7 @@ function build(){
       quad(buf("dark"), [ia[0], bH + .04, ia[1]], [ib[0], bH + .04, ib[1]], [b[0], bH + .04, b[1]], [a[0], bH + .04, a[1]]); }
     adStrip(runs(Pb).map(([a, b]) => ({a:[a[0], 0.04, a[1]], b:[b[0], 0.04, b[1]], h:bH - .04, view:[0, 0]})));
   }
-  addProps(group, CV ? CV.F2 : pitchOf(F), buf, CV ? CV.sp : undefined);
+  addProps(group, pitchOf(F), buf);
   drawSheets();
   for (const key in Bf) if (Bf[key].length){
     const mesh = meshFrom(Bf[key], M[key], !["roof","roofGlass","glass","roofClosed","aisle","void","glassClad","obsSlight","obsBad"].includes(key));
@@ -1233,12 +1208,12 @@ function build(){
   }
   if (window.__gwCheck){ let bad = 0, verts = 0; for (const k in Bf){ const arr = Bf[k]; verts += arr.length/3; for (let i=0;i<arr.length;i++) if (!isFinite(arr[i])) bad++; } result.nan = bad; result.verts = verts; result.nanKeys = Object.keys(Bf).filter(k => Bf[k].some(x => !isFinite(x))); }
   // set up for a second sport, the floor shows its markings, big enough to reach the stands either way
-  const {tex, Wt, Ht} = CV ? floorTexture(CV.F2, Math.max(1, (F.W + 2*set - CV.F2.W)/2, (F.H + 2*set - CV.F2.H)/2), CV.sp) : floorTexture(F, set);
+  const {tex, Wt, Ht} = floorTexture(F, set);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(Wt, Ht), new THREE.MeshStandardMaterial({map:tex, roughness:1}));
   floor.rotation.x = -Math.PI/2; floor.position.y = 0.02; floor.receiveShadow = true; group.add(floor);
   if (S.crowd !== false && !DRAFT) addCrowd(allRecs, F); else CROWD = null;
   if (!DRY){ if (S.flares && S.crowd !== false && !DRAFT) addFlares(allRecs); else SPECTACLE = null; }
-  if (S.players) addPlayers(CV ? CV.F2 : pitchOf(F), CV ? CV.sp : S.sport);
+  if (S.players) addPlayers(pitchOf(F), S.sport);
   let ext = sext.slice();
   if (poly){
     const xs = poly.map(p => p[0]), zs = poly.map(p => p[1]);
