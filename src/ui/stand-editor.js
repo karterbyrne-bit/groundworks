@@ -419,7 +419,7 @@ function renderGroundRoof(){
     ${pair("Reaches past the front row", p("reach"), gr.reach, -20, 40, 0.5, "m", gr.shape === "follow" ? "Negative leaves the front rows open." : "Measured halfway along the long sides. Negative leaves the front rows open.")}
     ${gr.cover !== "closed" ? pick("Height", p("height"), gr.height || "level", GROUND_ROOF_HEIGHTS) : ""}${pair(gr.height === "stands" && gr.cover !== "closed" ? "Height above each stand" : "Height above the tallest stand", p("lift"), gr.lift, 1.5, 40, 0.5, "m")}
     ${pair("Tilt up towards the play", p("tilt"), gr.tilt, -15, 25, 1, "°")}${pair("Curve", p("curve"), Math.round((gr.curve||0)*100), 0, 100, 5, "%")}
-    ${check("Close in the outside, down to the ground", p("wall"), gr.wall)}`;
+    ${check("Close in the outside, from the roof down to the backs of the stands", p("wall"), gr.wall)}`;
 }
 /* A famous roof: its settings, and the architecture that goes with it (its own arch, ramps or skin, and none left over from another). */
 function applyFamousRoof(k){ const f = FAMOUS_ROOFS[k]; if (!f) return;
