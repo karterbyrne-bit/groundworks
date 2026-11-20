@@ -238,13 +238,12 @@
     <details class="group look" data-pane="look" data-keep="look-colours" open>
       <summary>Colours and name</summary>
       <div class="inner">
-        <div class="row"><label>Seat colour</label></div>
-        <div class="swatches" id="swatches" role="group" aria-label="Seat colour"></div>
+        <div class="row colour"><label for="seatColour">Seat colour</label><span class="num"><input type="color" id="seatColour" aria-label="Seat colour"></span></div>
         <div class="row"><label for="seatPattern">Seat pattern</label>
           <select id="seatPattern"><option value="solid">One colour</option><option value="bands">Bands of rows</option><option value="tiers">Alternate tiers</option><option value="mosaic">Scattered mosaic</option></select></div>
         <div class="row"><label for="seatText">Letters in the seats</label><input type="text" id="seatText" maxlength="24" placeholder="e.g. UNITED" aria-label="Letters spelt out in the seats"></div>
         <div class="row" id="seatTextAtRow"><label for="seatTextAt">Stand with the letters</label><select id="seatTextAt" aria-label="Stand with letters in its seats"></select></div>
-        <div class="row" id="seat2Row"><label for="seat2">Second colour</label><input type="color" id="seat2" value="#f2f2f2"></div>
+        <div class="row colour" id="seat2Row"><label for="seat2">Second colour</label><span class="num"><input type="color" id="seat2" value="#f2f2f2" aria-label="Second colour"></span></div>
         <div class="row"><label for="spTitle">Stadium name</label><input type="text" id="spTitle" maxlength="30" placeholder="e.g. Kestrel Bank Arena" aria-label="Stadium name"></div>
         <div class="row colour" id="spTitleRow"><label for="spTitleColour">Name colour</label><span class="num"><input type="color" id="spTitleColour" value="#ffffff" aria-label="Name colour"></span></div>
         <label class="toggle" id="spOnStandRow"><input type="checkbox" id="spOnStand"> Put the name along the main stand's roof</label>
@@ -318,6 +317,7 @@
             <div class="row"><label for="tnAt">Tunnel stand</label><select id="tnAt" aria-label="Stand the tunnel comes out of"></select></div>
             <div class="row"><label for="tnPos">Along the stand</label><output id="o-tnPos"></output><input type="range" id="tnPos" min="-40" max="40" step="1"></div>
             <div class="row"><label for="tnWidth">Width</label><output id="o-tnWidth"></output><input type="range" id="tnWidth" min="3" max="8" step="0.5"></div>
+            <label class="toggle"><input type="checkbox" id="tnExtend"> Extending tunnel out onto the pitch</label>
             <div class="row colour"><label for="tnColour">Tunnel colour</label><span class="num"><input type="color" id="tnColour" aria-label="Tunnel colour"></span></div>
           </div>
           <label class="toggle"><input type="checkbox" id="dgOn"> Dugouts</label>
