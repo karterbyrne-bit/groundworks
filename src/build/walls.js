@@ -200,13 +200,13 @@ function dressWall(buf, look, wallKey, a, b, ya, yb, n, opt){
     ledge("trim", lo - .8, lo - .2, .3, true);
   }
   else if (look === "exposed"){ // the back of most British stands: the frame on show, not hidden behind a wall
-    const nC = cells(8), conc = Math.min(4.2, lo - 1.5), cw = .7/len;
+    const conc = Math.min(4.2, lo - 1.5), cw = .7/len, bays = Math.max(1, Math.round(total/8)), step = total/bays; // laid out along the whole stand, not piece by piece
     if (conc > 2.4){ panel("void", 0, 1, 0, conc, .03); ledge("concrete", conc, conc + .8, .55); } // open concourse bays under a beam
-    for (let c=0;c<=nC;c++) rib("concrete", c/nC, .7, 0, Math.max(conc + 1, top(c/nC) - .3), .65); // the columns
-    for (let c=0;c<nC;c++){ const f0 = c/nC + cw, f1 = (c + 1)/nC - cw; // a raking beam climbing each bay with the seats behind
-      slant("steel", f0, conc + 1.1, f1, Math.max(conc + 1.6, top(f1) - .9), .55, .4); }
-    const cores = Math.max(1, Math.round(len/45)), cwid = Math.min(6, len/(cores*3))/len;
-    for (let k=0;k<cores;k++){ const fc = (k + .5)/cores; // stair cores: solid concrete towers with a slit of window up each
+    for (let k=0;k<=bays;k++){ const d = k*step; if (d < s0 || d > s0 + len) continue; const fc = at(d);
+      rib("concrete", fc, .7, 0, Math.max(conc + 1, top(Math.min(1, fc)) - .3), .65); // the columns
+      if (k < bays){ const f1 = at(d + step) - cw; slant("steel", fc + cw, conc + 1.1, f1, Math.max(conc + 1.6, top(Math.min(1, f1)) - .9), .55, .4); } } // a raking beam climbing each bay with the seats behind
+    const cores = Math.max(1, Math.round(total/45)), cwid = Math.min(6, total/(cores*3))/len;
+    for (let k=0;k<cores;k++){ const d = (k + .5)*total/cores; if (!here(d)) continue; const fc = at(d); // stair cores: solid concrete towers with a slit of window up each
       block("concrete", fc - cwid, fc + cwid, 0, top(fc) + 1, 0, 3.4); panel("window", fc - .25/len, fc + .25/len, 1.5, Math.max(2, top(fc) - 1), 3.43); }
   }
   if (opt.concourse && lo > 6 && look !== "fins" && look !== "glass" && look !== "exposed"){ // a glazed concourse along the ground floor, under a canopy

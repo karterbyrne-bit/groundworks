@@ -133,6 +133,11 @@ for (const [name, viewport] of [["desktop", { width: 1400, height: 900 }], ["pho
   await page.click('#panes [data-pane="stands"]');
   await page.locator('select[data-p="facade.look"]').selectOption("glass"); await page.waitForTimeout(300);
   check((await page.evaluate(() => window.__gw.state().bowl.facade.look)) === "glass", "the outside-wall look can be changed");
+  check(!(await page.locator('select[data-p="facade.winLook"]').count()), "a look with no windows of its own doesn't offer a Windows menu");
+  await page.locator('select[data-p="facade.look"]').selectOption("brick"); await page.waitForTimeout(300);
+  await page.locator('select[data-p="facade.winLook"]').selectOption("big"); await page.waitForTimeout(300);
+  check(await page.evaluate(() => { const f = window.__gw.state().bowl.facade; return f.windows === .75 && f.winSize === 1.5; }), "on brick, the Windows menu sets how many windows and how big");
+  await page.locator('select[data-p="facade.look"]').selectOption("glass"); await page.waitForTimeout(300);
   await page.click('#panes [data-pane="start"]');
 
   // bowls with parts left out and their own rows on each side, and one roof over the whole ground

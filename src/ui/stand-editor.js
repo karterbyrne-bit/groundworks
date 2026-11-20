@@ -232,7 +232,7 @@ function renderEditor(){
         ${colourPick("Wall colour", "facade.colour", fac.colour, "#" + (sty.clad || 0x888888).toString(16).padStart(6, "0"))}
         ${colourPick("Accent colour", "facade.accent", fac.accent, "#d9d2c2")}
         <p class="hint">The accent colours the trims, bands, ribs and fins.</p>
-        ${(() => { const w = fac.windows == null ? 1 : fac.windows, z = fac.winSize || 1, near = Object.keys(WINDOW_LOOKS).sort((a, b) => { const d = k => Math.abs(WINDOW_LOOKS[k][1][0] - w) + Math.abs(WINDOW_LOOKS[k][1][1] - z); return d(a) - d(b); })[0];
+        ${!["brick", "timber", "deco", "concrete", "grid"].includes(FACADE_LOOKS[fac.look] ? fac.look : sty.look || "plain") ? `<p class="hint">This look has no windows of its own: pick brick, timber, art deco, concrete or windows all over to choose them.</p>` : (() => { const w = fac.windows == null ? 1 : fac.windows, z = fac.winSize || 1, near = Object.keys(WINDOW_LOOKS).sort((a, b) => { const d = k => Math.abs(WINDOW_LOOKS[k][1][0] - w) + Math.abs(WINDOW_LOOKS[k][1][1] - z); return d(a) - d(b); })[0];
           return pick("Windows", "facade.winLook", near, Object.fromEntries(Object.entries(WINDOW_LOOKS).map(([k, v]) => [k, v[0]]))); })()}
         ${check("Glazed concourse along the ground floor", "facade.concourse", fac.concourse)}
         <div class="row"><label for="facSign">Lettering</label><input type="text" id="facSign" data-p="facade.sign" maxlength="30" value="${esc(fac.sign || "")}" placeholder="e.g. YOUR CLUB" aria-label="Lettering"></div>
