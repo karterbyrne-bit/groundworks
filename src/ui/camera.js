@@ -413,7 +413,7 @@ function loop(now){
   const moved = controls.update() && (camera.position.distanceToSquared(lastCamP) > 1e-6 || controls.target.distanceToSquared(lastCamT) > 1e-6); constrain();
   lastCamP.copy(camera.position); lastCamT.copy(controls.target);
   let ticked = false; for (const f of TICKERS){ ticked = true; if (!f(now)) TICKERS.delete(f); }
-  if (moved || anim || ticked || dirty > 0){ sharpen(false); renderer.render(scene, camera); if (dirty > 0) dirty--; idle = 0; settleAO(); }
+  if (moved || anim || ticked || dirty > 0){ sharpen(false); renderer.render(scene, camera); sideHints(); if (dirty > 0) dirty--; idle = 0; settleAO(); }
   else idle++;
   if (idle > 30 && !controls.autoRotate && !document.hidden){ awake = false; return; }
   requestAnimationFrame(loop);
