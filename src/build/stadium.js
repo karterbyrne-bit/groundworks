@@ -594,7 +594,7 @@ function build(){
             quad(buf("glass"), Q(s0,dF,yF), Q(s1,dF,yF), Q(s1,dF,1.05), Q(s0,dF,1.05)); }
           else { // a green exit sign over the tunnel mouth, and the extending tunnel out towards the pitch
             const c = Q(b.c, dB - .05, top - .35); post(buf("emerg"), c[0], c[2], top - .55, top - .2, .5);
-            if (TN.extend){ const reach = Math.min(8, dF - .6), d1 = dF - reach, w = b.hw + .15, key = tint("fascia", colour);
+            if (TN.extend){ const reach = Math.min(8, dF - .6, Math.max(1.5, Math.min(F.W, F.H)*.12)), d1 = dF - reach, w = b.hw + .15, key = tint("fascia", colour);
               if (reach > 1){ const r0 = b.c - w, r1 = b.c + w, h = 2.5, wa = Q(r0, (d1 + dF)/2, 0), wb = Q(r1, (d1 + dF)/2, 0); viewWalls.push({a:[wa[0], wa[2]], b:[wb[0], wb[2]], y0:0, y1:h, cause:"dugout"});
                  arc = [[0, h - .5], [.25, h - .15], [.5, h], [.75, h - .15], [1, h - .5]];
                 for (const e2 of [r0, r1]) quad(buf(key), Q(e2,d1,0), Q(e2,dF,0), Q(e2,dF,h - .5), Q(e2,d1,h - .5));
