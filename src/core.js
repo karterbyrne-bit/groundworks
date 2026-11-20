@@ -279,9 +279,8 @@ const AO = (() => { try {
   return {gtao, overlay, off: true, ms: 0, frames: 0}; // off in the live view, to keep it quick; Save as image still uses it
 } catch(e){ return null; } })();
 function drawAO(){
-  const t0 = performance.now();
   const g = AO.gtao; g.camera = camera;
-  renderer.render(scene, camera);
+  renderer.render(scene, camera); const t0 = performance.now(); // time the shading pass alone
   const see = []; scene.traverse(o => { if (o.userData.noAO && o.visible){ o.visible = false; see.push(o); } }); // glows and smoke cast no shading
   g.render(renderer, null, null); for (const o of see) o.visible = true;
   AO.overlay.uniforms.tAO.value = g.pdRenderTarget.texture; g._renderPass(renderer, AO.overlay, null); AO.frames++; // multiplied over the frame just drawn

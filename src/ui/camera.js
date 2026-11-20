@@ -372,6 +372,10 @@ function resize(){ const w = view.clientWidth, h = view.clientHeight; if (!w || 
   if (AO){ const pr = LIGHT ? 1 : renderer.getPixelRatio(); AO.gtao.setSize(Math.round(w*pr), Math.round(h*pr)); }
   if (camera === ortho){ const hh = (ortho.top - ortho.bottom)/2; ortho.left = -hh*w/h; ortho.right = hh*w/h; ortho.updateProjectionMatrix(); } }
 new ResizeObserver(resize).observe(view);
+/* Phones draw moving frames at a lower sharpness to stay smooth, then redraw the still frame at the screen's own
+   sharpness, so the crowd, trusses and lettering come out crisp once the camera stops. */
+const FAST_PR = renderer.getPixelRatio(), SHARP_PR = LIGHT ? Math.min(2.5, window.devicePixelRatio || 1) : FAST_PR;
+const sharpen = on => { const pr = on ? SHARP_PR : FAST_PR; if (renderer.getPixelRatio() !== pr) renderer.setPixelRatio(pr); };
 /* The frame loop stops altogether once nothing has moved for half a second, so a stadium left on screen uses no power.
    Anything that changes the view (a touch, a key, a camera move or a rebuild) wakes it again. */
 var awake = false, idle = 0, aoTimer = 0;
@@ -386,13 +390,13 @@ function settleNow(){
   if (anim){ camera.position.copy(anim.p); controls.target.copy(anim.t); anim = null; applyLimits(); }
   const d = controls.enableDamping; controls.enableDamping = false; controls.update(); controls.enableDamping = d; redraw();
 }
-function settleAO(){ clearTimeout(aoTimer); aoTimer = setTimeout(() => { if (AO && !AO.off && camera === persp && !anim && !controls.autoRotate) requestAnimationFrame(() => { if (!anim && !dirty){ drawAO(); idle = 31; } }); }, 300); } // the still frame is the last: sleep straight after it
+function settleAO(){ clearTimeout(aoTimer); aoTimer = setTimeout(() => { const ao = AO && !AO.off && camera === persp; if ((ao || SHARP_PR !== FAST_PR) && !anim && !fly && !controls.autoRotate) requestAnimationFrame(() => { if (!anim && !dirty){ sharpen(true); if (ao) drawAO(); else renderer.render(scene, camera); idle = 31; } }); }, 300); } // the still frame is the last: sleep straight after it
 /* Things that move on their own for a while (a Mexican wave). Each is called every frame until it returns false. */
 var TICKERS = new Set(); // var: invalidate() can call wake() before this line has run
 function wake(){ idle = 0; if (!awake){ awake = true; requestAnimationFrame(loop); } if (SPECTACLE && !SPECTACLE.ticking) spectacleWake(); }
 function loop(now){
   if (fly){ const k = Math.min(1, (now - fly.start)/fly.dur), q = flyPose(k); // the kick-off flyover: the camera is flown, not orbited
-    camera.position.copy(q.p); controls.target.copy(q.t); camera.lookAt(q.t); renderer.render(scene, camera); idle = 0;
+    camera.position.copy(q.p); controls.target.copy(q.t); camera.lookAt(q.t); sharpen(false); renderer.render(scene, camera); idle = 0;
     if (k > .86 && !fly.titled){ fly.titled = true; flyTitle(true); }
     if (k >= 1){ const f = fly; fly = null; goCam("pitch", true); flyDone(f, true); }
     requestAnimationFrame(loop); return; }
@@ -402,7 +406,7 @@ function loop(now){
   const moved = controls.update() && (camera.position.distanceToSquared(lastCamP) > 1e-6 || controls.target.distanceToSquared(lastCamT) > 1e-6); constrain();
   lastCamP.copy(camera.position); lastCamT.copy(controls.target);
   let ticked = false; for (const f of TICKERS){ ticked = true; if (!f(now)) TICKERS.delete(f); }
-  if (moved || anim || ticked || dirty > 0){ renderer.render(scene, camera); if (dirty > 0) dirty--; idle = 0; settleAO(); }
+  if (moved || anim || ticked || dirty > 0){ sharpen(false); renderer.render(scene, camera); if (dirty > 0) dirty--; idle = 0; settleAO(); }
   else idle++;
   if (idle > 30 && !controls.autoRotate && !document.hidden){ awake = false; return; }
   requestAnimationFrame(loop);
