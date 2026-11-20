@@ -64,10 +64,6 @@ body.present .hud{display:none}
 .hint{font-size:12px;color:var(--muted);line-height:1.45;margin:0}
 select,input[type=number]{font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink)}
 input[type=number]{width:78px;font-family:var(--f-mono);font-size:12.5px;text-align:right}
-.swatches{display:flex;gap:8px;flex-wrap:wrap}
-.swatches button{width:30px;height:30px;border-radius:50%;border:2px solid var(--panel);box-shadow:0 0 0 1px var(--line);cursor:pointer;padding:0}
-.swatches button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--accent)}
-.swatches button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .toggle{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;line-height:1.35}
 .toggle input{accent-color:var(--accent);width:16px;height:16px;flex:none}
 .presets{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -271,9 +267,8 @@ body.flying .hud,body.flying .tip,body.flying .viewbar,body.flying .bookmarks{vi
 
 /* ================= polish: motion, touch, new surfaces ================= */
 :root{--ease:cubic-bezier(.2,.8,.2,1);--shadow:0 10px 30px rgba(15,25,20,.18),0 2px 6px rgba(15,25,20,.08)}
-.btn,.cams button,.shows button,.more button,.tabs button,.panes button,.seg label,.seg button,.swatches button,.savelist button,.chip button,.hud,.mini{transition:background-color .18s var(--ease),border-color .18s var(--ease),color .18s var(--ease),box-shadow .18s var(--ease),transform .12s var(--ease)}
+.btn,.cams button,.shows button,.more button,.tabs button,.panes button,.seg label,.seg button,.savelist button,.chip button,.hud,.mini{transition:background-color .18s var(--ease),border-color .18s var(--ease),color .18s var(--ease),box-shadow .18s var(--ease),transform .12s var(--ease)}
 .btn:active:not(:disabled),.cams button:active,.shows button:active,.tabs button:active,.hud:active,.savelist button:active,.mini:active{transform:scale(.97)}
-.swatches button:hover{transform:scale(1.08)}
 .cams button:hover,.shows button:hover{border-color:var(--accent)}
 .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:500;text-align:center}
 .btn.primary:hover{filter:brightness(1.08)}
@@ -358,7 +353,6 @@ kbd{font-family:var(--f-mono);font-size:11px;padding:1px 6px;border:1px solid va
   details.group > summary{padding-block:12px}
   .toggle input{width:20px;height:20px}
   .row input[type=range]{height:28px}
-  .swatches button{width:36px;height:36px}
 }
 @media (max-width:420px){.quick{grid-template-columns:1fr}}
 @media (prefers-reduced-motion: reduce){
@@ -385,7 +379,7 @@ kbd{font-family:var(--f-mono);font-size:11px;padding:1px 6px;border:1px solid va
 .plotpt{display:grid;grid-template-columns:auto 1fr 1fr auto;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
 .plotpt label{display:flex;align-items:center;gap:4px;font-family:var(--f-mono);font-size:11px}
 .plotpt input{width:100%;min-width:0;box-sizing:border-box;padding:5px 4px}
-.row.colour input[type=color]{width:40px;height:28px;padding:0 2px;border:1px solid var(--line);border-radius:6px;background:var(--paper)}
+input[type=color]{width:40px;height:28px;padding:0 2px;border:1px solid var(--line);border-radius:6px;background:var(--paper)}
 .reach{display:flex;flex-direction:column;gap:6px;padding:8px 0 2px;border-top:1px dashed var(--line)}
 .siderows select{width:100%;min-width:0;box-sizing:border-box;font-size:11.5px;padding:4px 2px}
 /* Simple and advanced: the switch at the top right, and what Simple leaves out. */

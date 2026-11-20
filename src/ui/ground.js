@@ -110,11 +110,7 @@ $("plotAdd").addEventListener("click", () => { // a new corner halfway along the
   pts.forEach((p, i) => { const q = pts[(i+1)%pts.length], l = Math.hypot(q[0]-p[0], q[1]-p[1]); if (l > bl){ bl = l; bi = i; } });
   const p = pts[bi], q = pts[(bi+1)%pts.length]; pts.splice(bi+1, 0, [Math.round((p[0]+q[0])/2), Math.round((p[1]+q[1])/2)]);
   S.plot.pts = pts; plotDrawn = null; changed(); toast(`<b>Corner ${bi+2} added</b> halfway along the longest edge. Drag its post or type where it goes.`); });
-for (const s of SWATCHES){
-  const b = document.createElement("button"); b.style.background = s[1]; b.title = s[0]; b.setAttribute("aria-label", s[0]); b.dataset.hex = s[1];
-  b.addEventListener("click", () => { S.seat = s[1]; setSeatColours(); changed(); });
-  $("swatches").appendChild(b);
-}
+$("seatColour").addEventListener("input", e => { S.seat = e.target.value; setSeatColours(); changed(false, true); });
 function bindRadio(name, fn){ document.querySelectorAll(`input[name=${name}]`).forEach(r => r.addEventListener("change", () => fn(r.value))); }
 bindRadio("sport", v => { S.sport = v; S.setback = v === "custom" ? (KINDS[S.custom.kind] || KINDS.plain).set : SPORTS[v].set; S.plot.pts = null; S.plot.on = false; renderEditor(); changed(true); });
 bindRadio("layout", v => { S.layout = v; if (v === "hybrid") tab = "B"; if (v === "ring") tab = "R0"; renderEditor(); changed(true); });
@@ -170,6 +166,7 @@ const tnSet = (k, v) => { S.tunnel = Object.assign(tunnelOf(), {[k]: v}); }, dgS
 $("dgStyle").innerHTML = Object.entries(DUGOUT_STYLES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
 $("tnOn").addEventListener("change", e => { tnSet("on", e.target.checked); changed(); });
 $("tnAt").addEventListener("change", e => { tnSet("at", e.target.value); changed(); });
+$("tnExtend").addEventListener("change", e => { tnSet("extend", e.target.checked); changed(); });
 $("tnColour").addEventListener("input", e => { tnSet("colour", e.target.value); changed(false, true); });
 bindRange("tnPos", v => tnSet("pos", v)); bindRange("tnWidth", v => tnSet("width", v));
 $("dgOn").addEventListener("change", e => { dgSet("on", e.target.checked); changed(); });

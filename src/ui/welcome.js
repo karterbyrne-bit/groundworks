@@ -93,7 +93,7 @@ function syncUI(){
     $("tnOn").checked = TNs.on; $("tnRows").hidden = !TNs.on; sel("tnAt", TNs.at);
     $("tnPos").value = TNs.pos; $("o-tnPos").textContent = TNs.pos ? `${Math.abs(TNs.pos)} m ${TNs.pos < 0 ? "left" : "right"}` : "middle";
     $("tnWidth").value = TNs.width; $("o-tnWidth").textContent = TNs.width + " m";
-    if (document.activeElement !== $("tnColour")) $("tnColour").value = TNs.colour || S.seat;
+    $("tnExtend").checked = TNs.extend !== false; if (document.activeElement !== $("tnColour")) $("tnColour").value = TNs.colour || S.seat;
     $("dgOn").checked = DGs.on; $("dgRows").hidden = !DGs.on; $("dgStyle").value = DGs.style; sel("dgAt", DGs.at);
     $("dgLength").value = DGs.length; $("o-dgLength").textContent = DGs.length + " m";
     $("dgGap").value = DGs.gap; $("o-dgGap").textContent = DGs.gap + " m";
@@ -121,7 +121,7 @@ function syncUI(){
     $("seatTextAtRow").hidden = !T.text; }
   $("seatPattern").value = S.seatPattern || "solid"; $("seat2Row").hidden = (S.seatPattern || "solid") === "solid" && !(S.seatText && S.seatText.text);
   if (document.activeElement !== $("seat2")) $("seat2").value = S.seat2 || "#f2f2f2";
-  $("swatches").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.hex === S.seat)));
+  if (document.activeElement !== $("seatColour")) $("seatColour").value = S.seat;
   syncSizes(); syncLimits();
 }
 let pending = false, recam = false;
